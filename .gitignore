@@ -1,0 +1,147 @@
+# SC AI Lead Generation System - Git Ignore Rules
+
+# ===========================
+# Python
+# ===========================
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+__pycache__/
+*.pyc
+
+# ===========================
+# Virtual Environment
+# ===========================
+venv/
+ENV/
+env/
+.venv
+
+# ===========================
+# Flask
+# ===========================
+instance/
+.webassets-cache
+
+# ===========================
+# Environment Variables
+# ===========================
+.env
+.env.local
+.env.*.local
+
+# ===========================
+# Database
+# ===========================
+*.db
+*.sqlite
+*.sqlite3
+data/database.db
+
+# ===========================
+# User Data & Uploads
+# ===========================
+data/uploads/*
+!data/uploads/.gitkeep
+data/exports/*
+!data/exports/.gitkeep
+data/personas/*
+!data/personas/.gitkeep
+
+# ===========================
+# Logs
+# ===========================
+logs/
+*.log
+
+# ===========================
+# IDE & Editor
+# ===========================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ===========================
+# Selenium & Browser Drivers
+# ===========================
+chromedriver
+chromedriver.exe
+geckodriver
+geckodriver.exe
+selenium-debug.log
+
+# ===========================
+# Testing
+# ===========================
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+.hypothesis/
+
+# ===========================
+# Jupyter Notebook
+# ===========================
+.ipynb_checkpoints
+
+# ===========================
+# Celery
+# ===========================
+celerybeat-schedule
+celerybeat.pid
+
+# ===========================
+# Temporary Files
+# ===========================
+*.tmp
+*.temp
+*.bak
+*.cache
+
+# ===========================
+# CSV Exports (keep structure, ignore data)
+# ===========================
+data/exports/*.csv
+!data/exports/sample.csv
+
+# ===========================
+# Credentials & Secrets
+# ===========================
+credentials.json
+secrets.json
+*.pem
+*.key
+
+# ===========================
+# OS-specific
+# ===========================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
