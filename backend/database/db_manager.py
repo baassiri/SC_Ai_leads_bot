@@ -108,10 +108,34 @@ class DatabaseManager:
             session.flush()
             return persona.id
     
+# FIXED VERSION OF get_all_personas() METHOD
+    # Replace this method in backend/database/db_manager.py
+
+# FIX FOR db_manager.py - Replace the get_all_personas method
+
     def get_all_personas(self):
-        """Get all personas"""
+        """Get all personas - returns serialized dictionaries"""
         with self.session_scope() as session:
-            return session.query(Persona).all()
+            personas = session.query(Persona).all()
+            
+            # Serialize personas while session is still open
+            personas_data = []
+            for p in personas:
+                personas_data.append({
+                    'id': p.id,
+                    'name': p.name,
+                    'description': p.description,
+                    'age_range': p.age_range,
+                    'gender_distribution': p.gender_distribution,
+                    'goals': p.goals,
+                    'pain_points': p.pain_points,
+                    'key_message': p.key_message,
+                    'message_tone': p.message_tone,
+                    'created_at': p.created_at.isoformat() if p.created_at else None,
+                    'updated_at': p.updated_at.isoformat() if p.updated_at else None
+                })
+            
+            return personas_data
     
     def get_persona_by_name(self, name):
         """Get persona by name"""
@@ -149,7 +173,35 @@ class DatabaseManager:
     def get_lead_by_id(self, lead_id):
         """Get lead by ID"""
         with self.session_scope() as session:
-            return session.query(Lead).filter(Lead.id == lead_id).first()
+            lead = session.query(Lead).filter(Lead.id == lead_id).first()
+            
+            if not lead:
+                return None
+            
+            # Serialize lead while session is open
+            lead_data = {
+                'id': lead.id,
+                'name': lead.name,
+                'title': lead.title,
+                'company': lead.company,
+                'industry': lead.industry,
+                'location': lead.location,
+                'profile_url': lead.profile_url,
+                'headline': lead.headline,
+                'summary': lead.summary,
+                'company_size': lead.company_size,
+                'ai_score': lead.ai_score,
+                'status': lead.status,
+                'connection_status': lead.connection_status,
+                'persona_id': lead.persona_id,
+                'persona_name': lead.persona.name if lead.persona else None,
+                'score_reasoning': lead.score_reasoning,
+                'scraped_at': lead.scraped_at.isoformat() if lead.scraped_at else None,
+                'contacted_at': lead.contacted_at.isoformat() if lead.contacted_at else None,
+                'replied_at': lead.replied_at.isoformat() if lead.replied_at else None
+            }
+            
+            return lead_data
     
     def get_all_leads(self, status=None, min_score=None, persona_id=None, limit=None):
         """Get all leads with optional filters"""
@@ -168,8 +220,30 @@ class DatabaseManager:
             if limit:
                 query = query.limit(limit)
             
-            return query.all()
-    
+            leads = query.all()
+            
+            # Serialize leads while session is open
+            leads_data = []
+            for lead in leads:
+                leads_data.append({
+                    'id': lead.id,
+                    'name': lead.name,
+                    'title': lead.title,
+                    'company': lead.company,
+                    'industry': lead.industry,
+                    'location': lead.location,
+                    'profile_url': lead.profile_url,
+                    'headline': lead.headline,
+                    'ai_score': lead.ai_score,
+                    'status': lead.status,
+                    'connection_status': lead.connection_status,
+                    'persona_id': lead.persona_id,
+                    'persona_name': lead.persona.name if lead.persona else None,
+                    'scraped_at': lead.scraped_at.isoformat() if lead.scraped_at else None
+                })
+            
+            return leads_data
+        
     def update_lead_score(self, lead_id, ai_score, persona_id=None, score_reasoning=None):
         """Update lead AI score"""
         with self.session_scope() as session:

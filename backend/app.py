@@ -163,6 +163,8 @@ def test_connection():
 # API ROUTES - FILE UPLOAD
 # ==========================================
 
+# FIX FOR app.py - Replace the upload_targets function
+
 @app.route('/api/upload-targets', methods=['POST'])
 def upload_targets():
     """Upload and parse Targets.docx"""
@@ -191,9 +193,17 @@ def upload_targets():
         upload_path = Config.UPLOAD_DIR / file.filename
         file.save(str(upload_path))
         
-        # TODO: Parse document and extract persona data
-        # For now, we'll use the seeded personas
-        personas = db_manager.get_all_personas()
+        # Parse document and extract persona data
+        from backend.ai_engine.persona_parser import PersonaParser
+        
+        parser = PersonaParser(docx_path=str(upload_path))
+        personas_data = parser.parse_document()
+        
+        # Save personas to database
+        saved_count = parser.save_to_database()
+        
+        # Get all personas from database (now returns serialized dicts)
+        personas_list = db_manager.get_all_personas()
         
         # Log activity
         db_manager.log_activity(
@@ -204,17 +214,20 @@ def upload_targets():
         
         return jsonify({
             'success': True,
-            'message': f'File uploaded successfully! {len(personas)} personas loaded.',
-            'personas_count': len(personas),
-            'personas': [{'id': p.id, 'name': p.name} for p in personas]
+            'message': f'File uploaded successfully! {len(personas_list)} personas loaded ({saved_count} new).',
+            'personas_count': len(personas_list),
+            'personas': personas_list  # ✅ Already serialized!
         })
         
     except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Error in upload_targets: {error_details}")
+        
         return jsonify({
             'success': False,
             'message': f'Error uploading file: {str(e)}'
         }), 500
-
 
 # ==========================================
 # API ROUTES - BOT CONTROL

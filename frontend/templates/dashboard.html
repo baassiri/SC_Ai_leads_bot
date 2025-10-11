@@ -357,5 +357,75 @@
             }
         }, 5000);
     </script>
+    <!-- Hidden File Input -->
+<input type="file" id="file-upload-input" accept=".docx" style="display: none;">
+
+<script>
+// Upload Target Document functionality
+document.addEventListener('DOMContentLoaded', function() {
+    // Get the upload button (it's in the sidebar)
+    const uploadBtn = document.querySelector('.sidebar button.bg-secondary');
+    const fileInput = document.getElementById('file-upload-input');
+    
+    if (uploadBtn && fileInput) {
+        uploadBtn.addEventListener('click', function() {
+            fileInput.click();
+        });
+        
+        fileInput.addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            // Show loading notification
+            showNotification('Uploading file...', 'info');
+            
+            try {
+                const response = await fetch('/api/upload-targets', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    // Update personas count
+                    if (data.personas_count) {
+                        document.querySelector('.sidebar .text-lg.font-bold').textContent = data.personas_count;
+                    }
+                } else {
+                    showNotification(data.message || 'Failed to upload file', 'error');
+                }
+            } catch (error) {
+                console.error('Error uploading file:', error);
+                showNotification('Error uploading file', 'error');
+            }
+            
+            // Reset file input
+            fileInput.value = '';
+        });
+    }
+    
+    // Notification function
+    function showNotification(message, type = 'info') {
+        const notification = document.createElement('div');
+        notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 ${
+            type === 'success' ? 'bg-success text-white' : 
+            type === 'error' ? 'bg-danger text-white' : 
+            'bg-secondary text-white'
+        }`;
+        notification.textContent = message;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.remove();
+        }, 3000);
+    }
+});
+</script>
 </body>
 </html>
