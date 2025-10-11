@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leads | Aesthetic LinkWizard Pro</title>
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+    <script src="https://unpkg.com/feather-icons"></script>
+    <script src="https://cdn.datatables.net/1.10.25/js/jquery.dataTables.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.10.25/css/jquery.dataTables.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#2C3E50',
+                        secondary: '#3498DB',
+                        success: '#27AE60',
+                        warning: '#F39C12',
+                        danger: '#E74C3C',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .sidebar {
+            transition: all 0.3s ease;
+        }
+        .dataTables_wrapper .dataTables_filter input {
+            border: 1px solid #e2e8f0;
+            border-radius: 0.375rem;
+            padding: 0.25rem 0.5rem;
+        }
+        .dataTables_wrapper .dataTables_length select {
+            border: 1px solid #e2e8f0;
+            border-radius: 0.375rem;
+            padding: 0.25rem 0.5rem;
+        }
+        .score-high {
+            background-color: rgba(39, 174, 96, 0.1);
+            color: #27AE60;
+        }
+        .score-medium {
+            background-color: rgba(243, 156, 18, 0.1);
+            color: #F39C12;
+        }
+        .score-low {
+            background-color: rgba(231, 76, 60, 0.1);
+            color: #E74C3C;
+        }
+        .status-new {
+            background-color: rgba(52, 152, 219, 0.1);
+            color: #3498DB;
+        }
+        .status-contacted {
+            background-color: rgba(155, 89, 182, 0.1);
+            color: #9B59B6;
+        }
+        .status-replied {
+            background-color: rgba(26, 188, 156, 0.1);
+            color: #1ABC9C;
+        }
+        .status-archived {
+            background-color: rgba(149, 165, 166, 0.1);
+            color: #95A5A6;
+        }
+        .persona-match {
+            background-color: rgba(52, 152, 219, 0.1);
+            color: #3498DB;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="flex h-screen">
+        <!-- Sidebar -->
+        <div class="sidebar bg-primary text-white w-64 flex-shrink-0">
+            <div class="p-4 border-b border-primary-light">
+                <h2 class="text-xl font-bold">Aesthetic LinkWizard</h2>
+                <p class="text-xs text-blue-100">AI-Powered Lead Generation</p>
+            </div>
+            <nav class="p-4">
+                <div class="mb-8">
+                    <h3 class="text-xs uppercase tracking-wider text-blue-200 mb-3">Campaign Controls</h3>
+                    <button class="w-full flex items-center justify-between bg-secondary hover:bg-blue-500 text-white px-4 py-2 rounded-md mb-3">
+                        <span>Upload Target Document</span>
+                        <i data-feather="upload" class="w-4 h-4"></i>
+                    </button>
+                    <div class="bg-blue-900 bg-opacity-30 p-3 rounded-md mb-3">
+                        <p class="text-sm">Personas Loaded:</p>
+                        <p class="text-lg font-bold">6</p>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button class="flex-1 bg-success hover:bg-green-500 text-white px-4 py-2 rounded-md">
+                            <i data-feather="play" class="w-4 h-4 inline mr-1"></i> Start
+                        </button>
+                        <button class="flex-1 bg-danger hover:bg-red-500 text-white px-4 py-2 rounded-md">
+                            <i data-feather="stop-circle" class="w-4 h-4 inline mr-1"></i> Stop
+                        </button>
+                    </div>
+                    <div class="status-stopped text-xs px-3 py-1 rounded-full mt-2 inline-block">
+                        <i data-feather="circle" class="w-2 h-2 inline mr-1"></i> Stopped
+                    </div>
+                </div>
+                
+                <div>
+                    <h3 class="text-xs uppercase tracking-wider text-blue-200 mb-3">Navigation</h3>
+                    <a href="dashboard.html" class="flex items-center px-3 py-2 hover:bg-blue-800 rounded-md mb-1">
+                        <i data-feather="activity" class="w-4 h-4 mr-2"></i> Dashboard
+                    </a>
+                    <a href="leads.html" class="flex items-center px-3 py-2 bg-blue-800 rounded-md mb-1">
+                        <i data-feather="users" class="w-4 h-4 mr-2"></i> Leads
+                    </a>
+                    <a href="messages.html" class="flex items-center px-3 py-2 hover:bg-blue-800 rounded-md mb-1">
+                        <i data-feather="message-square" class="w-4 h-4 mr-2"></i> Messages
+                    </a>
+                    <a href="analytics.html" class="flex items-center px-3 py-2 hover:bg-blue-800 rounded-md mb-1">
+                        <i data-feather="bar-chart-2" class="w-4 h-4 mr-2"></i> Analytics
+                    </a>
+                    <a href="index.html" class="flex items-center px-3 py-2 hover:bg-blue-800 rounded-md">
+                        <i data-feather="settings" class="w-4 h-4 mr-2"></i> Settings
+                    </a>
+                </div>
+            </nav>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="flex-1 overflow-auto">
+            <!-- Top Navigation -->
+            <header class="bg-white shadow-sm p-4 flex justify-between items-center">
+                <h1 class="text-xl font-semibold text-gray-800">Leads Management</h1>
+                <div class="flex items-center space-x-4">
+                    <div class="relative">
+                        <i data-feather="bell" class="w-5 h-5 text-gray-500"></i>
+                        <span class="absolute -top-1 -right-1 bg-danger text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">3</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <img src="http://static.photos/people/40x40/1" alt="User" class="w-8 h-8 rounded-full">
+                        <span class="text-sm font-medium">Admin</span>
+                    </div>
+                </div>
+            </header>
+            
+            <!-- Leads Content -->
+            <main class="p-6">
+                <!-- Filters and Actions -->
+                <div class="bg-white rounded-lg shadow p-4 mb-6">
+                    <div class="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
+                        <div class="flex space-x-2">
+                            <select class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:border-secondary focus:outline-none">
+                                <option>All Statuses</option>
+                                <option>New</option>
+                                <option>Contacted</option>
+                                <option>Replied</option>
+                                <option>Archived</option>
+                            </select>
+                            <select class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:border-secondary focus:outline-none">
+                                <option>All Personas</option>
+                                <option>Cosmetic Surgeon</option>
+                                <option>Dermatologist</option>
+                                <option>Aesthetic Nurse</option>
+                                <option>Med Spa Owner</option>
+                            </select>
+                            <div class="relative">
+                                <input type="text" placeholder="Score min" class="border border-gray-300 rounded-md px-3 py-2 text-sm w-20 focus:border-secondary focus:outline-none">
+                                <span class="absolute top-2.5 left-14 text-gray-400">-</span>
+                                <input type="text" placeholder="max" class="border border-gray-300 rounded-md px-3 py-2 text-sm w-20 ml-6 focus:border-secondary focus:outline-none">
+                            </div>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button class="bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-md text-sm flex items-center">
+                                <i data-feather="filter" class="w-4 h-4 mr-1"></i> Filter
+                            </button>
+                            <button class="bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-md text-sm flex items-center">
+                                <i data-feather="refresh-cw" class="w-4 h-4 mr-1"></i> Reset
+                            </button>
+                            <button class="bg-secondary hover:bg-blue-500 text-white px-3 py-2 rounded-md text-sm flex items-center">
+                                <i data-feather="download" class="w-4 h-4 mr-1"></i> Export
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Leads Table -->
+                <div class="bg-white rounded-lg shadow overflow-hidden">
+                    <table id="leadsTable" class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    <input type="checkbox" class="rounded border-gray-300 text-secondary focus:ring-secondary">
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">AI Score</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Persona Match</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <input type="checkbox" class="rounded border-gray-300 text-secondary focus:ring-secondary">
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex items-center">
+                                        <div class="flex-shrink-0 h-10 w-10">
+                                            <img class="h-10 w-10 rounded-full" src="http://static.photos/people/40x40/1" alt="">
+                                        </div>
+                                        <div class="ml-4">
+                                            <div class="text-sm font-medium text-gray-900">Dr. Sarah Johnson</div>
+                                            <div class="text-sm text-gray-500">Los Angeles, CA</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm text-gray-900">Cosmetic Surgeon</div>
+                                    <div class="text-sm text-gray-500">Plastic Surgery</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm text-gray-900">Beverly Hills Aesthetics</div>
+                                    <div class="text-sm text-gray-500">20-50 employees</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full score-high">92/100</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full persona-match">Botox Expert</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full status-replied">Replied</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <div class="flex space-x-2">
+                                        <button class="text-secondary hover:text-blue-500">
+                                            <i data-feather="eye" class="w-4 h-4"></i>
+                                        </button>
+                                        <button class="text-green-500 hover:text-green-600">
+                                            <i data-feather="message-square" class="w-4 h-4"></i>
+                                        </button>
+                                        <button class="text-gray-500 hover:text-gray-600">
+                                            <i data-feather="archive" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <input type="checkbox" class="rounded border-gray-300 text-secondary focus:ring-secondary">
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex items-center">
+                                        <div class="flex-shrink-0 h-10 w-10">
+                                            <img class="h-10 w-10 rounded-full" src="http://static.photos/people/40x40/2" alt="">
+                                        </div>
+                                        <div class="ml-4">
+                                            <div class="text-sm font-medium text-gray-900">Dr. Michael Chen</div>
+                                            <div class="text-sm text-gray-500">New York, NY</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm text-gray-900">Dermatologist</div>
+                                    <div class="text-sm text-gray-500">Dermatology</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm text-gray-900">Skin Perfect Clinic</div>
+                                    <div class="text-sm text-gray-500">10-20 employees</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full score-high">87/100</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full persona-match">Laser Specialist</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full status-contacted">Contacted</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <div class="flex space-x-2">
+                                        <button class="text-secondary hover:text-blue-500">
+                                            <i data-feather="eye" class="w-4 h-4"></i>
+                                        </button>
+                                        <button class="text-green-500 hover:text-green-600">
+                                            <i data-feather="message-square" class="w-4 h-4"></i>
+                                        </button>
+                                        <button class="text-gray-500 hover:text-gray-600">
+                                            <i data-feather="archive" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <input type="checkbox" class="rounded border-gray-300 text-secondary focus:ring-secondary">
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex items-center">
+                                        <div class="flex-shrink-0 h-10 w-10">
+                                            <img class="h-10 w-10 rounded-full" src="http://static.photos/people/40x40/3" alt="">
+                                        </div>
+                                        <div class="ml-4">
+                                            <div class="text-sm font-medium text-gray-900">Jessica Williams</div>
+                                            <div class="text-sm text-gray-500">Miami, FL</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm text-gray-900">Aesthetic Nurse</div>
+                                    <div class="text-sm text-gray-500">Nursing</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm text-gray-900">Glow Med Spa</div>
+                                    <div class="text-sm text-gray-500">5-10 employees</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full score-medium">76/100</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full persona-match">Filler Specialist</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full status-new">New</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <div class="flex space-x-2">
+                                        <button class="text-secondary hover:text-blue-500">
+                                            <i data-feather="eye" class="w-4 h-4"></i>
+                                        </button>
+                                        <button class="text-green-500 hover:text-green-600">
+                                            <i data-feather="message-square" class="w-4 h-4"></i>
+                                        </button>
+                                        <button class="text-gray-500 hover:text-gray-600">
+                                            <i data-feather="archive" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <input type="checkbox" class="rounded border-gray-300 text-secondary focus:ring-secondary">
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex items-center">
+                                        <div class="flex-shrink-0 h-10 w-10">
+                                            <img class="h-10 w-10 rounded-full" src="http://static.photos/people/40x40/4" alt="">
+                                        </div>
+                                        <div class="ml-4">
+                                            <div class="text-sm font-medium text-gray-900">Dr. Robert Kim</div>
+                                            <div class="text-sm text-gray-500">Chicago, IL</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm text-gray-900">Plastic Surgeon</div>
+                                    <div class="text-sm text-gray-500">Plastic Surgery</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm text-gray-900">Windy City Plastic Surgery</div>
+                                    <div class="text-sm text-gray-500">50-100 employees</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full score-medium">68/100</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full persona-match">Surgery Center</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full status-archived">Archived</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <div class="flex space-x-2">
+                                        <button class="text-secondary hover:text-blue-500">
+                                            <i data-feather="eye" class="w-4 h-4"></i>
+                                        </button>
+                                        <button class="text-green-500 hover:text-green-600">
+                                            <i data-feather="message-square" class="w-4 h-4"></i>
+                                        </button>
+                                        <button class="text-gray-500 hover:text-gray-600">
+                                            <i data-feather="archive" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <input type="checkbox" class="rounded border-gray-300 text-secondary focus:ring-secondary">
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex items-center">
+                                        <div class="flex-shrink-0 h-10 w-10">
+                                            <img class="h-10 w-10 rounded-full" src="http://static.photos/people/40x40/5" alt="">
+                                        </div>
+                                        <div class="ml-4">
+                                            <div class="text-sm font-medium text-gray-900">Amanda Rodriguez</div>
+                                            <div class="text-sm text-gray-500">Houston, TX</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm text-gray-900">Med Spa Owner</div>
+                                    <div class="text-sm text-gray-500">Business Owner</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm text-gray-900">Luminous Aesthetics</div>
+                                    <div class="text-sm text-gray-500">5-10 employees</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full score-high">94/100</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full persona-match">Med Spa Chain</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full status-contacted">Contacted</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <div class="flex space-x-2">
+                                        <button class="text-secondary hover:text-blue-500">
+                                            <i data-feather="eye" class="w-4 h-4"></i>
+                                        </button>
+                                        <button class="text-green-500 hover:text-green-600">
+                                            <i data-feather="message-square" class="w-4 h-4"></i>
+                                        </button>
+                                        <button class="text-gray-500 hover:text-gray-600">
+                                            <i data-feather="archive" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Bulk Actions -->
+                <div class="bg-white rounded-lg shadow mt-4 p-4 flex justify-between items-center">
+                    <div>
+                        <span class="text-sm text-gray-700">3 leads selected</span>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button class="bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-md text-sm flex items-center">
+                            <i data-feather="mail" class="w-4 h-4 mr-1"></i> Bulk Message
+                        </button>
+                        <button class="bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-md text-sm flex items-center">
+                            <i data-feather="archive" class="w-4 h-4 mr-1"></i> Bulk Archive
+                        </button>
+                        <button class="bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-md text-sm flex items-center">
+                            <i data-feather="trash-2" class="w-4 h-4 mr-1"></i> Delete
+                        </button>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        feather.replace();
+        
+        // Initialize DataTable
+        $(document).ready(function() {
+            $('#leadsTable').DataTable({
+                responsive: true,
+                pageLength: 10,
+                lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "All"]],
+                dom: '<"flex justify-between items-center mb-4"<"flex"l><"flex"f>>rt<"flex justify-between items-center mt-4"<"flex"i><"flex"p>>',
+                language: {
+                    search: "",
+                    searchPlaceholder: "Search leads...",
+                    lengthMenu: "Show _MENU_ leads",
+                    info: "Showing _START_ to _END_ of _TOTAL_ leads",
+                    paginate: {
+                        previous: '<i data-feather="chevron-left"></i>',
+                        next: '<i data-feather="chevron-right"></i>'
+                    }
+                },
+                initComplete: function() {
+                    feather.replace();
+                },
+                drawCallback: function() {
+                    feather.replace();
+                }
+            });
+            
+            // Style the search input
+            $('.dataTables_filter input').addClass('border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:border-secondary');
+        });
+        
+        // Checkbox selection
+        document.querySelectorAll('#leadsTable input[type="checkbox"]').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                // In a real app, this would update the selected count
+                const selectedCount = document.querySelectorAll('#leadsTable input[type="checkbox"]:checked').length;
+                document.querySelector('.bg-white.rounded-lg.shadow.mt-4 p-4 span').textContent = 
+                    `${selectedCount} ${selectedCount === 1 ? 'lead' : 'leads'} selected`;
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard | Aesthetic LinkWizard Pro</title>
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+    <script src="https://unpkg.com/feather-icons"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#2C3E50',
+                        secondary: '#3498DB',
+                        success: '#27AE60',
+                        warning: '#F39C12',
+                        danger: '#E74C3C',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .sidebar {
+            transition: all 0.3s ease;
+        }
+        .activity-log {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .activity-log::-webkit-scrollbar {
+            width: 6px;
+        }
+        .activity-log::-webkit-scrollbar-thumb {
+            background-color: #bdc3c7;
+            border-radius: 3px;
+        }
+        .log-info {
+            color: #3498DB;
+        }
+        .log-success {
+            color: #27AE60;
+        }
+        .log-error {
+            color: #E74C3C;
+        }
+        .status-running {
+            background-color: rgba(39, 174, 96, 0.1);
+            color: #27AE60;
+        }
+        .status-stopped {
+            background-color: rgba(231, 76, 60, 0.1);
+            color: #E74C3C;
+        }
+        .status-paused {
+            background-color: rgba(243, 156, 18, 0.1);
+            color: #F39C12;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="flex h-screen">
+        <!-- Sidebar -->
+        <div class="sidebar bg-primary text-white w-64 flex-shrink-0">
+            <div class="p-4 border-b border-primary-light">
+                <h2 class="text-xl font-bold">Aesthetic LinkWizard</h2>
+                <p class="text-xs text-blue-100">AI-Powered Lead Generation</p>
+            </div>
+            <nav class="p-4">
+                <div class="mb-8">
+                    <h3 class="text-xs uppercase tracking-wider text-blue-200 mb-3">Campaign Controls</h3>
+                    <button class="w-full flex items-center justify-between bg-secondary hover:bg-blue-500 text-white px-4 py-2 rounded-md mb-3">
+                        <span>Upload Target Document</span>
+                        <i data-feather="upload" class="w-4 h-4"></i>
+                    </button>
+                    <div class="bg-blue-900 bg-opacity-30 p-3 rounded-md mb-3">
+                        <p class="text-sm">Personas Loaded:</p>
+                        <p class="text-lg font-bold">6</p>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button id="start-bot" class="flex-1 bg-success hover:bg-green-500 text-white px-4 py-2 rounded-md">
+                            <i data-feather="play" class="w-4 h-4 inline mr-1"></i> Start
+                        </button>
+                        <button id="stop-bot" class="flex-1 bg-danger hover:bg-red-500 text-white px-4 py-2 rounded-md">
+                            <i data-feather="stop-circle" class="w-4 h-4 inline mr-1"></i> Stop
+                        </button>
+                    </div>
+                    <div id="bot-status" class="status-stopped text-xs px-3 py-1 rounded-full mt-2 inline-block">
+                        <i data-feather="circle" class="w-2 h-2 inline mr-1"></i> Stopped
+                    </div>
+                </div>
+                
+                <div>
+                    <h3 class="text-xs uppercase tracking-wider text-blue-200 mb-3">Navigation</h3>
+                    <a href="dashboard.html" class="flex items-center px-3 py-2 bg-blue-800 rounded-md mb-1">
+                        <i data-feather="activity" class="w-4 h-4 mr-2"></i> Dashboard
+                    </a>
+                    <a href="leads.html" class="flex items-center px-3 py-2 hover:bg-blue-800 rounded-md mb-1">
+                        <i data-feather="users" class="w-4 h-4 mr-2"></i> Leads
+                    </a>
+                    <a href="messages.html" class="flex items-center px-3 py-2 hover:bg-blue-800 rounded-md mb-1">
+                        <i data-feather="message-square" class="w-4 h-4 mr-2"></i> Messages
+                    </a>
+                    <a href="analytics.html" class="flex items-center px-3 py-2 hover:bg-blue-800 rounded-md mb-1">
+                        <i data-feather="bar-chart-2" class="w-4 h-4 mr-2"></i> Analytics
+                    </a>
+                    <a href="index.html" class="flex items-center px-3 py-2 hover:bg-blue-800 rounded-md">
+                        <i data-feather="settings" class="w-4 h-4 mr-2"></i> Settings
+                    </a>
+                </div>
+            </nav>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="flex-1 overflow-auto">
+            <!-- Top Navigation -->
+            <header class="bg-white shadow-sm p-4 flex justify-between items-center">
+                <h1 class="text-xl font-semibold text-gray-800">Dashboard</h1>
+                <div class="flex items-center space-x-4">
+                    <div class="relative">
+                        <i data-feather="bell" class="w-5 h-5 text-gray-500"></i>
+                        <span class="absolute -top-1 -right-1 bg-danger text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">3</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <img src="http://static.photos/people/40x40/1" alt="User" class="w-8 h-8 rounded-full">
+                        <span class="text-sm font-medium">Admin</span>
+                    </div>
+                </div>
+            </header>
+            
+            <!-- Dashboard Content -->
+            <main class="p-6">
+                <!-- Overview Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-500 text-sm">Total Leads Scraped</p>
+                                <h3 class="text-2xl font-bold mt-1">1,248</h3>
+                                <p class="text-success text-sm mt-1 flex items-center">
+                                    <i data-feather="arrow-up" class="w-3 h-3 mr-1"></i> 12% from last week
+                                </p>
+                            </div>
+                            <div class="bg-blue-100 p-3 rounded-full">
+                                <i data-feather="user-plus" class="w-5 h-5 text-secondary"></i>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-500 text-sm">Qualified Leads</p>
+                                <h3 class="text-2xl font-bold mt-1">784</h3>
+                                <p class="text-success text-sm mt-1 flex items-center">
+                                    <i data-feather="arrow-up" class="w-3 h-3 mr-1"></i> 8% from last week
+                                </p>
+                            </div>
+                            <div class="bg-green-100 p-3 rounded-full">
+                                <i data-feather="check-circle" class="w-5 h-5 text-success"></i>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-500 text-sm">Messages Sent</p>
+                                <h3 class="text-2xl font-bold mt-1">542</h3>
+                                <p class="text-warning text-sm mt-1 flex items-center">
+                                    <i data-feather="arrow-down" class="w-3 h-3 mr-1"></i> 3% from last week
+                                </p>
+                            </div>
+                            <div class="bg-yellow-100 p-3 rounded-full">
+                                <i data-feather="send" class="w-5 h-5 text-warning"></i>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-500 text-sm">Response Rate</p>
+                                <h3 class="text-2xl font-bold mt-1">22%</h3>
+                                <p class="text-success text-sm mt-1 flex items-center">
+                                    <i data-feather="arrow-up" class="w-3 h-3 mr-1"></i> 5% from last week
+                                </p>
+                            </div>
+                            <div class="bg-purple-100 p-3 rounded-full">
+                                <i data-feather="message-circle" class="w-5 h-5 text-purple-500"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Activity Log -->
+                <div class="bg-white rounded-lg shadow overflow-hidden mb-8">
+                    <div class="px-6 py-4 border-b border-gray-200">
+                        <h2 class="text-lg font-semibold text-gray-800">Live Activity Feed</h2>
+                    </div>
+                    <div class="activity-log p-6">
+                        <div class="space-y-4">
+                            <div class="log-info flex items-start">
+                                <i data-feather="info" class="w-4 h-4 mt-1 mr-2"></i>
+                                <div>
+                                    <p class="text-sm">[10:42:15] Logging into LinkedIn...</p>
+                                    <p class="text-xs text-gray-500">Just now</p>
+                                </div>
+                            </div>
+                            <div class="log-success flex items-start">
+                                <i data-feather="check-circle" class="w-4 h-4 mt-1 mr-2"></i>
+                                <div>
+                                    <p class="text-sm">[10:42:18] Successfully logged in</p>
+                                    <p class="text-xs text-gray-500">Just now</p>
+                                </div>
+                            </div>
+                            <div class="log-info flex items-start">
+                                <i data-feather="info" class="w-4 h-4 mt-1 mr-2"></i>
+                                <div>
+                                    <p class="text-sm">[10:42:20] Scraping lead: Dr. Sarah Johnson, Cosmetic Surgeon at Beverly Hills Aesthetics</p>
+                                    <p class="text-xs text-gray-500">Just now</p>
+                                </div>
+                            </div>
+                            <div class="log-info flex items-start">
+                                <i data-feather="info" class="w-4 h-4 mt-1 mr-2"></i>
+                                <div>
+                                    <p class="text-sm">[10:42:22] AI scoring lead: 92/100 (Ideal match for Botox campaign)</p>
+                                    <p class="text-xs text-gray-500">Just now</p>
+                                </div>
+                            </div>
+                            <div class="log-info flex items-start">
+                                <i data-feather="info" class="w-4 h-4 mt-1 mr-2"></i>
+                                <div>
+                                    <p class="text-sm">[10:42:25] Sending personalized message to: Dr. Sarah Johnson</p>
+                                    <p class="text-xs text-gray-500">Just now</p>
+                                </div>
+                            </div>
+                            <div class="log-success flex items-start">
+                                <i data-feather="check-circle" class="w-4 h-4 mt-1 mr-2"></i>
+                                <div>
+                                    <p class="text-sm">[10:42:28] Message sent successfully</p>
+                                    <p class="text-xs text-gray-500">Just now</p>
+                                </div>
+                            </div>
+                            <div class="log-info flex items-start">
+                                <i data-feather="info" class="w-4 h-4 mt-1 mr-2"></i>
+                                <div>
+                                    <p class="text-sm">[10:42:30] Moving to next lead...</p>
+                                    <p class="text-xs text-gray-500">Just now</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        feather.replace();
+        
+        // Bot status management
+        const startBtn = document.getElementById('start-bot');
+        const stopBtn = document.getElementById('stop-bot');
+        const statusIndicator = document.getElementById('bot-status');
+        
+        startBtn.addEventListener('click', function() {
+            statusIndicator.className = 'status-running text-xs px-3 py-1 rounded-full mt-2 inline-block';
+            statusIndicator.innerHTML = '<i data-feather="circle" class="w-2 h-2 inline mr-1"></i> Running';
+            feather.replace();
+            
+            // Add activity log entry
+            const log = document.querySelector('.activity-log .space-y-4');
+            const now = new Date();
+            const timeString = `[${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}]`;
+            
+            const entry = document.createElement('div');
+            entry.className = 'log-success flex items-start';
+            entry.innerHTML = `
+                <i data-feather="play" class="w-4 h-4 mt-1 mr-2"></i>
+                <div>
+                    <p class="text-sm">${timeString} Bot started successfully</p>
+                    <p class="text-xs text-gray-500">Just now</p>
+                </div>
+            `;
+            log.prepend(entry);
+            feather.replace();
+        });
+        
+        stopBtn.addEventListener('click', function() {
+            statusIndicator.className = 'status-stopped text-xs px-3 py-1 rounded-full mt-2 inline-block';
+            statusIndicator.innerHTML = '<i data-feather="circle" class="w-2 h-2 inline mr-1"></i> Stopped';
+            feather.replace();
+            
+            // Add activity log entry
+            const log = document.querySelector('.activity-log .space-y-4');
+            const now = new Date();
+            const timeString = `[${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}]`;
+            
+            const entry = document.createElement('div');
+            entry.className = 'log-error flex items-start';
+            entry.innerHTML = `
+                <i data-feather="stop-circle" class="w-4 h-4 mt-1 mr-2"></i>
+                <div>
+                    <p class="text-sm">${timeString} Bot stopped</p>
+                    <p class="text-xs text-gray-500">Just now</p>
+                </div>
+            `;
+            log.prepend(entry);
+            feather.replace();
+        });
+        
+        // Simulate live updates
+        setInterval(function() {
+            if (statusIndicator.textContent.includes('Running')) {
+                const activities = [
+                    'Scraping lead: Dr. Michael Chen, Dermatologist at Skin Perfect Clinic',
+                    'AI scoring lead: 84/100 (Good match for Laser Hair Removal campaign)',
+                    'Sending personalized message to: Dr. Michael Chen',
+                    'Message sent successfully',
+                    'Found new connection: Jessica Williams, Aesthetic Nurse at Glow Med Spa',
+                    'AI analyzing profile: Jessica Williams',
+                    'Adding Jessica Williams to qualified leads list'
+                ];
+                
+                const types = ['info', 'success'];
+                const icons = {
+                    'info': 'info',
+                    'success': 'check-circle'
+                };
+                
+                const randomActivity = activities[Math.floor(Math.random() * activities.length)];
+                const randomType = types[Math.floor(Math.random() * types.length)];
+                const now = new Date();
+                const timeString = `[${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}]`;
+                
+                const log = document.querySelector('.activity-log .space-y-4');
+                const entry = document.createElement('div');
+                entry.className = `log-${randomType} flex items-start`;
+                entry.innerHTML = `
+                    <i data-feather="${icons[randomType]}" class="w-4 h-4 mt-1 mr-2"></i>
+                    <div>
+                        <p class="text-sm">${timeString} ${randomActivity}</p>
+                        <p class="text-xs text-gray-500">Just now</p>
+                    </div>
+                `;
+                log.prepend(entry);
+                feather.replace();
+                
+                // Limit log entries
+                if (log.children.length > 20) {
+                    log.removeChild(log.lastChild);
+                }
+            }
+        }, 5000);
+    </script>
+</body>
+</html>
