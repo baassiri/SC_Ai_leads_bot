@@ -1,5 +1,6 @@
 """
 Batch Message Generator - Generate messages for all high-scoring leads
+UPDATED: Now saves messages to database
 """
 
 import sys
@@ -34,6 +35,7 @@ generator = MessageGenerator()
 # Track results
 success_count = 0
 error_count = 0
+total_messages_saved = 0
 
 # Generate messages for each lead
 for i, lead in enumerate(leads, 1):
@@ -50,11 +52,25 @@ for i, lead in enumerate(leads, 1):
             persona_name=lead.get('persona_name', 'Business Professional')
         )
         
+        # Save each variant to database
+        for variant_key, content in messages.items():
+            variant_letter = variant_key.split('_')[-1].upper()  # Extract 'A', 'B', or 'C'
+            
+            message_id = db_manager.create_message(
+                lead_id=lead['id'],
+                message_type='connection_request',
+                content=content,
+                variant=variant_letter,
+                generated_by='gpt-4',
+                prompt_used=f"Generated via batch script for {lead['name']}"
+            )
+            total_messages_saved += 1
+        
         # Show preview of generated messages
-        print(f"\n    ✅ Generated 3 variants:")
-        print(f"       A: {messages['variant_a'][:60]}...")
-        print(f"       B: {messages['variant_b'][:60]}...")
-        print(f"       C: {messages['variant_c'][:60]}...")
+        print(f"\n    ✅ Generated & saved 3 variants:")
+        print(f"       A ({len(messages['variant_a'])} chars): {messages['variant_a'][:60]}...")
+        print(f"       B ({len(messages['variant_b'])} chars): {messages['variant_b'][:60]}...")
+        print(f"       C ({len(messages['variant_c'])} chars): {messages['variant_c'][:60]}...")
         
         success_count += 1
         
@@ -71,7 +87,13 @@ for i, lead in enumerate(leads, 1):
 print("\n" + "="*60)
 print("📊 GENERATION COMPLETE")
 print("="*60)
-print(f"✅ Successful: {success_count}")
+print(f"✅ Successful leads: {success_count}")
 print(f"❌ Errors: {error_count}")
+print(f"💾 Messages saved to database: {total_messages_saved}")
 print(f"💰 Estimated cost: ${success_count * 0.015:.3f} (at ~$0.015 per generation)")
-print("\n💡 Next step: Review the messages and approve for sending")
+print("\n" + "="*60)
+print("💡 NEXT STEPS:")
+print("="*60)
+print("1. View messages: python -m scripts.view_messages")
+print("2. Approve messages in the web UI (coming next)")
+print("3. Send approved messages to LinkedIn")
