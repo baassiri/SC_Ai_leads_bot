@@ -4,10 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Aesthetic LinkWizard Pro{% endblock %}</title>
-    
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
-    
     <script>
         tailwind.config = {
             theme: {
@@ -23,163 +21,141 @@
             }
         }
     </script>
-    
     <style>
         .sidebar { transition: all 0.3s ease; }
-        .status-running { background-color: rgba(39, 174, 96, 0.1); color: #27AE60; }
-        .status-stopped { background-color: rgba(231, 76, 60, 0.1); color: #E74C3C; }
+        .status-running { background-color: rgba(39, 174, 96, 0.2); color: #27AE60; }
+        .status-stopped { background-color: rgba(149, 165, 166, 0.2); color: #95A5A6; }
         {% block extra_styles %}{% endblock %}
     </style>
 </head>
 <body class="bg-gray-100">
     <div class="flex h-screen">
+        <!-- Sidebar -->
         <div class="sidebar bg-primary text-white w-64 flex-shrink-0">
             <div class="p-4 border-b border-primary-light">
                 <h2 class="text-xl font-bold">Aesthetic LinkWizard</h2>
                 <p class="text-xs text-blue-100">AI-Powered Lead Generation</p>
             </div>
+            
             <nav class="p-4">
+                <!-- Campaign Controls -->
                 <div class="mb-8">
                     <h3 class="text-xs uppercase tracking-wider text-blue-200 mb-3">Campaign Controls</h3>
                     
-                    <button id="upload-btn" class="w-full flex items-center justify-between bg-secondary hover:bg-blue-500 text-white px-4 py-2 rounded-md mb-3">
+                    <!-- Upload Document Button -->
+                    <button id="upload-doc-btn" class="w-full flex items-center justify-between bg-secondary hover:bg-blue-500 text-white px-4 py-2 rounded-md mb-3">
                         <span>Upload Target Document</span>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                        <i data-feather="upload" class="w-4 h-4"></i>
                     </button>
                     
-                    <input type="file" id="file-upload-input" accept=".docx,.doc" style="display: none;">
-
+                    <!-- Hidden File Input -->
+                    <input type="file" id="file-input" accept=".pdf,.doc,.docx,.txt" style="display: none;">
+                    
+                    <!-- Personas Count -->
                     <div class="bg-blue-900 bg-opacity-30 p-3 rounded-md mb-3">
                         <p class="text-sm">Personas Loaded:</p>
-                        <p class="text-lg font-bold" id="personas-count">0</p>
+                        <p class="text-lg font-bold" id="sidebar-personas-count">0</p>
                     </div>
                     
+                    <!-- Bot Start/Stop Buttons -->
                     <div class="flex space-x-2">
-                        <button id="start-bot" class="flex-1 bg-success hover:bg-green-500 text-white px-4 py-2 rounded-md">
-                            Start
+                        <button id="start-bot-btn" class="flex-1 bg-success hover:bg-green-500 text-white px-4 py-2 rounded-md">
+                            <i data-feather="play" class="w-4 h-4 inline mr-1"></i> Start
                         </button>
-                        <button id="stop-bot" class="flex-1 bg-danger hover:bg-red-500 text-white px-4 py-2 rounded-md">
-                            Stop
+                        <button id="stop-bot-btn" class="flex-1 bg-danger hover:bg-red-500 text-white px-4 py-2 rounded-md">
+                            <i data-feather="stop-circle" class="w-4 h-4 inline mr-1"></i> Stop
                         </button>
                     </div>
                     
-                    <div id="bot-status" class="status-stopped text-xs px-3 py-1 rounded-full mt-2 inline-block">
-                        ● Stopped
+                    <!-- Bot Status -->
+                    <div id="bot-status-indicator" class="status-stopped text-xs px-3 py-1 rounded-full mt-2 inline-block">
+                        <i data-feather="circle" class="w-2 h-2 inline mr-1"></i> <span id="bot-status-text">Stopped</span>
                     </div>
                 </div>
                 
+                <!-- Navigation Links -->
                 <div>
                     <h3 class="text-xs uppercase tracking-wider text-blue-200 mb-3">Navigation</h3>
-                    <a href="/dashboard" class="flex items-center px-3 py-2 {% if request.endpoint == 'dashboard' %}bg-blue-800{% else %}hover:bg-blue-800{% endif %} rounded-md mb-1">Dashboard</a>
-                    <a href="/leads" class="flex items-center px-3 py-2 {% if request.endpoint == 'leads_page' %}bg-blue-800{% else %}hover:bg-blue-800{% endif %} rounded-md mb-1">Leads</a>
-                    <a href="/messages" class="flex items-center px-3 py-2 {% if request.endpoint == 'messages_page' %}bg-blue-800{% else %}hover:bg-blue-800{% endif %} rounded-md mb-1">Messages</a>
-                    <a href="/analytics" class="flex items-center px-3 py-2 {% if request.endpoint == 'analytics_page' %}bg-blue-800{% else %}hover:bg-blue-800{% endif %} rounded-md mb-1">Analytics</a>
-                    <a href="/" class="flex items-center px-3 py-2 {% if request.endpoint == 'index' %}bg-blue-800{% else %}hover:bg-blue-800{% endif %} rounded-md">Settings</a>
+                    <a href="/dashboard" class="flex items-center px-3 py-2 hover:bg-blue-800 rounded-md mb-1 {% if request.endpoint == 'dashboard' %}bg-blue-800{% endif %}">
+                        <i data-feather="activity" class="w-4 h-4 mr-2"></i> Dashboard
+                    </a>
+                    <a href="/leads" class="flex items-center px-3 py-2 hover:bg-blue-800 rounded-md mb-1 {% if request.endpoint == 'leads_page' %}bg-blue-800{% endif %}">
+                        <i data-feather="users" class="w-4 h-4 mr-2"></i> Leads
+                    </a>
+                    <a href="/messages" class="flex items-center px-3 py-2 hover:bg-blue-800 rounded-md mb-1 {% if request.endpoint == 'messages_page' %}bg-blue-800{% endif %}">
+                        <i data-feather="message-square" class="w-4 h-4 mr-2"></i> Messages
+                    </a>
+                    <a href="/analytics" class="flex items-center px-3 py-2 hover:bg-blue-800 rounded-md mb-1 {% if request.endpoint == 'analytics_page' %}bg-blue-800{% endif %}">
+                        <i data-feather="bar-chart-2" class="w-4 h-4 mr-2"></i> Analytics
+                    </a>
+                    <a href="/" class="flex items-center px-3 py-2 hover:bg-blue-800 rounded-md">
+                        <i data-feather="settings" class="w-4 h-4 mr-2"></i> Settings
+                    </a>
                 </div>
             </nav>
         </div>
         
+        <!-- Main Content Area -->
         <div class="flex-1 overflow-auto">
+            <!-- Top Navigation Bar -->
             <header class="bg-white shadow-sm p-4 flex justify-between items-center">
                 <h1 class="text-xl font-semibold text-gray-800">{% block page_title %}Dashboard{% endblock %}</h1>
+                <div class="flex items-center space-x-4">
+                    <button onclick="window.location.reload()" class="text-secondary hover:text-blue-500" title="Refresh">
+                        <i data-feather="refresh-cw" class="w-5 h-5"></i>
+                    </button>
+                    <div class="flex items-center space-x-2">
+                        <img src="https://ui-avatars.com/api/?name=Admin&background=3498DB&color=fff" alt="User" class="w-8 h-8 rounded-full">
+                        <span class="text-sm font-medium">Admin</span>
+                    </div>
+                </div>
             </header>
             
+            <!-- Page Content -->
             <main class="p-6">
-                {% block content %}
-                <h2>Content goes here</h2>
-                {% endblock %}
+                {% block content %}{% endblock %}
             </main>
         </div>
     </div>
 
-    <script>
-        console.log('🚀 BASE.HTML SCRIPT STARTING...');
-        
-        function showNotification(message, type) {
-            console.log('📢 Notification:', message, type);
-            const div = document.createElement('div');
-            div.className = 'fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 ' + 
-                (type === 'success' ? 'bg-green-500 text-white' : 
-                 type === 'error' ? 'bg-red-500 text-white' : 'bg-blue-500 text-white');
-            div.textContent = message;
-            document.body.appendChild(div);
-            setTimeout(() => div.remove(), 3000);
-        }
-        
-        console.log('🔍 Looking for elements...');
-        
-        setTimeout(function() {
-            console.log('⏰ Timeout fired - setting up handlers...');
-            
-            const uploadBtn = document.getElementById('upload-btn');
-            const fileInput = document.getElementById('file-upload-input');
-            
-            console.log('📤 Upload Button:', uploadBtn);
-            console.log('📁 File Input:', fileInput);
-            
-            if (!uploadBtn) {
-                console.error('❌ UPLOAD BUTTON NOT FOUND!');
-                return;
-            }
-            
-            if (!fileInput) {
-                console.error('❌ FILE INPUT NOT FOUND!');
-                return;
-            }
-            
-            console.log('✅ Both elements found!');
-            
-            uploadBtn.onclick = function(e) {
-                console.log('🎯 BUTTON CLICKED!!!');
-                e.preventDefault();
-                fileInput.click();
-            };
-            
-            fileInput.onchange = function(e) {
-                const file = e.target.files[0];
-                console.log('📂 FILE SELECTED:', file ? file.name : 'NONE');
-                
-                if (!file) return;
-                
-                if (!file.name.endsWith('.docx') && !file.name.endsWith('.doc')) {
-                    showNotification('Please select a .docx or .doc file', 'error');
-                    return;
-                }
-                
-                showNotification('Uploading...', 'info');
-                
-                const formData = new FormData();
-                formData.append('file', file);
-                
-                fetch('/api/upload-targets', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    console.log('✅ UPLOAD SUCCESS:', data);
-                    if (data.success) {
-                        document.getElementById('personas-count').textContent = data.personas_count || 0;
-                        showNotification(data.message, 'success');
-                    } else {
-                        showNotification(data.message, 'error');
-                    }
-                })
-                .catch(error => {
-                    console.error('❌ UPLOAD ERROR:', error);
-                    showNotification('Upload failed: ' + error.message, 'error');
-                });
-                
-                fileInput.value = '';
-            };
-            
-            console.log('✅ HANDLERS ATTACHED!');
-            
-        }, 500);
-        
-        console.log('✅ BASE.HTML SCRIPT LOADED!');
-    </script>
+    <!-- Upload Modal -->
+    <div id="upload-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+        <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 class="text-lg font-semibold mb-4">Upload Target Document</h3>
+            <div id="upload-status" class="mb-4">
+                <p class="text-sm text-gray-600">Select a PDF, Word document, or text file containing your target personas.</p>
+            </div>
+            <div id="upload-progress" class="hidden mb-4">
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div id="progress-bar" class="bg-blue-600 h-2 rounded-full" style="width: 0%"></div>
+                </div>
+                <p id="progress-text" class="text-sm text-gray-600 mt-2">Uploading...</p>
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button id="close-upload-modal" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Container -->
+    <div id="notification-container" class="fixed top-4 right-4 z-50"></div>
+
+    <!-- Shared JavaScript -->
+    <script src="/static/js/shared.js"></script>
     
     {% block extra_js %}{% endblock %}
+    
+    <script>
+        // Initialize everything
+        document.addEventListener('DOMContentLoaded', function() {
+            feather.replace();
+            
+            // Load initial persona count
+            loadPersonasCount();
+            
+            // Start bot status polling
+            startBotStatusPolling();
+        });
+    </script>
 </body>
 </html>

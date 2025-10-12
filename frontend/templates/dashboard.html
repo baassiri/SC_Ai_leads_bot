@@ -47,7 +47,25 @@
 {% endblock %}
 
 {% block content %}
-<!-- Dashboard Content -->
+<!-- Quick Actions Bar -->
+<div class="bg-white rounded-lg shadow p-4 mb-6">
+    <div class="flex flex-wrap gap-3">
+        <button onclick="generateMessagesForTopLeads()" class="bg-success hover:bg-green-600 text-white px-4 py-2 rounded-md flex items-center">
+            <i data-feather="message-square" class="w-4 h-4 mr-2"></i>
+            Generate Messages for Top Leads
+        </button>
+        <button onclick="window.location.href='/leads'" class="bg-secondary hover:bg-blue-600 text-white px-4 py-2 rounded-md flex items-center">
+            <i data-feather="users" class="w-4 h-4 mr-2"></i>
+            View All Leads
+        </button>
+        <button onclick="window.location.href='/messages'" class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-md flex items-center">
+            <i data-feather="mail" class="w-4 h-4 mr-2"></i>
+            View Messages
+        </button>
+    </div>
+</div>
+
+<!-- Dashboard Stats Cards -->
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
     <div class="bg-white rounded-lg shadow p-6">
         <div class="flex items-center justify-between">
@@ -110,7 +128,9 @@
     </div>
 </div>
 
+<!-- Two Column Layout -->
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Live Activity Feed -->
     <div class="bg-white rounded-lg shadow overflow-hidden">
         <div class="px-6 py-4 border-b border-gray-200">
             <h2 class="text-lg font-semibold text-gray-800">Live Activity Feed</h2>
@@ -122,6 +142,7 @@
         </div>
     </div>
     
+    <!-- Top Qualified Leads -->
     <div class="bg-white rounded-lg shadow overflow-hidden">
         <div class="px-6 py-4 border-b border-gray-200">
             <div class="flex items-center justify-between">
@@ -131,7 +152,7 @@
                 </a>
             </div>
         </div>
-        <div class="top-leads-container p-4">
+        <div class="top-leads-container p-4" id="top-leads-container">
             <p class="text-gray-500 text-center py-4">Loading leads...</p>
         </div>
     </div>
@@ -141,6 +162,30 @@
 {% block extra_js %}
 <script src="/static/js/dashboard.js"></script>
 <script>
-    feather.replace();
+    /**
+     * Generate messages for top 20 leads
+     */
+    async function generateMessagesForTopLeads() {
+        const confirmed = confirm('Generate AI messages for the top 20 qualified leads?');
+        if (!confirmed) return;
+        
+        try {
+            // Auto-select top leads
+            const selectedIds = await autoSelectTopLeads(20, 70);
+            
+            if (selectedIds && selectedIds.length > 0) {
+                // Generate messages
+                await generateMessages(selectedIds);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showNotification('Error generating messages', 'error');
+        }
+    }
+    
+    // Replace feather icons after page load
+    document.addEventListener('DOMContentLoaded', function() {
+        feather.replace();
+    });
 </script>
 {% endblock %}
