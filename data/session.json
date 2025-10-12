@@ -1,0 +1,243 @@
+{
+  "ai_analysis": {
+    "personas": [
+      {
+        "name": "Marketing Agencies",
+        "description": "Organizations that manage marketing for other businesses",
+        "job_titles": [
+          "Agency Owners"
+        ],
+        "industries": [
+          "Marketing"
+        ],
+        "pain_points": [
+          "Wasting time on repetitive tasks or manual processes",
+          "Inconsistent lead generation and sales follow-ups",
+          "Weak data visibility across tools and platforms",
+          "No unified system for marketing, sales, and automation",
+          "High costs hiring teams to manage simple workflows"
+        ],
+        "goals": [
+          "AI-driven workflow automation",
+          "Chatbot development",
+          "AI content & video generation",
+          "Data analytics dashboards & reporting automation",
+          "Lead scraping and outreach bots",
+          "Payment integration",
+          "End-to-end business system design"
+        ],
+        "keywords": [
+          "Marketing",
+          "Agency",
+          "Automation"
+        ]
+      },
+      {
+        "name": "SMEs & Founders",
+        "description": "Small and Medium Enterprises and their founders",
+        "job_titles": [
+          "Founders",
+          "CEOs"
+        ],
+        "industries": [
+          "Various Industries"
+        ],
+        "pain_points": [
+          "Wasting time on repetitive tasks or manual processes",
+          "Inconsistent lead generation and sales follow-ups",
+          "Weak data visibility across tools and platforms",
+          "No unified system for marketing, sales, and automation",
+          "High costs hiring teams to manage simple workflows"
+        ],
+        "goals": [
+          "AI-driven workflow automation",
+          "Chatbot development",
+          "AI content & video generation",
+          "Data analytics dashboards & reporting automation",
+          "Lead scraping and outreach bots",
+          "Payment integration",
+          "End-to-end business system design"
+        ],
+        "keywords": [
+          "SMEs",
+          "Founders",
+          "Automation"
+        ]
+      },
+      {
+        "name": "Consultants & Coaches",
+        "description": "Professionals who provide expert advice in a particular area",
+        "job_titles": [
+          "Consultants",
+          "Coaches"
+        ],
+        "industries": [
+          "Various Industries"
+        ],
+        "pain_points": [
+          "Wasting time on repetitive tasks or manual processes",
+          "Inconsistent lead generation and sales follow-ups",
+          "Weak data visibility across tools and platforms",
+          "No unified system for marketing, sales, and automation",
+          "High costs hiring teams to manage simple workflows"
+        ],
+        "goals": [
+          "AI-driven workflow automation",
+          "Chatbot development",
+          "AI content & video generation",
+          "Data analytics dashboards & reporting automation",
+          "Lead scraping and outreach bots",
+          "Payment integration",
+          "End-to-end business system design"
+        ],
+        "keywords": [
+          "Consultants",
+          "Coaches",
+          "Automation"
+        ]
+      },
+      {
+        "name": "Tech Startups",
+        "description": "Newly established companies in the technology sector",
+        "job_titles": [
+          "Founders",
+          "CEOs",
+          "CMOs",
+          "Operations Managers",
+          "Marketing Directors",
+          "Automation or AI Leads",
+          "Digital Product Managers"
+        ],
+        "industries": [
+          "Technology"
+        ],
+        "pain_points": [
+          "Wasting time on repetitive tasks or manual processes",
+          "Inconsistent lead generation and sales follow-ups",
+          "Weak data visibility across tools and platforms",
+          "No unified system for marketing, sales, and automation",
+          "High costs hiring teams to manage simple workflows"
+        ],
+        "goals": [
+          "AI-driven workflow automation",
+          "Chatbot development",
+          "AI content & video generation",
+          "Data analytics dashboards & reporting automation",
+          "Lead scraping and outreach bots",
+          "Payment integration",
+          "End-to-end business system design"
+        ],
+        "keywords": [
+          "Tech",
+          "Startups",
+          "Automation"
+        ]
+      },
+      {
+        "name": "eCommerce Brands",
+        "description": "Brands that sell products or services online",
+        "job_titles": [
+          "Founders",
+          "CEOs",
+          "CMOs",
+          "Operations Managers",
+          "Marketing Directors",
+          "Automation or AI Leads",
+          "Digital Product Managers"
+        ],
+        "industries": [
+          "eCommerce"
+        ],
+        "pain_points": [
+          "Wasting time on repetitive tasks or manual processes",
+          "Inconsistent lead generation and sales follow-ups",
+          "Weak data visibility across tools and platforms",
+          "No unified system for marketing, sales, and automation",
+          "High costs hiring teams to manage simple workflows"
+        ],
+        "goals": [
+          "AI-driven workflow automation",
+          "Chatbot development",
+          "AI content & video generation",
+          "Data analytics dashboards & reporting automation",
+          "Lead scraping and outreach bots",
+          "Payment integration",
+          "End-to-end business system design"
+        ],
+        "keywords": [
+          "eCommerce",
+          "Brands",
+          "Automation"
+        ]
+      },
+      {
+        "name": "Service Providers",
+        "description": "Companies that provide services to other businesses or individuals",
+        "job_titles": [
+          "Founders",
+          "CEOs",
+          "CMOs",
+          "Operations Managers",
+          "Marketing Directors",
+          "Automation or AI Leads",
+          "Digital Product Managers"
+        ],
+        "industries": [
+          "Various Industries"
+        ],
+        "pain_points": [
+          "Wasting time on repetitive tasks or manual processes",
+          "Inconsistent lead generation and sales follow-ups",
+          "Weak data visibility across tools and platforms",
+          "No unified system for marketing, sales, and automation",
+          "High costs hiring teams to manage simple workflows"
+        ],
+        "goals": [
+          "AI-driven workflow automation",
+          "Chatbot development",
+          "AI content & video generation",
+          "Data analytics dashboards & reporting automation",
+          "Lead scraping and outreach bots",
+          "Payment integration",
+          "End-to-end business system design"
+        ],
+        "keywords": [
+          "Service Providers",
+          "Automation"
+        ]
+      }
+    ],
+    "linkedin_search_query": "Agency Owners OR Founders OR CEOs OR CMOs OR Operations Managers OR Marketing Directors OR Automation or AI Leads OR Digital Product Managers",
+    "primary_titles": [
+      "Agency Owners",
+      "Founders",
+      "CEOs",
+      "CMOs",
+      "Operations Managers",
+      "Marketing Directors",
+      "Automation or AI Leads",
+      "Digital Product Managers"
+    ],
+    "primary_industries": [
+      "Marketing",
+      "Various Industries",
+      "Technology",
+      "eCommerce"
+    ]
+  },
+  "linkedin_query": "Agency Owners OR Founders OR CEOs OR CMOs OR Operations Managers OR Marketing Directors OR Automation or AI Leads OR Digital Product Managers",
+  "target_personas": [
+    "Marketing Agencies",
+    "SMEs & Founders",
+    "Consultants & Coaches",
+    "Tech Startups",
+    "eCommerce Brands",
+    "Service Providers"
+  ],
+  "last_updated": "2025-10-12T14:10:42.375818",
+  "scraping_config": {
+    "max_pages": 1,
+    "max_leads": 100,
+    "filters_active": true
+  }
+}

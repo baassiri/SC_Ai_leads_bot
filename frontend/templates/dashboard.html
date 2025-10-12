@@ -72,13 +72,13 @@
             <nav class="p-4">
                 <div class="mb-8">
                     <h3 class="text-xs uppercase tracking-wider text-blue-200 mb-3">Campaign Controls</h3>
-                    <button class="w-full flex items-center justify-between bg-secondary hover:bg-blue-500 text-white px-4 py-2 rounded-md mb-3">
+                    <button id="upload-btn" class="w-full flex items-center justify-between bg-secondary hover:bg-blue-500 text-white px-4 py-2 rounded-md mb-3">
                         <span>Upload Target Document</span>
                         <i data-feather="upload" class="w-4 h-4"></i>
                     </button>
                     <div class="bg-blue-900 bg-opacity-30 p-3 rounded-md mb-3">
                         <p class="text-sm">Personas Loaded:</p>
-                        <p class="text-lg font-bold">6</p>
+                        <p class="text-lg font-bold" id="personas-count">0</p>
                     </div>
                     <div class="flex space-x-2">
                         <button id="start-bot" class="flex-1 bg-success hover:bg-green-500 text-white px-4 py-2 rounded-md">
@@ -125,7 +125,7 @@
                         <span class="absolute -top-1 -right-1 bg-danger text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">3</span>
                     </div>
                     <div class="flex items-center space-x-2">
-                        <img src="http://static.photos/people/40x40/1" alt="User" class="w-8 h-8 rounded-full">
+                        <img src="https://ui-avatars.com/api/?name=Admin&background=3498DB&color=fff" alt="User" class="w-8 h-8 rounded-full">
                         <span class="text-sm font-medium">Admin</span>
                     </div>
                 </div>
@@ -139,9 +139,9 @@
                         <div class="flex items-center justify-between">
                             <div>
                                 <p class="text-gray-500 text-sm">Total Leads Scraped</p>
-                                <h3 class="text-2xl font-bold mt-1">1,248</h3>
+                                <h3 class="text-2xl font-bold mt-1" id="total-leads">0</h3>
                                 <p class="text-success text-sm mt-1 flex items-center">
-                                    <i data-feather="arrow-up" class="w-3 h-3 mr-1"></i> 12% from last week
+                                    <i data-feather="arrow-up" class="w-3 h-3 mr-1"></i> <span id="total-leads-change">0%</span>
                                 </p>
                             </div>
                             <div class="bg-blue-100 p-3 rounded-full">
@@ -154,9 +154,9 @@
                         <div class="flex items-center justify-between">
                             <div>
                                 <p class="text-gray-500 text-sm">Qualified Leads</p>
-                                <h3 class="text-2xl font-bold mt-1">784</h3>
+                                <h3 class="text-2xl font-bold mt-1" id="qualified-leads">0</h3>
                                 <p class="text-success text-sm mt-1 flex items-center">
-                                    <i data-feather="arrow-up" class="w-3 h-3 mr-1"></i> 8% from last week
+                                    <i data-feather="arrow-up" class="w-3 h-3 mr-1"></i> <span id="qualified-leads-change">0%</span>
                                 </p>
                             </div>
                             <div class="bg-green-100 p-3 rounded-full">
@@ -169,9 +169,9 @@
                         <div class="flex items-center justify-between">
                             <div>
                                 <p class="text-gray-500 text-sm">Messages Sent</p>
-                                <h3 class="text-2xl font-bold mt-1">542</h3>
+                                <h3 class="text-2xl font-bold mt-1" id="messages-sent">0</h3>
                                 <p class="text-warning text-sm mt-1 flex items-center">
-                                    <i data-feather="arrow-down" class="w-3 h-3 mr-1"></i> 3% from last week
+                                    <i data-feather="arrow-down" class="w-3 h-3 mr-1"></i> <span id="messages-sent-change">0%</span>
                                 </p>
                             </div>
                             <div class="bg-yellow-100 p-3 rounded-full">
@@ -184,9 +184,9 @@
                         <div class="flex items-center justify-between">
                             <div>
                                 <p class="text-gray-500 text-sm">Response Rate</p>
-                                <h3 class="text-2xl font-bold mt-1">22%</h3>
+                                <h3 class="text-2xl font-bold mt-1" id="response-rate">0%</h3>
                                 <p class="text-success text-sm mt-1 flex items-center">
-                                    <i data-feather="arrow-up" class="w-3 h-3 mr-1"></i> 5% from last week
+                                    <i data-feather="arrow-up" class="w-3 h-3 mr-1"></i> <span id="response-rate-change">0%</span>
                                 </p>
                             </div>
                             <div class="bg-purple-100 p-3 rounded-full">
@@ -202,56 +202,8 @@
                         <h2 class="text-lg font-semibold text-gray-800">Live Activity Feed</h2>
                     </div>
                     <div class="activity-log p-6">
-                        <div class="space-y-4">
-                            <div class="log-info flex items-start">
-                                <i data-feather="info" class="w-4 h-4 mt-1 mr-2"></i>
-                                <div>
-                                    <p class="text-sm">[10:42:15] Logging into LinkedIn...</p>
-                                    <p class="text-xs text-gray-500">Just now</p>
-                                </div>
-                            </div>
-                            <div class="log-success flex items-start">
-                                <i data-feather="check-circle" class="w-4 h-4 mt-1 mr-2"></i>
-                                <div>
-                                    <p class="text-sm">[10:42:18] Successfully logged in</p>
-                                    <p class="text-xs text-gray-500">Just now</p>
-                                </div>
-                            </div>
-                            <div class="log-info flex items-start">
-                                <i data-feather="info" class="w-4 h-4 mt-1 mr-2"></i>
-                                <div>
-                                    <p class="text-sm">[10:42:20] Scraping lead: Dr. Sarah Johnson, Cosmetic Surgeon at Beverly Hills Aesthetics</p>
-                                    <p class="text-xs text-gray-500">Just now</p>
-                                </div>
-                            </div>
-                            <div class="log-info flex items-start">
-                                <i data-feather="info" class="w-4 h-4 mt-1 mr-2"></i>
-                                <div>
-                                    <p class="text-sm">[10:42:22] AI scoring lead: 92/100 (Ideal match for Botox campaign)</p>
-                                    <p class="text-xs text-gray-500">Just now</p>
-                                </div>
-                            </div>
-                            <div class="log-info flex items-start">
-                                <i data-feather="info" class="w-4 h-4 mt-1 mr-2"></i>
-                                <div>
-                                    <p class="text-sm">[10:42:25] Sending personalized message to: Dr. Sarah Johnson</p>
-                                    <p class="text-xs text-gray-500">Just now</p>
-                                </div>
-                            </div>
-                            <div class="log-success flex items-start">
-                                <i data-feather="check-circle" class="w-4 h-4 mt-1 mr-2"></i>
-                                <div>
-                                    <p class="text-sm">[10:42:28] Message sent successfully</p>
-                                    <p class="text-xs text-gray-500">Just now</p>
-                                </div>
-                            </div>
-                            <div class="log-info flex items-start">
-                                <i data-feather="info" class="w-4 h-4 mt-1 mr-2"></i>
-                                <div>
-                                    <p class="text-sm">[10:42:30] Moving to next lead...</p>
-                                    <p class="text-xs text-gray-500">Just now</p>
-                                </div>
-                            </div>
+                        <div class="space-y-4" id="activity-feed">
+                            <!-- Activity logs will be dynamically loaded here -->
                         </div>
                     </div>
                 </div>
@@ -259,118 +211,254 @@
         </div>
     </div>
 
+    <!-- Hidden File Input -->
+    <input type="file" id="file-upload-input" accept=".docx" style="display: none;">
+
     <script>
+        // Initialize Feather Icons
         feather.replace();
         
-        // Bot status management
+        // Global variables
+        let updateInterval = null;
+        let currentPersonas = [];
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDashboardStats();
+            loadActivityLogs();
+            loadPersonas();
+            
+            // Set up auto-refresh
+            updateInterval = setInterval(() => {
+                loadDashboardStats();
+                loadActivityLogs();
+            }, 5000); // Refresh every 5 seconds
+        });
+        
+        // Load dashboard statistics
+        async function loadDashboardStats() {
+            try {
+                const response = await fetch('/api/analytics/dashboard');
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Update stat cards
+                    document.getElementById('total-leads').textContent = data.stats.total_leads || 0;
+                    document.getElementById('qualified-leads').textContent = data.stats.qualified_leads || 0;
+                    document.getElementById('messages-sent').textContent = data.stats.messages_sent || 0;
+                    document.getElementById('response-rate').textContent = `${data.stats.reply_rate || 0}%`;
+                }
+            } catch (error) {
+                console.error('Error loading dashboard stats:', error);
+            }
+        }
+        
+        // Load activity logs from backend
+        async function loadActivityLogs() {
+            try {
+                const response = await fetch('/api/activity-logs?limit=10');
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayActivityLogs(data.logs);
+                }
+            } catch (error) {
+                console.error('Error loading activity logs:', error);
+            }
+        }
+        
+        // Load personas
+        async function loadPersonas() {
+            try {
+                const response = await fetch('/api/personas');
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentPersonas = data.personas;
+                    document.getElementById('personas-count').textContent = data.total || 0;
+                }
+            } catch (error) {
+                console.error('Error loading personas:', error);
+            }
+        }
+        
+        // Display activity logs
+        function displayActivityLogs(logs) {
+            const logContainer = document.getElementById('activity-feed');
+            
+            if (!logs || logs.length === 0) {
+                logContainer.innerHTML = '<p class="text-gray-500 text-sm">No activity logs yet. Start by uploading a target document!</p>';
+                return;
+            }
+            
+            logContainer.innerHTML = '';
+            
+            logs.forEach(log => {
+                const logEntry = createLogEntry(log);
+                logContainer.appendChild(logEntry);
+            });
+            
+            feather.replace();
+        }
+        
+        // Create a log entry element
+        function createLogEntry(log) {
+            const entry = document.createElement('div');
+            const logClass = getLogClass(log.status);
+            const icon = getLogIcon(log.activity_type);
+            const time = formatTime(log.created_at);
+            
+            entry.className = `${logClass} flex items-start`;
+            entry.innerHTML = `
+                <i data-feather="${icon}" class="w-4 h-4 mt-1 mr-2"></i>
+                <div>
+                    <p class="text-sm">[${time}] ${log.description}</p>
+                    <p class="text-xs text-gray-500">${getRelativeTime(log.created_at)}</p>
+                </div>
+            `;
+            
+            return entry;
+        }
+        
+        // Get log class based on status
+        function getLogClass(status) {
+            switch(status) {
+                case 'success': return 'log-success';
+                case 'failed': return 'log-error';
+                default: return 'log-info';
+            }
+        }
+        
+        // Get icon for activity type
+        function getLogIcon(activityType) {
+            const iconMap = {
+                'scrape': 'search',
+                'score': 'trending-up',
+                'message_generate': 'message-square',
+                'message_send': 'send',
+                'login': 'log-in',
+                'bot_started': 'play',
+                'bot_stopped': 'stop-circle',
+                'credentials_saved': 'save',
+                'file_upload': 'upload'
+            };
+            
+            return iconMap[activityType] || 'info';
+        }
+        
+        // Format timestamp
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString('en-US', { 
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        }
+        
+        // Get relative time string
+        function getRelativeTime(timestamp) {
+            const now = new Date();
+            const then = new Date(timestamp);
+            const seconds = Math.floor((now - then) / 1000);
+            
+            if (seconds < 60) return 'Just now';
+            if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
+            if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
+            return `${Math.floor(seconds / 86400)} days ago`;
+        }
+        
+        // Bot control
         const startBtn = document.getElementById('start-bot');
         const stopBtn = document.getElementById('stop-bot');
         const statusIndicator = document.getElementById('bot-status');
         
-        startBtn.addEventListener('click', function() {
-            statusIndicator.className = 'status-running text-xs px-3 py-1 rounded-full mt-2 inline-block';
-            statusIndicator.innerHTML = '<i data-feather="circle" class="w-2 h-2 inline mr-1"></i> Running';
-            feather.replace();
-            
-            // Add activity log entry
-            const log = document.querySelector('.activity-log .space-y-4');
-            const now = new Date();
-            const timeString = `[${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}]`;
-            
-            const entry = document.createElement('div');
-            entry.className = 'log-success flex items-start';
-            entry.innerHTML = `
-                <i data-feather="play" class="w-4 h-4 mt-1 mr-2"></i>
-                <div>
-                    <p class="text-sm">${timeString} Bot started successfully</p>
-                    <p class="text-xs text-gray-500">Just now</p>
-                </div>
-            `;
-            log.prepend(entry);
-            feather.replace();
-        });
-        
-        stopBtn.addEventListener('click', function() {
-            statusIndicator.className = 'status-stopped text-xs px-3 py-1 rounded-full mt-2 inline-block';
-            statusIndicator.innerHTML = '<i data-feather="circle" class="w-2 h-2 inline mr-1"></i> Stopped';
-            feather.replace();
-            
-            // Add activity log entry
-            const log = document.querySelector('.activity-log .space-y-4');
-            const now = new Date();
-            const timeString = `[${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}]`;
-            
-            const entry = document.createElement('div');
-            entry.className = 'log-error flex items-start';
-            entry.innerHTML = `
-                <i data-feather="stop-circle" class="w-4 h-4 mt-1 mr-2"></i>
-                <div>
-                    <p class="text-sm">${timeString} Bot stopped</p>
-                    <p class="text-xs text-gray-500">Just now</p>
-                </div>
-            `;
-            log.prepend(entry);
-            feather.replace();
-        });
-        
-        // Simulate live updates
-        setInterval(function() {
-            if (statusIndicator.textContent.includes('Running')) {
-                const activities = [
-                    'Scraping lead: Dr. Michael Chen, Dermatologist at Skin Perfect Clinic',
-                    'AI scoring lead: 84/100 (Good match for Laser Hair Removal campaign)',
-                    'Sending personalized message to: Dr. Michael Chen',
-                    'Message sent successfully',
-                    'Found new connection: Jessica Williams, Aesthetic Nurse at Glow Med Spa',
-                    'AI analyzing profile: Jessica Williams',
-                    'Adding Jessica Williams to qualified leads list'
-                ];
+        startBtn.addEventListener('click', async function() {
+            try {
+                // Dynamically generate filters based on current personas
+                const keywords = generateKeywordsFromPersonas();
                 
-                const types = ['info', 'success'];
-                const icons = {
-                    'info': 'info',
-                    'success': 'check-circle'
-                };
+                const response = await fetch('/api/bot/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        filters: {
+                            keywords: keywords,
+                            locations: ['United States'],
+                            max_leads: 100
+                        }
+                    })
+                });
                 
-                const randomActivity = activities[Math.floor(Math.random() * activities.length)];
-                const randomType = types[Math.floor(Math.random() * types.length)];
-                const now = new Date();
-                const timeString = `[${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}]`;
+                const data = await response.json();
                 
-                const log = document.querySelector('.activity-log .space-y-4');
-                const entry = document.createElement('div');
-                entry.className = `log-${randomType} flex items-start`;
-                entry.innerHTML = `
-                    <i data-feather="${icons[randomType]}" class="w-4 h-4 mt-1 mr-2"></i>
-                    <div>
-                        <p class="text-sm">${timeString} ${randomActivity}</p>
-                        <p class="text-xs text-gray-500">Just now</p>
-                    </div>
-                `;
-                log.prepend(entry);
-                feather.replace();
-                
-                // Limit log entries
-                if (log.children.length > 20) {
-                    log.removeChild(log.lastChild);
+                if (data.success) {
+                    statusIndicator.className = 'status-running text-xs px-3 py-1 rounded-full mt-2 inline-block';
+                    statusIndicator.innerHTML = '<i data-feather="circle" class="w-2 h-2 inline mr-1"></i> Running';
+                    feather.replace();
+                    showNotification('Bot started successfully!', 'success');
+                } else {
+                    showNotification(data.message || 'Failed to start bot', 'error');
                 }
+            } catch (error) {
+                console.error('Error starting bot:', error);
+                showNotification('Error starting bot', 'error');
             }
-        }, 5000);
-    </script>
-    <!-- Hidden File Input -->
-<input type="file" id="file-upload-input" accept=".docx" style="display: none;">
-
-<script>
-// Upload Target Document functionality
-document.addEventListener('DOMContentLoaded', function() {
-    // Get the upload button (it's in the sidebar)
-    const uploadBtn = document.querySelector('.sidebar button.bg-secondary');
-    const fileInput = document.getElementById('file-upload-input');
-    
-    if (uploadBtn && fileInput) {
-        uploadBtn.addEventListener('click', function() {
-            fileInput.click();
         });
+        
+        stopBtn.addEventListener('click', async function() {
+            try {
+                const response = await fetch('/api/bot/stop', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    statusIndicator.className = 'status-stopped text-xs px-3 py-1 rounded-full mt-2 inline-block';
+                    statusIndicator.innerHTML = '<i data-feather="circle" class="w-2 h-2 inline mr-1"></i> Stopped';
+                    feather.replace();
+                    showNotification('Bot stopped successfully!', 'success');
+                } else {
+                    showNotification(data.message || 'Failed to stop bot', 'error');
+                }
+            } catch (error) {
+                console.error('Error stopping bot:', error);
+                showNotification('Error stopping bot', 'error');
+            }
+        });
+        
+        // Generate keywords from current personas
+        function generateKeywordsFromPersonas() {
+            if (!currentPersonas || currentPersonas.length === 0) {
+                // Default fallback keywords
+                return 'CEO Founder CMO Marketing Director Agency Owner';
+            }
+            
+            // Extract keywords from personas
+            const keywords = [];
+            currentPersonas.forEach(persona => {
+                if (persona.message_tone) {
+                    // message_tone contains keywords in the current schema
+                    keywords.push(...persona.message_tone.split(',').map(k => k.trim()));
+                }
+                if (persona.name) {
+                    keywords.push(persona.name);
+                }
+            });
+            
+            // Remove duplicates and join
+            const uniqueKeywords = [...new Set(keywords)];
+            return uniqueKeywords.slice(0, 10).join(' OR ');
+        }
+        
+        // File upload handler
+        const uploadBtn = document.getElementById('upload-btn');
+        const fileInput = document.getElementById('file-upload-input');
+        
+        uploadBtn.addEventListener('click', () => fileInput.click());
         
         fileInput.addEventListener('change', async function(e) {
             const file = e.target.files[0];
@@ -379,8 +467,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const formData = new FormData();
             formData.append('file', file);
             
-            // Show loading notification
-            showNotification('Uploading file...', 'info');
+            showNotification('Analyzing document with AI...', 'info');
             
             try {
                 const response = await fetch('/api/upload-targets', {
@@ -392,10 +479,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 if (data.success) {
                     showNotification(data.message, 'success');
+                    
                     // Update personas count
-                    if (data.personas_count) {
-                        document.querySelector('.sidebar .text-lg.font-bold').textContent = data.personas_count;
-                    }
+                    document.getElementById('personas-count').textContent = data.personas_count || 0;
+                    
+                    // Reload personas
+                    loadPersonas();
+                    
+                    // Reload activity logs to show the upload
+                    loadActivityLogs();
                 } else {
                     showNotification(data.message || 'Failed to upload file', 'error');
                 }
@@ -407,25 +499,28 @@ document.addEventListener('DOMContentLoaded', function() {
             // Reset file input
             fileInput.value = '';
         });
-    }
-    
-    // Notification function
-    function showNotification(message, type = 'info') {
-        const notification = document.createElement('div');
-        notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 ${
-            type === 'success' ? 'bg-success text-white' : 
-            type === 'error' ? 'bg-danger text-white' : 
-            'bg-secondary text-white'
-        }`;
-        notification.textContent = message;
         
-        document.body.appendChild(notification);
+        // Notification system
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 ${
+                type === 'success' ? 'bg-success text-white' : 
+                type === 'error' ? 'bg-danger text-white' : 
+                'bg-secondary text-white'
+            }`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
         
-        setTimeout(() => {
-            notification.remove();
-        }, 3000);
-    }
-});
-</script>
+        // Clean up on page unload
+        window.addEventListener('beforeunload', () => {
+            if (updateInterval) clearInterval(updateInterval);
+        });
+    </script>
 </body>
 </html>
