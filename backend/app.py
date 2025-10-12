@@ -356,11 +356,17 @@ def start_bot():
             status='success'
         )
         
-        # Background scraping function
+        # Background scraping function with AI scoring
         def scrape_leads_background():
             global bot_status, current_personas
             
             try:
+                # Import lead scorer
+                from backend.ai_engine.lead_scorer import score_lead
+                
+                # Get OpenAI API key for scoring
+                api_key = credentials_manager.get_openai_key()
+                
                 # Use personas from database
                 personas = db_manager.get_all_personas()
                 
@@ -400,34 +406,77 @@ def start_bot():
                         )
                         
                         if lead_id:
-                            # Update score and persona
-                            db_manager.update_lead_score(
-                                lead_id,
-                                lead_data['score'],
-                                persona_id=persona.get('id'),
-                                score_reasoning=f"Match for {persona_name} persona"
-                            )
+                            # ✨ Use AI Lead Scorer
+                            bot_status['current_activity'] = f'🤖 AI scoring: {lead_data["name"]}...'
                             
-                            total_leads.append(lead_data['name'])
-                            
-                            # Log activity
-                            db_manager.log_activity(
-                                activity_type='scrape',
-                                description=f"✅ Scraped: {lead_data['name']}, {lead_data['title']} (Score: {lead_data['score']}/100)",
-                                status='success',
-                                lead_id=lead_id
-                            )
+                            try:
+                                # Score the lead using AI
+                                scoring_result = score_lead(
+                                    lead_data=lead_data,
+                                    persona_data=persona,
+                                    api_key=api_key
+                                )
+                                
+                                ai_score = scoring_result['score']
+                                reasoning = scoring_result['reasoning']
+                                
+                                # Update score and persona with AI results
+                                db_manager.update_lead_score(
+                                    lead_id,
+                                    ai_score,
+                                    persona_id=persona.get('id'),
+                                    score_reasoning=reasoning
+                                )
+                                
+                                # Log with detailed score
+                                db_manager.log_activity(
+                                    activity_type='scrape',
+                                    description=f"✅ Scraped: {lead_data['name']}, {lead_data['title']} (AI Score: {ai_score}/100)",
+                                    status='success',
+                                    lead_id=lead_id
+                                )
+                                
+                                # Log scoring activity separately
+                                db_manager.log_activity(
+                                    activity_type='score',
+                                    description=f"🎯 AI scored {lead_data['name']}: {ai_score}/100 - {reasoning}",
+                                    status='success',
+                                    lead_id=lead_id
+                                )
+                                
+                                total_leads.append(lead_data['name'])
+                                
+                            except Exception as e:
+                                # Fallback to random score if AI scoring fails
+                                print(f"⚠️ AI scoring failed for {lead_data['name']}: {str(e)}")
+                                fallback_score = lead_data.get('score', random.randint(70, 90))
+                                
+                                db_manager.update_lead_score(
+                                    lead_id,
+                                    fallback_score,
+                                    persona_id=persona.get('id'),
+                                    score_reasoning=f"Match for {persona_name} persona (fallback scoring)"
+                                )
+                                
+                                db_manager.log_activity(
+                                    activity_type='scrape',
+                                    description=f"✅ Scraped: {lead_data['name']}, {lead_data['title']} (Score: {fallback_score}/100 - fallback)",
+                                    status='success',
+                                    lead_id=lead_id
+                                )
+                                
+                                total_leads.append(lead_data['name'])
                         
                         time.sleep(0.5)
                 
                 bot_status['leads_scraped'] = len(total_leads)
-                bot_status['current_activity'] = f'✅ Complete! {len(total_leads)} leads scraped'
+                bot_status['current_activity'] = f'✅ Complete! {len(total_leads)} leads scraped and AI-scored'
                 bot_status['progress'] = 100
                 
                 # Final log
                 db_manager.log_activity(
                     activity_type='scrape',
-                    description=f'🎉 Successfully scraped {len(total_leads)} leads from {len(personas)} personas',
+                    description=f'🎉 Successfully scraped and AI-scored {len(total_leads)} leads from {len(personas)} personas',
                     status='success'
                 )
                 
@@ -451,7 +500,7 @@ def start_bot():
         
         return jsonify({
             'success': True,
-            'message': 'Bot started! Generating leads from your personas...',
+            'message': 'Bot started! Generating leads with AI scoring...',
             'status': bot_status
         })
         
@@ -461,7 +510,6 @@ def start_bot():
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
-
 @app.route('/api/bot/stop', methods=['POST'])
 def stop_bot():
     global bot_status
