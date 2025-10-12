@@ -1,0 +1,58 @@
+/* Dashboard Custom Styles - Add to dashboard.html or separate CSS file */
+
+/* Top Qualified Leads - Scrollable Container */
+.top-leads-container {
+    max-height: 400px; /* Limit height to 400px */
+    overflow-y: auto; /* Add vertical scroll */
+    overflow-x: hidden; /* Hide horizontal scroll */
+}
+
+/* Custom Scrollbar Styling (Optional - for better look) */
+.top-leads-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.top-leads-container::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+}
+
+.top-leads-container::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+.top-leads-container::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Activity Feed - Scrollable Container */
+.activity-feed-container {
+    max-height: 400px;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.activity-feed-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.activity-feed-container::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+}
+
+.activity-feed-container::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+.activity-feed-container::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Smooth scrolling */
+.top-leads-container,
+.activity-feed-container {
+    scroll-behavior: smooth;
+}

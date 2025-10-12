@@ -1,6 +1,6 @@
 /**
  * SC AI Lead Generation System - Dashboard JavaScript
- * Clean version without syntax errors
+ * Fixed version with proper lead limits
  */
 
 // Global state
@@ -14,9 +14,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // Load initial data
     loadDashboardStats();
     loadActivityLogs();
+    loadRecentLeads(); // Load top 5 qualified leads
     
     // Start auto-refresh intervals
-    updateInterval = setInterval(loadDashboardStats, 10000); // Every 10 seconds
+    updateInterval = setInterval(function() {
+        loadDashboardStats();
+        loadRecentLeads();
+    }, 10000); // Every 10 seconds
+    
     activityInterval = setInterval(loadActivityLogs, 5000); // Every 5 seconds
     
     // Set up event listeners
@@ -131,6 +136,107 @@ function updateStatCard(elementId, value) {
 }
 
 /**
+ * Load recent high-scoring leads (LIMIT 5)
+ */
+async function loadRecentLeads() {
+    try {
+        // IMPORTANT: Only get 5 leads
+        const response = await fetch('/api/leads?min_score=70&limit=5');
+        const data = await response.json();
+        
+        if (data.success && data.leads) {
+            // Double check we only show 5
+            const topFive = data.leads.slice(0, 5);
+            displayRecentLeads(topFive);
+        } else {
+            console.warn('No leads data returned');
+        }
+    } catch (error) {
+        console.error('Error loading recent leads:', error);
+    }
+}
+
+/**
+ * Display recent leads in UI
+ */
+function displayRecentLeads(leads) {
+    const container = document.querySelector('.top-leads-container');
+    if (!container) {
+        console.warn('Top leads container not found');
+        return;
+    }
+    
+    if (!leads || leads.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-8 text-gray-500">
+                <svg class="w-12 h-12 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                </svg>
+                <p>No qualified leads yet</p>
+                <p class="text-sm mt-1">Start the bot to begin scraping!</p>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = leads.map(lead => {
+        const scoreColor = getScoreColor(lead.ai_score);
+        const initials = getInitials(lead.name);
+        
+        return `
+            <div class="flex items-center py-3 px-4 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors" onclick="window.location.href='/leads?id=${lead.id}'">
+                <div class="w-10 h-10 rounded-full ${scoreColor} flex items-center justify-center text-white font-semibold mr-3 flex-shrink-0">
+                    ${initials}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-gray-900 truncate">${lead.name}</p>
+                    <p class="text-xs text-gray-500 truncate">${lead.title || 'No title'} ${lead.company ? 'at ' + lead.company : ''}</p>
+                </div>
+                <div class="ml-3 flex-shrink-0">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getScoreBadgeColor(lead.ai_score)}">
+                        ${Math.round(lead.ai_score)}
+                    </span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+/**
+ * Get initials from name
+ */
+function getInitials(name) {
+    if (!name) return '??';
+    const parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+}
+
+/**
+ * Get score background color
+ */
+function getScoreColor(score) {
+    if (score >= 90) return 'bg-green-600';
+    if (score >= 80) return 'bg-green-500';
+    if (score >= 70) return 'bg-blue-500';
+    if (score >= 60) return 'bg-yellow-500';
+    return 'bg-gray-500';
+}
+
+/**
+ * Get score badge color
+ */
+function getScoreBadgeColor(score) {
+    if (score >= 90) return 'bg-green-100 text-green-800';
+    if (score >= 80) return 'bg-green-50 text-green-700';
+    if (score >= 70) return 'bg-blue-100 text-blue-800';
+    if (score >= 60) return 'bg-yellow-100 text-yellow-800';
+    return 'bg-gray-100 text-gray-800';
+}
+
+/**
  * Load activity logs
  */
 async function loadActivityLogs() {
@@ -204,6 +310,7 @@ function getActivityIcon(activityType) {
         'lead_scored': 'star',
         'message_generated': 'message-square',
         'message_sent': 'send',
+        'message_approved': 'check',
         'credentials_saved': 'key',
         'file_upload': 'upload'
     };
@@ -219,9 +326,16 @@ function getTimeAgo(timestamp) {
     const seconds = Math.floor((now - then) / 1000);
     
     if (seconds < 60) return 'Just now';
-    if (seconds < 3600) return Math.floor(seconds / 60) + ' minutes ago';
-    if (seconds < 86400) return Math.floor(seconds / 3600) + ' hours ago';
-    return Math.floor(seconds / 86400) + ' days ago';
+    if (seconds < 3600) {
+        const mins = Math.floor(seconds / 60);
+        return mins + (mins === 1 ? ' minute ago' : ' minutes ago');
+    }
+    if (seconds < 86400) {
+        const hours = Math.floor(seconds / 3600);
+        return hours + (hours === 1 ? ' hour ago' : ' hours ago');
+    }
+    const days = Math.floor(seconds / 86400);
+    return days + (days === 1 ? ' day ago' : ' days ago');
 }
 
 /**
@@ -255,5 +369,11 @@ function showNotification(message, type) {
         }
     }, 3500);
 }
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', function() {
+    if (updateInterval) clearInterval(updateInterval);
+    if (activityInterval) clearInterval(activityInterval);
+});
 
 console.log('Dashboard module loaded successfully');
