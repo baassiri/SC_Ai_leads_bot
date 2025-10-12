@@ -59,6 +59,45 @@
             background-color: rgba(243, 156, 18, 0.1);
             color: #F39C12;
         }
+        
+        /* Loading Modal Styles */
+        .loading-modal {
+            backdrop-filter: blur(4px);
+        }
+        
+        .progress-bar {
+            transition: width 0.3s ease;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .animate-spin-slow {
+            animation: spin 2s linear infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+        
+        .animate-pulse-custom {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        .progress-step {
+            transition: all 0.3s ease;
+        }
+        
+        .progress-step.completed {
+            color: #27AE60;
+        }
+        
+        .progress-step.active {
+            color: #3498DB;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -213,6 +252,76 @@
 
     <!-- Hidden File Input -->
     <input type="file" id="file-upload-input" accept=".docx" style="display: none;">
+
+    <!-- AI Analysis Loading Modal -->
+    <div id="ai-loading-modal" class="loading-modal fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 transform transition-all">
+            <!-- Header -->
+            <div class="text-center mb-6">
+                <div class="mx-auto w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-4">
+                    <i data-feather="cpu" class="w-10 h-10 text-white animate-pulse-custom"></i>
+                </div>
+                <h3 class="text-2xl font-bold text-gray-800 mb-2">AI Analyzing Document</h3>
+                <p class="text-gray-600 text-sm" id="analysis-subtitle">Extracting target personas from your document...</p>
+            </div>
+            
+            <!-- Progress Bar -->
+            <div class="mb-6">
+                <div class="bg-gray-200 rounded-full h-3 overflow-hidden">
+                    <div id="progress-bar" class="progress-bar bg-gradient-to-r from-blue-500 to-purple-600 h-full rounded-full" style="width: 0%"></div>
+                </div>
+                <p class="text-center text-sm text-gray-600 mt-2">
+                    <span id="progress-percentage">0</span>% Complete
+                </p>
+            </div>
+            
+            <!-- Progress Steps -->
+            <div class="space-y-3 mb-6">
+                <div class="progress-step flex items-center text-sm" id="step-upload">
+                    <div class="w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center mr-3 flex-shrink-0">
+                        <i data-feather="upload" class="w-3 h-3"></i>
+                    </div>
+                    <span>Uploading document...</span>
+                </div>
+                
+                <div class="progress-step flex items-center text-sm text-gray-400" id="step-extract">
+                    <div class="w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center mr-3 flex-shrink-0">
+                        <i data-feather="file-text" class="w-3 h-3"></i>
+                    </div>
+                    <span>Extracting text content...</span>
+                </div>
+                
+                <div class="progress-step flex items-center text-sm text-gray-400" id="step-analyze">
+                    <div class="w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center mr-3 flex-shrink-0">
+                        <i data-feather="cpu" class="w-3 h-3"></i>
+                    </div>
+                    <span>AI analyzing personas...</span>
+                </div>
+                
+                <div class="progress-step flex items-center text-sm text-gray-400" id="step-save">
+                    <div class="w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center mr-3 flex-shrink-0">
+                        <i data-feather="database" class="w-3 h-3"></i>
+                    </div>
+                    <span>Saving to database...</span>
+                </div>
+                
+                <div class="progress-step flex items-center text-sm text-gray-400" id="step-complete">
+                    <div class="w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center mr-3 flex-shrink-0">
+                        <i data-feather="check-circle" class="w-3 h-3"></i>
+                    </div>
+                    <span>Complete!</span>
+                </div>
+            </div>
+            
+            <!-- Status Message -->
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+                <p class="text-sm text-blue-800" id="status-message">
+                    <i data-feather="info" class="w-4 h-4 inline mr-1"></i>
+                    This may take 10-30 seconds depending on document size
+                </p>
+            </div>
+        </div>
+    </div>
 
     <script>
         // Initialize Feather Icons
@@ -369,6 +478,92 @@
             return `${Math.floor(seconds / 86400)} days ago`;
         }
         
+        // AI Loading Modal Functions
+        function showLoadingModal() {
+            const modal = document.getElementById('ai-loading-modal');
+            modal.classList.remove('hidden');
+            
+            // Refresh feather icons in modal
+            feather.replace();
+            
+            // Start progress animation
+            animateProgress();
+        }
+        
+        function hideLoadingModal() {
+            const modal = document.getElementById('ai-loading-modal');
+            modal.classList.add('hidden');
+            
+            // Reset progress
+            resetProgress();
+        }
+        
+        function animateProgress() {
+            const steps = [
+                { id: 'step-upload', progress: 20, delay: 500, message: 'Processing document...' },
+                { id: 'step-extract', progress: 40, delay: 1000, message: 'Reading content...' },
+                { id: 'step-analyze', progress: 70, delay: 2000, message: 'AI is identifying personas...' },
+                { id: 'step-save', progress: 90, delay: 500, message: 'Saving personas...' },
+                { id: 'step-complete', progress: 100, delay: 500, message: 'Complete!' }
+            ];
+            
+            let currentDelay = 0;
+            
+            steps.forEach((step, index) => {
+                setTimeout(() => {
+                    // Update progress bar
+                    updateProgress(step.progress);
+                    
+                    // Update subtitle
+                    document.getElementById('analysis-subtitle').textContent = step.message;
+                    
+                    // Mark step as active
+                    const stepElement = document.getElementById(step.id);
+                    stepElement.classList.remove('text-gray-400');
+                    stepElement.classList.add('active');
+                    
+                    // Mark previous steps as completed
+                    if (index > 0) {
+                        const prevStep = document.getElementById(steps[index - 1].id);
+                        prevStep.classList.remove('active');
+                        prevStep.classList.add('completed');
+                    }
+                    
+                    // Refresh icons
+                    feather.replace();
+                }, currentDelay);
+                
+                currentDelay += step.delay;
+            });
+        }
+        
+        function updateProgress(percentage) {
+            const progressBar = document.getElementById('progress-bar');
+            const progressText = document.getElementById('progress-percentage');
+            
+            progressBar.style.width = percentage + '%';
+            progressText.textContent = percentage;
+        }
+        
+        function resetProgress() {
+            updateProgress(0);
+            document.getElementById('analysis-subtitle').textContent = 'Extracting target personas from your document...';
+            document.getElementById('status-message').innerHTML = `
+                <i data-feather="info" class="w-4 h-4 inline mr-1"></i>
+                This may take 10-30 seconds depending on document size
+            `;
+            
+            // Reset all steps
+            const steps = ['step-upload', 'step-extract', 'step-analyze', 'step-save', 'step-complete'];
+            steps.forEach(stepId => {
+                const step = document.getElementById(stepId);
+                step.classList.remove('active', 'completed');
+                step.classList.add('text-gray-400');
+            });
+            
+            feather.replace();
+        }
+        
         // Bot control
         const startBtn = document.getElementById('start-bot');
         const stopBtn = document.getElementById('stop-bot');
@@ -454,7 +649,7 @@
             return uniqueKeywords.slice(0, 10).join(' OR ');
         }
         
-        // File upload handler
+        // File upload handler WITH LOADING MODAL
         const uploadBtn = document.getElementById('upload-btn');
         const fileInput = document.getElementById('file-upload-input');
         
@@ -467,7 +662,8 @@
             const formData = new FormData();
             formData.append('file', file);
             
-            showNotification('Analyzing document with AI...', 'info');
+            // Show loading modal
+            showLoadingModal();
             
             try {
                 const response = await fetch('/api/upload-targets', {
@@ -477,22 +673,29 @@
                 
                 const data = await response.json();
                 
-                if (data.success) {
-                    showNotification(data.message, 'success');
+                // Wait a moment for animation to complete
+                setTimeout(() => {
+                    hideLoadingModal();
                     
-                    // Update personas count
-                    document.getElementById('personas-count').textContent = data.personas_count || 0;
-                    
-                    // Reload personas
-                    loadPersonas();
-                    
-                    // Reload activity logs to show the upload
-                    loadActivityLogs();
-                } else {
-                    showNotification(data.message || 'Failed to upload file', 'error');
-                }
+                    if (data.success) {
+                        showNotification(data.message, 'success');
+                        
+                        // Update personas count
+                        document.getElementById('personas-count').textContent = data.personas_count || 0;
+                        
+                        // Reload personas
+                        loadPersonas();
+                        
+                        // Reload activity logs to show the upload
+                        loadActivityLogs();
+                    } else {
+                        showNotification(data.message || 'Failed to upload file', 'error');
+                    }
+                }, 500);
+                
             } catch (error) {
                 console.error('Error uploading file:', error);
+                hideLoadingModal();
                 showNotification('Error uploading file', 'error');
             }
             
