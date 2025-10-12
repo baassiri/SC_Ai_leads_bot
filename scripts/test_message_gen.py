@@ -3,13 +3,19 @@ Test script for message generation
 """
 
 import sys
+import os
 from pathlib import Path
 
-# Add parent directory to path
-sys.path.append(str(Path(__file__).parent.parent))
+# Add project root to path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+os.chdir(project_root)  # Change working directory
 
+# Now import
 from backend.ai_engine.message_generator import generate_connection_message
 from backend.database.db_manager import db_manager
+
+print(f"✅ Imports successful from: {project_root}")
 
 print("\n" + "=" * 60)
 print("🧪 MESSAGE GENERATION TEST")
@@ -41,7 +47,7 @@ print(f"   Company: {lead['company']}")
 print(f"   AI Score: {lead['ai_score']}/100")
 
 # Generate message
-print("\n🎨 Generating connection request messages...\n")
+print("\n🎨 Generating connection request messages (calling GPT-4)...\n")
 
 try:
     messages = generate_connection_message(

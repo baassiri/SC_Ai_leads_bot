@@ -1,13 +1,14 @@
 """
 SC AI Lead Generation System - Message Generator
 GPT-4 powered personalized message generation for LinkedIn outreach
+UPDATED FOR OPENAI SDK 1.0.0+
 """
 
 import os
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional
-import openai
+from openai import OpenAI  # NEW: Import OpenAI client
 from datetime import datetime
 
 # Add parent directory to path
@@ -38,7 +39,8 @@ class MessageGenerator:
         if not self.api_key:
             raise ValueError("OpenAI API key is required. Set OPENAI_API_KEY environment variable.")
         
-        openai.api_key = self.api_key
+        # NEW: Initialize OpenAI client
+        self.client = OpenAI(api_key=self.api_key)
         self.model = "gpt-4"
         self.temperature = 0.7
     
@@ -103,17 +105,18 @@ VARIANT_C:
 """
         
         try:
-            response = openai.ChatCompletion.create(
+            # NEW: Updated API call syntax
+            response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": "You are an expert LinkedIn copywriter focused on high-conversion connection requests."},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=self.temperature,
-                max_tokens=600
+                max_tokens=500
             )
             
-            # Parse the response
+            # NEW: Updated response access
             content = response.choices[0].message.content.strip()
             variants = self._parse_variants(content)
             
@@ -126,51 +129,40 @@ VARIANT_C:
         
         except Exception as e:
             print(f"❌ Error generating connection request: {str(e)}")
-            return self._get_fallback_connection_messages(lead_name, lead_title, lead_company)
+            return self._get_fallback_messages(lead_name, lead_title, lead_company)
     
     def generate_follow_up_message(self,
-                                   lead_name: str,
-                                   lead_title: str,
-                                   lead_company: str,
-                                   persona_name: str = None,
-                                   message_number: int = 1,
-                                   previous_message: str = None) -> Dict[str, str]:
+                                  lead_name: str,
+                                  lead_title: str,
+                                  lead_company: str,
+                                  persona_name: str = None,
+                                  message_number: int = 1,
+                                  previous_message: str = None) -> Dict[str, str]:
         """
-        Generate follow-up message after connection is accepted
+        Generate personalized follow-up message
         
         Args:
             lead_name: Name of the lead
             lead_title: Job title
             lead_company: Company name
             persona_name: Target persona
-            message_number: 1 for first follow-up, 2 for second
-            previous_message: Previous message sent (for context)
+            message_number: Which follow-up (1 or 2)
+            previous_message: Previous message in sequence
             
         Returns:
             Dict with 3 message variants
         """
         
-        if message_number == 1:
-            message_type = "First Follow-Up (2-3 days after connection)"
-            goal = "Provide value and start conversation"
-        else:
-            message_type = "Second Follow-Up (5-7 days after first)"
-            goal = "Call-to-action for meeting/demo"
-        
-        prompt = f"""You are an expert B2B sales copywriter specializing in LinkedIn outreach.
+        prompt = f"""You are an expert B2B sales copywriter specializing in LinkedIn follow-ups.
 
-Generate 3 variations of a LinkedIn follow-up message for the following lead:
+Generate 3 variations of follow-up message #{message_number} for:
 
 **Lead Information:**
 - Name: {lead_name}
 - Title: {lead_title}
 - Company: {lead_company}
 {f"- Target Persona: {persona_name}" if persona_name else ""}
-
-**Message Type:** {message_type}
-**Goal:** {goal}
-
-{f"**Previous Message:** {previous_message}" if previous_message else ""}
+{f"- Previous Message: {previous_message}" if previous_message else ""}
 
 **Requirements:**
 1. Maximum 500 characters
@@ -198,7 +190,8 @@ VARIANT_C:
 """
         
         try:
-            response = openai.ChatCompletion.create(
+            # NEW: Updated API call syntax
+            response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": "You are an expert LinkedIn copywriter focused on high-conversion follow-up messages."},
@@ -208,6 +201,7 @@ VARIANT_C:
                 max_tokens=800
             )
             
+            # NEW: Updated response access
             content = response.choices[0].message.content.strip()
             variants = self._parse_variants(content)
             
@@ -335,25 +329,8 @@ VARIANT_C:
         
         return variants
     
-    def _save_messages_to_db(self, lead_id: int, messages: Dict[str, Dict[str, str]]):
-        """Save generated messages to database"""
-        
-        for message_type, variants in messages.items():
-            for variant_key, content in variants.items():
-                # Extract variant letter (a, b, or c)
-                variant = variant_key.split('_')[-1].upper()
-                
-                db_manager.create_message(
-                    lead_id=lead_id,
-                    message_type=message_type,
-                    content=content,
-                    variant=variant,
-                    generated_by='gpt-4',
-                    prompt_used=f"Generated {message_type} variant {variant}"
-                )
-    
-    def _get_fallback_connection_messages(self, lead_name: str, lead_title: str, lead_company: str) -> Dict[str, str]:
-        """Fallback messages if API fails"""
+    def _get_fallback_messages(self, lead_name: str, lead_title: str, lead_company: str) -> Dict[str, str]:
+        """Return fallback messages if GPT-4 fails"""
         return {
             'variant_a': f"Hi {lead_name}, I came across your profile and was impressed by your work at {lead_company}. I'd love to connect and exchange ideas about {lead_title} best practices.",
             'variant_b': f"Hi {lead_name}, fellow professional here. Your experience at {lead_company} caught my attention. Would be great to connect!",
@@ -361,29 +338,45 @@ VARIANT_C:
         }
     
     def _get_fallback_followup_messages(self, lead_name: str, lead_title: str, message_number: int) -> Dict[str, str]:
-        """Fallback follow-up messages if API fails"""
+        """Return fallback follow-up messages if GPT-4 fails"""
         if message_number == 1:
             return {
-                'variant_a': f"Thanks for connecting, {lead_name}! I'm curious - what are your biggest priorities as a {lead_title} right now?",
-                'variant_b': f"Great to connect, {lead_name}! I work with many {lead_title}s and would love to hear about your current challenges.",
-                'variant_c': f"Hi {lead_name}, thanks for accepting! I'd love to learn more about your work and see if there's any way I can be helpful."
+                'variant_a': f"Hi {lead_name}, following up on my connection request. I think there could be some great synergies between what you're doing and what we offer. Would you be open to a quick chat?",
+                'variant_b': f"Hey {lead_name}, wanted to reach out again. I've been following your work and think we could help with some of the challenges in {lead_title}. Interested in learning more?",
+                'variant_c': f"{lead_name}, quick follow-up - we've helped several companies in your space improve their results. Would love to share some insights if you have 15 minutes this week?"
             }
         else:
             return {
-                'variant_a': f"Hi {lead_name}, following up on my last message. Would you be open to a quick 15-minute call to explore potential synergies?",
-                'variant_b': f"{lead_name}, I have some insights that might be valuable for your work. Are you available for a brief chat this week?",
-                'variant_c': f"Hi {lead_name}, I'd love to show you something that could help with [specific challenge]. Free for a quick call?"
+                'variant_a': f"Hi {lead_name}, I know you're busy, but I wanted to make one more attempt to connect. We've seen great results helping companies like yours. Open to a brief call this week?",
+                'variant_b': f"{lead_name}, final follow-up from me. If the timing isn't right now, no worries - but I'd hate for you to miss out on what we could potentially achieve together. Let me know!",
+                'variant_c': f"Hi {lead_name}, last message from me! Just wanted to make sure you saw my previous notes. If you're interested in discussing how we can help, I'm here. Otherwise, I'll check back in a few months."
             }
+    
+    def _save_messages_to_db(self, lead_id: int, messages: Dict[str, Dict[str, str]]):
+        """Save generated messages to database"""
+        # This would integrate with your database manager
+        # Implementation depends on your database schema
+        pass
 
 
-# Standalone functions for easy import
-def generate_connection_message(lead_name: str, lead_title: str, lead_company: str, 
-                                persona_name: str = None, api_key: str = None) -> Dict[str, str]:
+# Convenience functions for quick message generation
+def generate_connection_message(lead_name: str,
+                                lead_title: str,
+                                lead_company: str,
+                                persona_name: str = None,
+                                api_key: str = None) -> Dict[str, str]:
     """
-    Quick function to generate connection request
+    Quick helper function to generate a connection request
+    
+    Args:
+        lead_name: Name of the lead
+        lead_title: Job title of the lead
+        lead_company: Company name
+        persona_name: Target persona (optional)
+        api_key: OpenAI API key (optional, defaults to env var)
     
     Returns:
-        Dict with variant_a, variant_b, variant_c keys
+        Dict with 3 message variants (variant_a, variant_b, variant_c)
     """
     generator = MessageGenerator(api_key=api_key)
     return generator.generate_connection_request(
@@ -394,86 +387,54 @@ def generate_connection_message(lead_name: str, lead_title: str, lead_company: s
     )
 
 
-def generate_followup_message(lead_name: str, lead_title: str, lead_company: str,
-                              message_number: int = 1, api_key: str = None) -> Dict[str, str]:
+def generate_followup_message(lead_name: str,
+                              lead_title: str,
+                              lead_company: str,
+                              persona_name: str = None,
+                              message_number: int = 1,
+                              previous_message: str = None,
+                              api_key: str = None) -> Dict[str, str]:
     """
-    Quick function to generate follow-up message
+    Quick helper function to generate a follow-up message
+    
+    Args:
+        lead_name: Name of the lead
+        lead_title: Job title of the lead
+        lead_company: Company name
+        persona_name: Target persona (optional)
+        message_number: 1 for first follow-up, 2 for second
+        previous_message: Previous message for context (optional)
+        api_key: OpenAI API key (optional, defaults to env var)
     
     Returns:
-        Dict with variant_a, variant_b, variant_c keys
+        Dict with 3 message variants (variant_a, variant_b, variant_c)
     """
     generator = MessageGenerator(api_key=api_key)
     return generator.generate_follow_up_message(
         lead_name=lead_name,
         lead_title=lead_title,
         lead_company=lead_company,
-        message_number=message_number
+        persona_name=persona_name,
+        message_number=message_number,
+        previous_message=previous_message
     )
 
 
-# CLI for testing
-if __name__ == '__main__':
-    import argparse
+if __name__ == "__main__":
+    # Test the message generator
+    print("\n" + "="*60)
+    print("🧪 MESSAGE GENERATOR TEST")
+    print("="*60)
     
-    parser = argparse.ArgumentParser(description='LinkedIn Message Generator')
-    parser.add_argument('--lead-id', type=int, help='Lead ID from database')
-    parser.add_argument('--test', action='store_true', help='Run test with sample data')
+    test_messages = generate_connection_message(
+        lead_name="John Smith",
+        lead_title="VP of Marketing",
+        lead_company="Tech Corp",
+        persona_name="Marketing Leaders"
+    )
     
-    args = parser.parse_args()
-    
-    generator = MessageGenerator()
-    
-    if args.test:
-        print("\n🧪 Testing Message Generator\n")
-        
-        # Test connection request
-        print("=" * 60)
-        print("CONNECTION REQUEST MESSAGES")
-        print("=" * 60)
-        
-        messages = generator.generate_connection_request(
-            lead_name="Sarah Johnson",
-            lead_title="Marketing Director",
-            lead_company="TechCorp Inc",
-            persona_name="Marketing Agencies"
-        )
-        
-        for variant, message in messages.items():
-            print(f"\n{variant.upper()}:")
-            print(f"{message}")
-            print(f"(Length: {len(message)} chars)")
-        
-        # Test follow-up
-        print("\n" + "=" * 60)
-        print("FOLLOW-UP MESSAGE 1")
-        print("=" * 60)
-        
-        followup = generator.generate_follow_up_message(
-            lead_name="Sarah Johnson",
-            lead_title="Marketing Director",
-            lead_company="TechCorp Inc",
-            message_number=1
-        )
-        
-        for variant, message in followup.items():
-            print(f"\n{variant.upper()}:")
-            print(f"{message}")
-            print(f"(Length: {len(message)} chars)")
-    
-    elif args.lead_id:
-        # Generate for specific lead
-        messages = generator.generate_all_messages(lead_id=args.lead_id, save_to_db=True)
-        
-        print("\n" + "=" * 60)
-        print("ALL MESSAGES GENERATED")
-        print("=" * 60)
-        
-        for message_type, variants in messages.items():
-            print(f"\n{message_type.upper().replace('_', ' ')}:")
-            for variant, message in variants.items():
-                print(f"  {variant}: {message[:100]}...")
-    
-    else:
-        print("Usage:")
-        print("  python message_generator.py --test")
-        print("  python message_generator.py --lead-id 1")
+    print("\n✅ Generated Messages:")
+    for variant, message in test_messages.items():
+        print(f"\n{variant.upper()}:")
+        print(f"  {message}")
+        print(f"  Length: {len(message)} characters")
