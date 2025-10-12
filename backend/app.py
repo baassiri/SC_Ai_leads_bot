@@ -703,19 +703,74 @@ def generate_messages():
             'message': f'Error: {str(e)}'
         }), 500
 
-@app.route('/api/messages', methods=['GET'])
-def get_messages():
+@app.route('/api/messages/stats', methods=['GET'])
+def get_message_stats():
+    """Get message statistics"""
     try:
-        status = request.args.get('status', 'draft')
-        limit = request.args.get('limit', 100, type=int)
-        
-        messages = db_manager.get_messages_by_status(status, limit)
+        stats = db_manager.get_message_stats()
         
         return jsonify({
             'success': True,
-            'messages': messages,
-            'total': len(messages)
+            'stats': stats
         })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/messages/<int:message_id>/unapprove', methods=['POST'])
+def unapprove_message(message_id):
+    """Unapprove a message (set back to draft)"""
+    try:
+        success = db_manager.update_message_status(message_id, 'draft')
+        
+        if success:
+            db_manager.log_activity(
+                activity_type='message_unapproved',
+                description=f'Message {message_id} set back to draft',
+                status='success'
+            )
+            
+            return jsonify({
+                'success': True,
+                'message': 'Message set back to draft'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Message not found'
+            }), 404
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/messages/<int:message_id>', methods=['DELETE'])
+def delete_message(message_id):
+    """Delete a message"""
+    try:
+        success = db_manager.delete_message(message_id)
+        
+        if success:
+            db_manager.log_activity(
+                activity_type='message_deleted',
+                description=f'Message {message_id} deleted',
+                status='success'
+            )
+            
+            return jsonify({
+                'success': True,
+                'message': 'Message deleted successfully'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Message not found'
+            }), 404
+            
     except Exception as e:
         return jsonify({
             'success': False,

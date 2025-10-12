@@ -5,6 +5,7 @@
 {% block page_title %}Messages{% endblock %}
 
 {% block extra_styles %}
+<style>
 .message-thread {
     max-height: 500px;
     overflow-y: auto;
@@ -16,49 +17,100 @@
     background-color: #bdc3c7;
     border-radius: 3px;
 }
-.message-incoming {
-    background-color: #f8f9fa;
-    border-radius: 0 1rem 1rem 1rem;
+@keyframes slide-in {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
 }
-.message-outgoing {
-    background-color: #e3f2fd;
-    border-radius: 1rem 0 1rem 1rem;
+.animate-slide-in {
+    animation: slide-in 0.3s ease-out;
 }
-.message-option {
-    transition: all 0.2s ease;
-}
-.message-option:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-}
-.message-option.selected {
-    border: 2px solid #3498DB;
-}
+</style>
 {% endblock %}
 
 {% block content %}
+<!-- Quick Stats Bar -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white rounded-lg shadow p-4">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-gray-100 mr-3">
+                <i data-feather="edit-3" class="w-5 h-5 text-gray-600"></i>
+            </div>
+            <div>
+                <p class="text-sm text-gray-600">Draft</p>
+                <p class="text-2xl font-bold text-gray-800" id="stat-draft">0</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow p-4">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-yellow-100 mr-3">
+                <i data-feather="check-circle" class="w-5 h-5 text-yellow-600"></i>
+            </div>
+            <div>
+                <p class="text-sm text-gray-600">Approved</p>
+                <p class="text-2xl font-bold text-yellow-600" id="stat-approved">0</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow p-4">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-green-100 mr-3">
+                <i data-feather="send" class="w-5 h-5 text-green-600"></i>
+            </div>
+            <div>
+                <p class="text-sm text-gray-600">Sent</p>
+                <p class="text-2xl font-bold text-green-600" id="stat-sent">0</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow p-4">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-blue-100 mr-3">
+                <i data-feather="message-circle" class="w-5 h-5 text-blue-600"></i>
+            </div>
+            <div>
+                <p class="text-sm text-gray-600">Total</p>
+                <p class="text-2xl font-bold text-blue-600" id="stat-total">0</p>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Quick Actions Bar -->
 <div class="bg-white rounded-lg shadow p-4 mb-6">
     <div class="flex flex-wrap gap-3 items-center justify-between">
         <div class="flex flex-wrap gap-3">
-            <button onclick="loadMessages('draft')" class="bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-md text-sm flex items-center">
+            <button data-filter="draft" class="bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-md text-sm flex items-center transition ring-2 ring-blue-500">
                 <i data-feather="edit" class="w-4 h-4 mr-2"></i>
                 Draft Messages
             </button>
-            <button onclick="loadMessages('approved')" class="bg-green-100 hover:bg-green-200 text-green-700 px-4 py-2 rounded-md text-sm flex items-center">
+            <button data-filter="approved" class="bg-yellow-50 hover:bg-yellow-100 text-yellow-700 px-4 py-2 rounded-md text-sm flex items-center transition">
                 <i data-feather="check-circle" class="w-4 h-4 mr-2"></i>
                 Approved Messages
             </button>
-            <button onclick="loadMessages('sent')" class="bg-blue-100 hover:bg-blue-200 text-blue-700 px-4 py-2 rounded-md text-sm flex items-center">
+            <button data-filter="sent" class="bg-green-50 hover:bg-green-100 text-green-700 px-4 py-2 rounded-md text-sm flex items-center transition">
                 <i data-feather="send" class="w-4 h-4 mr-2"></i>
                 Sent Messages
+            </button>
+            <button onclick="approveAllDrafts()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm flex items-center transition">
+                <i data-feather="check-square" class="w-4 h-4 mr-2"></i>
+                Approve All Drafts
             </button>
         </div>
         <div class="flex gap-2">
             <select id="lead-filter" class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-secondary">
                 <option value="">All Leads</option>
             </select>
-            <button onclick="window.location.reload()" class="bg-gray-100 hover:bg-gray-200 p-2 rounded-md" title="Refresh">
+            <button onclick="loadMessages(currentFilter)" class="bg-gray-100 hover:bg-gray-200 p-2 rounded-md transition" title="Refresh">
                 <i data-feather="refresh-cw" class="w-5 h-5"></i>
             </button>
         </div>
@@ -73,43 +125,18 @@
     </div>
 </div>
 
-<!-- Message Templates Section -->
-<div class="mt-6 bg-white rounded-lg shadow overflow-hidden">
-    <div class="p-4 border-b border-gray-200 flex justify-between items-center">
-        <h2 class="text-lg font-semibold text-gray-800">Message Templates</h2>
-        <button class="bg-secondary hover:bg-blue-500 text-white px-3 py-1 rounded-md text-sm flex items-center">
-            <i data-feather="plus" class="w-4 h-4 mr-1"></i> New Template
-        </button>
-    </div>
-    <div class="p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-        <!-- Template 1 -->
-        <div class="border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow cursor-pointer">
-            <h3 class="text-sm font-medium text-gray-800 mb-2">Initial Outreach</h3>
-            <p class="text-xs text-gray-600 mb-3">Hi [First Name], I came across your profile and noticed your expertise in [Specialty]. Our [Product] offers [Benefit]. Would you be interested in learning more?</p>
-            <div class="flex justify-between items-center">
-                <span class="text-xs text-gray-500">Used 24 times</span>
-                <button class="text-xs text-secondary hover:text-blue-500">Use Template</button>
-            </div>
-        </div>
-        
-        <!-- Template 2 -->
-        <div class="border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow cursor-pointer">
-            <h3 class="text-sm font-medium text-gray-800 mb-2">Follow-Up</h3>
-            <p class="text-xs text-gray-600 mb-3">Hi [First Name], I wanted to follow up on my previous message. Have you had a chance to consider [Product] for your practice? I'd be happy to answer any questions.</p>
-            <div class="flex justify-between items-center">
-                <span class="text-xs text-gray-500">Used 18 times</span>
-                <button class="text-xs text-secondary hover:text-blue-500">Use Template</button>
-            </div>
-        </div>
-        
-        <!-- Template 3 -->
-        <div class="border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow cursor-pointer">
-            <h3 class="text-sm font-medium text-gray-800 mb-2">Clinical Studies</h3>
-            <p class="text-xs text-gray-600 mb-3">Hi Dr. [Last Name], you asked about clinical data. Our studies show [Result] compared to [Competitor]. I've attached the full report for your review.</p>
-            <div class="flex justify-between items-center">
-                <span class="text-xs text-gray-500">Used 12 times</span>
-                <button class="text-xs text-secondary hover:text-blue-500">Use Template</button>
-            </div>
+<!-- Help Section -->
+<div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+    <div class="flex items-start">
+        <i data-feather="info" class="w-5 h-5 text-blue-600 mr-3 mt-1"></i>
+        <div>
+            <h3 class="text-blue-900 font-semibold mb-1">A/B/C Testing Guide</h3>
+            <ul class="text-sm text-blue-700 space-y-1">
+                <li><strong>Variant A:</strong> Direct and value-focused message</li>
+                <li><strong>Variant B:</strong> Curiosity-driven with questions</li>
+                <li><strong>Variant C:</strong> Social proof and authority</li>
+            </ul>
+            <p class="text-sm text-blue-600 mt-2">💡 Tip: Approve all 3 variants and the system will track which performs best!</p>
         </div>
     </div>
 </div>
@@ -118,6 +145,25 @@
 {% block extra_js %}
 <script src="/static/js/messages.js"></script>
 <script>
+    // Update stats after loading messages
+    function updateStats() {
+        fetch('/api/messages/stats')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('stat-draft').textContent = data.stats.draft || 0;
+                    document.getElementById('stat-approved').textContent = data.stats.approved || 0;
+                    document.getElementById('stat-sent').textContent = data.stats.sent || 0;
+                    document.getElementById('stat-total').textContent = data.stats.total || 0;
+                }
+            })
+            .catch(error => console.error('Error loading stats:', error));
+    }
+    
+    // Update stats every 10 seconds
+    setInterval(updateStats, 10000);
+    updateStats();
+    
     // Replace feather icons after page load
     document.addEventListener('DOMContentLoaded', function() {
         feather.replace();
