@@ -94,7 +94,7 @@ def save_credentials():
         if user:
             # Update existing user
             db_manager.update_user_credentials(
-                user.id,
+                user['id'],
                 linkedin_email=linkedin_email,
                 linkedin_password=linkedin_password,
                 openai_api_key=openai_api_key

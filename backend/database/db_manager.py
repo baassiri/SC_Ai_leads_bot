@@ -69,7 +69,20 @@ class DatabaseManager:
     def get_user_by_email(self, email):
         """Get user by email"""
         with self.session_scope() as session:
-            return session.query(User).filter(User.email == email).first()
+            user = session.query(User).filter(User.email == email).first()
+            
+            if not user:
+                return None
+            
+            # Serialize user data while session is open
+            user_data = {
+                'id': user.id,
+                'email': user.email,
+                'linkedin_email': user.linkedin_email,
+                'is_active': user.is_active,
+                'created_at': user.created_at.isoformat() if user.created_at else None
+            }
+            return user_data
     
     def update_user_credentials(self, user_id, linkedin_email=None, linkedin_password=None, openai_api_key=None):
         """Update user credentials"""
