@@ -97,19 +97,19 @@
                 <!-- Navigation Links -->
                 <div>
                     <h3 class="text-xs uppercase tracking-wider text-blue-200 mb-3">Navigation</h3>
-                    <a href="{{ url_for('dashboard') }}" class="flex items-center px-3 py-2 {% if request.endpoint == 'dashboard' %}bg-blue-800{% else %}hover:bg-blue-800{% endif %} rounded-md mb-1">
+                    <a href="/dashboard" class="flex items-center px-3 py-2 {% if request.endpoint == 'dashboard' %}bg-blue-800{% else %}hover:bg-blue-800{% endif %} rounded-md mb-1">
                         <i data-feather="activity" class="w-4 h-4 mr-2"></i> Dashboard
                     </a>
-                    <a href="{{ url_for('leads_page') }}" class="flex items-center px-3 py-2 {% if request.endpoint == 'leads_page' %}bg-blue-800{% else %}hover:bg-blue-800{% endif %} rounded-md mb-1">
+                    <a href="/leads" class="flex items-center px-3 py-2 {% if request.endpoint == 'leads_page' %}bg-blue-800{% else %}hover:bg-blue-800{% endif %} rounded-md mb-1">
                         <i data-feather="users" class="w-4 h-4 mr-2"></i> Leads
                     </a>
-                    <a href="{{ url_for('messages_page') }}" class="flex items-center px-3 py-2 {% if request.endpoint == 'messages_page' %}bg-blue-800{% else %}hover:bg-blue-800{% endif %} rounded-md mb-1">
+                    <a href="/messages" class="flex items-center px-3 py-2 {% if request.endpoint == 'messages_page' %}bg-blue-800{% else %}hover:bg-blue-800{% endif %} rounded-md mb-1">
                         <i data-feather="message-square" class="w-4 h-4 mr-2"></i> Messages
                     </a>
-                    <a href="{{ url_for('analytics_page') }}" class="flex items-center px-3 py-2 {% if request.endpoint == 'analytics_page' %}bg-blue-800{% else %}hover:bg-blue-800{% endif %} rounded-md mb-1">
+                    <a href="/analytics" class="flex items-center px-3 py-2 {% if request.endpoint == 'analytics_page' %}bg-blue-800{% else %}hover:bg-blue-800{% endif %} rounded-md mb-1">
                         <i data-feather="bar-chart-2" class="w-4 h-4 mr-2"></i> Analytics
                     </a>
-                    <a href="{{ url_for('index') }}" class="flex items-center px-3 py-2 {% if request.endpoint == 'index' %}bg-blue-800{% else %}hover:bg-blue-800{% endif %} rounded-md">
+                    <a href="/" class="flex items-center px-3 py-2 {% if request.endpoint == 'index' %}bg-blue-800{% else %}hover:bg-blue-800{% endif %} rounded-md">
                         <i data-feather="settings" class="w-4 h-4 mr-2"></i> Settings
                     </a>
                 </div>
