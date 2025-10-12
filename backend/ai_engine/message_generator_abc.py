@@ -37,11 +37,9 @@ class ABCMessageGenerator:
             Dict with variants: {'variant_a': str, 'variant_b': str, 'variant_c': str}
         """
         
-        # Build prompt for GPT-4
         prompt = self._build_prompt(lead_data, persona_data)
         
         try:
-            # Call GPT-4
             response = self.client.chat.completions.create(
                 model="gpt-4",
                 messages=[
@@ -52,7 +50,6 @@ class ABCMessageGenerator:
                 max_tokens=500
             )
             
-            # Parse response
             content = response.choices[0].message.content.strip()
             variants = self._parse_variants(content)
             
@@ -60,7 +57,6 @@ class ABCMessageGenerator:
             
         except Exception as e:
             print(f"Error generating variants: {str(e)}")
-            # Fallback to template-based messages
             return self._generate_fallback_variants(lead_data, persona_data)
     
     def _build_prompt(self, lead_data: Dict, persona_data: Dict) -> str:
@@ -131,7 +127,6 @@ VARIANT_C:
         }
         
         try:
-            # Split by variant markers
             parts = content.split('VARIANT_')
             
             for part in parts:
@@ -142,7 +137,6 @@ VARIANT_C:
                 elif part.startswith('C:'):
                     variants['variant_c'] = part.replace('C:', '').strip()
             
-            # Validate all variants exist
             if not all(variants.values()):
                 raise ValueError("Missing variants in response")
             
@@ -156,7 +150,7 @@ VARIANT_C:
     def _generate_fallback_variants(self, lead_data: Dict, persona_data: Dict) -> Dict[str, str]:
         """Generate simple template-based variants as fallback"""
         
-        name = lead_data.get('name', 'there').split()[0]  # First name
+        name = lead_data.get('name', 'there').split()[0]
         title = lead_data.get('title', 'professional')
         company = lead_data.get('company', 'your company')
         
@@ -182,20 +176,16 @@ VARIANT_C:
             Dict with variants and metadata
         """
         
-        # Get lead from database
         lead = db_manager.get_lead_by_id(lead_id)
         if not lead:
             raise ValueError(f"Lead {lead_id} not found")
         
-        # Get persona for this lead
         persona_id = lead.get('persona_id')
         persona = db_manager.get_persona_by_id(persona_id) if persona_id else {}
         
-        # Generate variants
         print(f"Generating A/B/C variants for: {lead.get('name')}")
         variants = self.generate_variants(lead, persona)
         
-        # Save to database if requested
         if save_to_db:
             saved_ids = []
             for variant_letter, content in [
@@ -242,7 +232,7 @@ VARIANT_C:
             Summary of generation results
         """
         
-        lead_ids = lead_ids[:max_leads]  # Limit to max
+        lead_ids = lead_ids[:max_leads]
         
         results = {
             'total': len(lead_ids),
@@ -256,7 +246,7 @@ VARIANT_C:
             try:
                 result = self.generate_for_lead(lead_id, save_to_db=True)
                 results['successful'] += 1
-                results['messages_created'] += 3  # A, B, C
+                results['messages_created'] += 3
                 results['details'].append(result)
                 
             except Exception as e:
@@ -271,9 +261,50 @@ VARIANT_C:
         return results
 
 
-# CLI for testing
 if __name__ == '__main__':
     import argparse
     
     parser = argparse.ArgumentParser(description='Generate A/B/C Message Variants')
-    parser.add_argument('--lead-id', type=int, help='Generate for s
+    parser.add_argument('--lead-id', type=int, help='Generate for specific lead ID')
+    parser.add_argument('--top', type=int, default=20, help='Generate for top N leads')
+    parser.add_argument('--test', action='store_true', help='Test with first lead')
+    
+    args = parser.parse_args()
+    
+    api_key = os.getenv('OPENAI_API_KEY')
+    if not api_key:
+        print("❌ Error: OPENAI_API_KEY not set")
+        sys.exit(1)
+    
+    generator = ABCMessageGenerator(api_key=api_key)
+    
+    if args.test:
+        leads = db_manager.get_all_leads(limit=1)
+        if leads:
+            result = generator.generate_for_lead(leads[0]['id'], save_to_db=True)
+            print(f"\n✅ Generated variants for: {result['lead_name']}")
+            print(f"\nVARIANT A:\n{result['variants']['variant_a']}\n")
+            print(f"VARIANT B:\n{result['variants']['variant_b']}\n")
+            print(f"VARIANT C:\n{result['variants']['variant_c']}\n")
+        else:
+            print("❌ No leads found in database")
+    
+    elif args.lead_id:
+        result = generator.generate_for_lead(args.lead_id, save_to_db=True)
+        print(f"\n✅ Generated variants for: {result['lead_name']}")
+    
+    else:
+        leads = db_manager.get_all_leads(min_score=70, limit=args.top)
+        lead_ids = [lead['id'] for lead in leads]
+        
+        if not lead_ids:
+            print("❌ No qualified leads found (score >= 70)")
+            sys.exit(1)
+        
+        print(f"🚀 Generating A/B/C variants for top {len(lead_ids)} leads...")
+        results = generator.batch_generate(lead_ids)
+        
+        print(f"\n📊 RESULTS:")
+        print(f"  ✅ Successful: {results['successful']}")
+        print(f"  ❌ Failed: {results['failed']}")
+        print(f"  💬 Messages created: {results['messages_created']}")

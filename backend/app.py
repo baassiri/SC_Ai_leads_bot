@@ -12,23 +12,19 @@ import random
 from pathlib import Path
 import sys
 
-# Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from backend.config import Config, get_config
 from backend.database.db_manager import db_manager
 from backend.credentials_manager import credentials_manager
 
-# Initialize Flask app
 app = Flask(__name__,
            template_folder='../frontend/templates',
            static_folder='../frontend/static')
 
-# Load configuration
 app.config.from_object(get_config())
 CORS(app, origins=Config.CORS_ORIGINS)
 
-# Global bot status
 bot_status = {
     'running': False,
     'current_activity': 'Stopped',
@@ -39,9 +35,7 @@ bot_status = {
 current_personas = []
 scraper_thread = None
 
-# ==========================================
 # HTML ROUTES
-# ==========================================
 
 @app.route('/')
 def index():
@@ -63,9 +57,7 @@ def messages_page():
 def analytics_page():
     return render_template('analytics.html')
 
-# ==========================================
 # API ROUTES - AUTHENTICATION
-# ==========================================
 
 @app.route('/api/auth/save-credentials', methods=['POST'])
 def save_credentials():
@@ -157,9 +149,7 @@ def test_connection():
             'message': f'Error: {str(e)}'
         }), 500
 
-# ==========================================
 # API ROUTES - FILE UPLOAD
-# ==========================================
 
 @app.route('/api/upload-targets', methods=['POST'])
 def upload_targets():
@@ -181,36 +171,29 @@ def upload_targets():
                 'message': 'No file selected'
             }), 400
         
-        # Save file
         upload_path = Config.UPLOAD_DIR / file.filename
         file.save(str(upload_path))
         
-        # Get OpenAI API key
         api_key = credentials_manager.get_openai_key()
         
-        # Use AI Persona Analyzer
         from backend.ai_engine.persona_analyzer import create_analyzer
         
         analyzer = create_analyzer(api_key=api_key)
         analysis = analyzer.analyze_document(str(upload_path))
         
-        # Save personas from AI analysis
         current_personas = []
         personas_from_ai = analysis.get('personas', [])
         personas_saved = 0
         
         for persona_data in personas_from_ai:
             try:
-                # Convert lists to strings for database storage
                 goals_str = '\n'.join(persona_data.get('goals', [])) if isinstance(persona_data.get('goals'), list) else str(persona_data.get('goals', ''))
                 pain_points_str = '\n'.join(persona_data.get('pain_points', [])) if isinstance(persona_data.get('pain_points'), list) else str(persona_data.get('pain_points', ''))
                 keywords_str = ', '.join(persona_data.get('keywords', [])[:5]) if isinstance(persona_data.get('keywords'), list) else str(persona_data.get('keywords', ''))
                 
-                # Check if persona already exists
                 existing = db_manager.get_persona_by_name(persona_data.get('name', 'Unknown'))
                 
                 if not existing:
-                    # Create persona in database
                     persona_id = db_manager.create_persona(
                         name=persona_data.get('name', 'Unknown'),
                         description=persona_data.get('description', ''),
@@ -223,7 +206,6 @@ def upload_targets():
                         current_personas.append(persona_data)
                         personas_saved += 1
                         
-                        # Log each persona creation
                         db_manager.log_activity(
                             activity_type='file_upload',
                             description=f"✅ Extracted persona: {persona_data.get('name')}",
@@ -236,10 +218,8 @@ def upload_targets():
                 print(f"Error saving persona: {str(e)}")
                 continue
         
-        # Get all personas from database
         personas_list = db_manager.get_all_personas()
         
-        # Log overall activity
         db_manager.log_activity(
             activity_type='file_upload',
             description=f'🎯 AI analyzed {file.filename} and extracted {personas_saved} new personas',
@@ -272,23 +252,19 @@ def upload_targets():
             'message': f'Error: {str(e)}'
         }), 500
 
-# ==========================================
 # API ROUTES - BOT CONTROL
-# ==========================================
 
 def generate_lead_from_persona(persona):
     """Generate a realistic lead from a persona"""
     first_names = ['Alex', 'Jordan', 'Taylor', 'Morgan', 'Casey', 'Riley', 'Avery', 'Quinn', 'Sam', 'Drew']
     last_names = ['Chen', 'Patel', 'Kim', 'Martinez', 'Johnson', 'Williams', 'Lee', 'Garcia', 'Brown', 'Davis']
     
-    # Get job titles from persona
     job_titles = persona.get('job_titles', [])
     if not job_titles:
         job_titles = [persona.get('name', 'Professional')]
     
     title = random.choice(job_titles)
     
-    # Generate company name
     industries = persona.get('industries', ['Business Services'])
     industry = random.choice(industries)
     
@@ -325,7 +301,6 @@ def start_bot():
                 'message': 'Bot is already running'
             }), 400
         
-        # Get personas from database
         personas = db_manager.get_all_personas()
         
         if not personas:
@@ -334,7 +309,6 @@ def start_bot():
                 'message': '⚠️ No personas found! Please upload a document first.'
             }), 400
         
-        # Get LinkedIn credentials
         linkedin_creds = credentials_manager.get_linkedin_credentials()
         
         if not linkedin_creds:
@@ -343,38 +317,31 @@ def start_bot():
                 'message': 'Please configure LinkedIn credentials first!'
             }), 400
         
-        # Update bot status
         bot_status['running'] = True
         bot_status['current_activity'] = 'Initializing...'
         bot_status['leads_scraped'] = 0
         bot_status['progress'] = 0
         
-        # Log start
         db_manager.log_activity(
             activity_type='bot_started',
             description='🚀 Lead scraping bot started',
             status='success'
         )
         
-        # Background scraping function with AI scoring
         def scrape_leads_background():
             global bot_status, current_personas
             
             try:
-                # Import lead scorer
                 from backend.ai_engine.lead_scorer import score_lead
                 
-                # Get OpenAI API key for scoring
                 api_key = credentials_manager.get_openai_key()
                 
-                # Use personas from database
                 personas = db_manager.get_all_personas()
                 
                 bot_status['current_activity'] = f'Searching for leads matching {len(personas)} personas...'
                 bot_status['progress'] = 20
                 time.sleep(2)
                 
-                # Generate leads for each persona
                 num_leads_per_persona = 5
                 total_leads = []
                 
@@ -388,12 +355,10 @@ def start_bot():
                         if not bot_status['running']:
                             break
                         
-                        # Generate lead data
                         lead_data = generate_lead_from_persona(persona)
                         
                         bot_status['current_activity'] = f'Scraping: {lead_data["name"]}, {lead_data["title"]} at {lead_data["company"]}'
                         
-                        # Create lead in database
                         lead_id = db_manager.create_lead(
                             name=lead_data['name'],
                             profile_url=lead_data['profile_url'],
@@ -406,11 +371,9 @@ def start_bot():
                         )
                         
                         if lead_id:
-                            # ✨ Use AI Lead Scorer
                             bot_status['current_activity'] = f'🤖 AI scoring: {lead_data["name"]}...'
                             
                             try:
-                                # Score the lead using AI
                                 scoring_result = score_lead(
                                     lead_data=lead_data,
                                     persona_data=persona,
@@ -420,7 +383,6 @@ def start_bot():
                                 ai_score = scoring_result['score']
                                 reasoning = scoring_result['reasoning']
                                 
-                                # Update score and persona with AI results
                                 db_manager.update_lead_score(
                                     lead_id,
                                     ai_score,
@@ -428,7 +390,6 @@ def start_bot():
                                     score_reasoning=reasoning
                                 )
                                 
-                                # Log with detailed score
                                 db_manager.log_activity(
                                     activity_type='scrape',
                                     description=f"✅ Scraped: {lead_data['name']}, {lead_data['title']} (AI Score: {ai_score}/100)",
@@ -436,7 +397,6 @@ def start_bot():
                                     lead_id=lead_id
                                 )
                                 
-                                # Log scoring activity separately
                                 db_manager.log_activity(
                                     activity_type='score',
                                     description=f"🎯 AI scored {lead_data['name']}: {ai_score}/100 - {reasoning}",
@@ -447,7 +407,6 @@ def start_bot():
                                 total_leads.append(lead_data['name'])
                                 
                             except Exception as e:
-                                # Fallback to random score if AI scoring fails
                                 print(f"⚠️ AI scoring failed for {lead_data['name']}: {str(e)}")
                                 fallback_score = lead_data.get('score', random.randint(70, 90))
                                 
@@ -473,7 +432,6 @@ def start_bot():
                 bot_status['current_activity'] = f'✅ Complete! {len(total_leads)} leads scraped and AI-scored'
                 bot_status['progress'] = 100
                 
-                # Final log
                 db_manager.log_activity(
                     activity_type='scrape',
                     description=f'🎉 Successfully scraped and AI-scored {len(total_leads)} leads from {len(personas)} personas',
@@ -494,7 +452,6 @@ def start_bot():
                     error_message=str(e)
                 )
         
-        # Start scraping in background
         scraper_thread = threading.Thread(target=scrape_leads_background, daemon=True)
         scraper_thread.start()
         
@@ -536,9 +493,7 @@ def get_bot_status():
         'status': bot_status
     })
 
-# ==========================================
 # API ROUTES - DATA
-# ==========================================
 
 @app.route('/api/leads', methods=['GET'])
 def get_leads():
@@ -607,10 +562,9 @@ def auto_select_leads():
         selected_ids = []
         for lead in top_leads:
             try:
-                db_manager.update_lead(
+                db_manager.update_lead_status(
                     lead_id=lead['id'],
-                    status='selected_for_outreach',
-                    notes=f"Auto-selected (score: {lead.get('ai_score', 0)})"
+                    status='selected_for_outreach'
                 )
                 selected_ids.append(lead['id'])
             except Exception as e:
@@ -657,7 +611,6 @@ def get_dashboard_stats():
     try:
         stats = db_manager.get_dashboard_stats()
         
-        # Calculate response rate
         if stats.get('messages_sent', 0) > 0:
             stats['reply_rate'] = round((stats.get('replies_received', 0) / stats['messages_sent']) * 100, 1)
         else:
@@ -692,9 +645,8 @@ def get_activity_logs():
             'message': f'Error: {str(e)}'
         }), 500
 
-# ==========================================
 # API ROUTES - MESSAGES
-# ==========================================
+
 @app.route('/api/messages/generate', methods=['POST'])
 def generate_messages():
     """Generate A/B/C message variants for leads"""
@@ -703,7 +655,6 @@ def generate_messages():
         lead_ids = data.get('lead_ids', [])
         
         if not lead_ids:
-            # If no lead IDs provided, get top 20
             leads = db_manager.get_all_leads(min_score=70, limit=20)
             lead_ids = [lead['id'] for lead in leads]
         
@@ -713,7 +664,6 @@ def generate_messages():
                 'message': 'No leads found to generate messages for'
             }), 400
         
-        # Get OpenAI API key
         api_key = credentials_manager.get_openai_key()
         
         if not api_key:
@@ -722,14 +672,11 @@ def generate_messages():
                 'message': 'OpenAI API key not configured'
             }), 400
         
-        # Import generator
         from backend.ai_engine.message_generator_abc import ABCMessageGenerator
         
-        # Generate messages
         generator = ABCMessageGenerator(api_key=api_key)
         results = generator.batch_generate(lead_ids, max_leads=20)
         
-        # Log activity
         db_manager.log_activity(
             activity_type='message_generation',
             description=f'🎨 Generated {results["messages_created"]} A/B/C message variants for {results["successful"]} leads',
@@ -752,31 +699,6 @@ def generate_messages():
             'message': f'Error: {str(e)}'
         }), 500
 
-@app.route('/api/leads/top', methods=['GET'])
-def get_top_leads():
-    """Get top N leads by AI score"""
-    try:
-        limit = request.args.get('limit', 20, type=int)
-        min_score = request.args.get('min_score', 70, type=int)
-        
-        all_leads = db_manager.get_all_leads()
-        qualified_leads = [lead for lead in all_leads if lead.get('ai_score', 0) >= min_score]
-        qualified_leads.sort(key=lambda x: x.get('ai_score', 0), reverse=True)
-        top_leads = qualified_leads[:limit]
-        
-        return jsonify({
-            'success': True,
-            'count': len(top_leads),
-            'leads': top_leads,
-            'total_qualified': len(qualified_leads),
-            'message': f'Found {len(top_leads)} top leads (score >= {min_score})'
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
 @app.route('/api/messages', methods=['GET'])
 def get_messages():
     try:
@@ -886,9 +808,7 @@ def get_lead_messages(lead_id):
             'message': f'Error: {str(e)}'
         }), 500
 
-# ==========================================
 # RUN APPLICATION
-# ==========================================
 
 if __name__ == '__main__':
     print("=" * 60)

@@ -1,5 +1,5 @@
 """
-SC AI Lead Generation System - Database Manager (FIXED)
+SC AI Lead Generation System - Database Manager
 CRUD operations for all database models
 """
 
@@ -10,7 +10,6 @@ from datetime import datetime, timedelta
 import sys
 from pathlib import Path
 
-# Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from backend.config import Config
@@ -49,9 +48,7 @@ class DatabaseManager:
         finally:
             session.close()
     
-    # ==========================================
     # USER OPERATIONS
-    # ==========================================
     
     def create_user(self, email, linkedin_email=None, linkedin_password=None, openai_api_key=None):
         """Create a new user"""
@@ -74,7 +71,6 @@ class DatabaseManager:
             if not user:
                 return None
             
-            # Serialize user data while session is open
             user_data = {
                 'id': user.id,
                 'email': user.email,
@@ -99,9 +95,7 @@ class DatabaseManager:
                 return True
             return False
     
-    # ==========================================
     # PERSONA OPERATIONS
-    # ==========================================
     
     def create_persona(self, name, description=None, age_range=None, gender_distribution=None,
                       goals=None, pain_points=None, key_message=None, message_tone=None):
@@ -122,11 +116,10 @@ class DatabaseManager:
             return persona.id
     
     def get_all_personas(self):
-        """Get all personas - returns serialized dictionaries"""
+        """Get all personas"""
         with self.session_scope() as session:
             personas = session.query(Persona).all()
             
-            # Serialize personas while session is still open
             personas_data = []
             for p in personas:
                 personas_data.append({
@@ -150,15 +143,33 @@ class DatabaseManager:
         with self.session_scope() as session:
             return session.query(Persona).filter(Persona.name == name).first()
     
-    # ==========================================
+    def get_persona_by_id(self, persona_id):
+        """Get a single persona by ID"""
+        try:
+            with self.session_scope() as session:
+                persona = session.query(Persona).filter(Persona.id == persona_id).first()
+                
+                if not persona:
+                    return None
+                
+                return {
+                    'id': persona.id,
+                    'name': persona.name,
+                    'description': persona.description,
+                    'goals': persona.goals,
+                    'pain_points': persona.pain_points,
+                    'message_tone': persona.message_tone
+                }
+        except Exception as e:
+            print(f"Error getting persona: {str(e)}")
+            return None
+    
     # LEAD OPERATIONS
-    # ==========================================
     
     def create_lead(self, name, profile_url, title=None, company=None, industry=None,
                    location=None, headline=None, summary=None, company_size=None):
         """Create a new lead"""
         with self.session_scope() as session:
-            # Check if lead already exists
             existing = session.query(Lead).filter(Lead.profile_url == profile_url).first()
             if existing:
                 return existing.id
@@ -180,36 +191,37 @@ class DatabaseManager:
     
     def get_lead_by_id(self, lead_id):
         """Get lead by ID"""
-        with self.session_scope() as session:
-            lead = session.query(Lead).filter(Lead.id == lead_id).first()
-            
-            if not lead:
-                return None
-            
-            # Serialize lead while session is open
-            lead_data = {
-                'id': lead.id,
-                'name': lead.name,
-                'title': lead.title,
-                'company': lead.company,
-                'industry': lead.industry,
-                'location': lead.location,
-                'profile_url': lead.profile_url,
-                'headline': lead.headline,
-                'summary': lead.summary,
-                'company_size': lead.company_size,
-                'ai_score': lead.ai_score,
-                'status': lead.status,
-                'connection_status': lead.connection_status,
-                'persona_id': lead.persona_id,
-                'persona_name': lead.persona.name if lead.persona else None,
-                'score_reasoning': lead.score_reasoning,
-                'scraped_at': lead.scraped_at.isoformat() if lead.scraped_at else None,
-                'contacted_at': lead.contacted_at.isoformat() if lead.contacted_at else None,
-                'replied_at': lead.replied_at.isoformat() if lead.replied_at else None
-            }
-            
-            return lead_data
+        try:
+            with self.session_scope() as session:
+                lead = session.query(Lead).filter(Lead.id == lead_id).first()
+                
+                if not lead:
+                    return None
+                
+                return {
+                    'id': lead.id,
+                    'name': lead.name,
+                    'title': lead.title,
+                    'company': lead.company,
+                    'industry': lead.industry,
+                    'location': lead.location,
+                    'profile_url': lead.profile_url,
+                    'headline': lead.headline,
+                    'summary': lead.summary,
+                    'company_size': lead.company_size,
+                    'ai_score': lead.ai_score,
+                    'status': lead.status,
+                    'connection_status': lead.connection_status,
+                    'persona_id': lead.persona_id,
+                    'persona_name': lead.persona.name if lead.persona else None,
+                    'score_reasoning': lead.score_reasoning,
+                    'scraped_at': lead.scraped_at.isoformat() if lead.scraped_at else None,
+                    'contacted_at': lead.contacted_at.isoformat() if lead.contacted_at else None,
+                    'replied_at': lead.replied_at.isoformat() if lead.replied_at else None
+                }
+        except Exception as e:
+            print(f"Error getting lead: {str(e)}")
+            return None
     
     def get_all_leads(self, status=None, min_score=None, persona_id=None, limit=None):
         """Get all leads with optional filters"""
@@ -230,7 +242,6 @@ class DatabaseManager:
             
             leads = query.all()
             
-            # Serialize leads while session is open
             leads_data = []
             for lead in leads:
                 leads_data.append({
@@ -284,44 +295,38 @@ class DatabaseManager:
                 return True
             return False
     
-    # ==========================================
     # MESSAGE OPERATIONS
-    # ==========================================
     
     def create_message(self, lead_id, message_type, content, campaign_id=None, 
-                      variant=None, prompt_used=None, generated_by='gpt-4'):
+                      variant=None, prompt_used=None, generated_by='gpt-4', status='draft'):
         """Create a new message"""
-        with self.session_scope() as session:
-            message = Message(
-                lead_id=lead_id,
-                campaign_id=campaign_id,
-                message_type=message_type,
-                content=content,
-                variant=variant,
-                prompt_used=prompt_used,
-                generated_by=generated_by
-            )
-            session.add(message)
-            session.flush()
-            return message.id
+        try:
+            with self.session_scope() as session:
+                message = Message(
+                    lead_id=lead_id,
+                    campaign_id=campaign_id,
+                    message_type=message_type,
+                    content=content,
+                    variant=variant,
+                    prompt_used=prompt_used,
+                    generated_by=generated_by,
+                    status=status
+                )
+                session.add(message)
+                session.flush()
+                return message.id
+        except Exception as e:
+            print(f"Error creating message: {str(e)}")
+            return None
     
     def get_pending_messages(self, limit=50):
-        """
-        Get messages that are approved and ready to send
-        
-        Args:
-            limit: Maximum number of messages to retrieve
-            
-        Returns:
-            List of message dicts with lead info
-        """
+        """Get messages that are approved and ready to send"""
         with self.session_scope() as session:
             messages = session.query(Message).join(Lead).filter(
                 Message.status == 'approved',
                 Message.sent_at == None
             ).order_by(Message.created_at).limit(limit).all()
             
-            # Serialize with lead info
             messages_data = []
             for msg in messages:
                 messages_data.append({
@@ -347,16 +352,7 @@ class DatabaseManager:
             return count
     
     def get_messages_by_status(self, status, limit=100):
-        """
-        Get messages by status
-        
-        Args:
-            status: Message status (draft, approved, sent, failed)
-            limit: Max messages to return
-            
-        Returns:
-            List of message dicts
-        """
+        """Get messages by status"""
         with self.session_scope() as session:
             messages = session.query(Message).filter(
                 Message.status == status
@@ -380,8 +376,16 @@ class DatabaseManager:
 
     def get_messages_by_lead(self, lead_id):
         """Get all messages for a lead"""
-        with self.session_scope() as session:
-            return session.query(Message).filter(Message.lead_id == lead_id).all()
+        try:
+            with self.session_scope() as session:
+                messages = session.query(Message).filter(
+                    Message.lead_id == lead_id
+                ).order_by(Message.created_at.desc()).all()
+                
+                return messages
+        except Exception as e:
+            print(f"Error getting messages: {str(e)}")
+            return []
     
     def update_message_status(self, message_id, status, sent_at=None):
         """Update message status"""
@@ -396,114 +400,8 @@ class DatabaseManager:
                 message.updated_at = datetime.utcnow()
                 return True
             return False
-    def get_lead_by_id(self, lead_id):
-    """Get a single lead by ID"""
-    try:
-        with self.session_scope() as session:
-            from backend.database.models import Lead
-            lead = session.query(Lead).filter(Lead.id == lead_id).first()
-            
-            if not lead:
-                return None
-            
-            return {
-                'id': lead.id,
-                'name': lead.name,
-                'title': lead.title,
-                'company': lead.company,
-                'industry': lead.industry,
-                'location': lead.location,
-                'profile_url': lead.profile_url,
-                'headline': lead.headline,
-                'company_size': lead.company_size,
-                'ai_score': lead.ai_score,
-                'persona_id': lead.persona_id,
-                'status': lead.status
-            }
-    except Exception as e:
-        print(f"Error getting lead: {str(e)}")
-        return None
-
-def get_persona_by_id(self, persona_id):
-    """Get a single persona by ID"""
-    try:
-        with self.session_scope() as session:
-            from backend.database.models import Persona
-            persona = session.query(Persona).filter(Persona.id == persona_id).first()
-            
-            if not persona:
-                return None
-            
-            return {
-                'id': persona.id,
-                'name': persona.name,
-                'description': persona.description,
-                'goals': persona.goals,
-                'pain_points': persona.pain_points,
-                'message_tone': persona.message_tone
-            }
-    except Exception as e:
-        print(f"Error getting persona: {str(e)}")
-        return None
-
-def create_message(self, lead_id, message_type, content, variant=None, 
-                  generated_by='gpt-4', status='draft', campaign_id=None):
-    """
-    Create a new message
     
-    Args:
-        lead_id: Lead ID
-        message_type: Type of message (connection_request, follow_up, etc.)
-        content: Message content
-        variant: A, B, or C
-        generated_by: Who/what generated the message
-        status: draft, approved, sent, etc.
-        campaign_id: Optional campaign ID
-    """
-    try:
-        with self.session_scope() as session:
-            from backend.database.models import Message
-            
-            message = Message(
-                lead_id=lead_id,
-                campaign_id=campaign_id,
-                message_type=message_type,
-                content=content,
-                variant=variant,
-                generated_by=generated_by,
-                status=status
-            )
-            
-            session.add(message)
-            session.flush()
-            
-            message_id = message.id
-            
-            return message_id
-            
-    except Exception as e:
-        print(f"Error creating message: {str(e)}")
-        return None
-
-def get_messages_by_lead(self, lead_id):
-    """Get all messages for a specific lead"""
-    try:
-        with self.session_scope() as session:
-            from backend.database.models import Message
-            
-            messages = session.query(Message).filter(
-                Message.lead_id == lead_id
-            ).order_by(Message.created_at.desc()).all()
-            
-            return messages
-            
-    except Exception as e:
-        print(f"Error getting messages: {str(e)}")
-        return []    
-    
-    # ==========================================
     # CAMPAIGN OPERATIONS
-    # ==========================================
     
     def create_campaign(self, user_id, name, description=None, search_filters=None):
         """Create a new campaign"""
@@ -535,9 +433,7 @@ def get_messages_by_lead(self, lead_id):
                 return True
             return False
     
-    # ==========================================
     # RESPONSE OPERATIONS
-    # ==========================================
     
     def create_response(self, lead_id, response_text, response_type, sentiment=None,
                        intent=None, next_action=None):
@@ -555,9 +451,7 @@ def get_messages_by_lead(self, lead_id):
             session.flush()
             return response.id
     
-    # ==========================================
     # ACTIVITY LOG OPERATIONS
-    # ==========================================
     
     def log_activity(self, activity_type, description, status='success', 
                     lead_id=None, campaign_id=None, error_message=None):
@@ -576,11 +470,10 @@ def get_messages_by_lead(self, lead_id):
             return log.id
     
     def get_recent_activities(self, limit=50):
-        """Get recent activity logs - returns serialized dictionaries"""
+        """Get recent activity logs"""
         with self.session_scope() as session:
             logs = session.query(ActivityLog).order_by(desc(ActivityLog.created_at)).limit(limit).all()
             
-            # Serialize logs while session is still open
             logs_data = []
             for log in logs:
                 logs_data.append({
@@ -596,9 +489,7 @@ def get_messages_by_lead(self, lead_id):
             
             return logs_data
     
-    # ==========================================
     # ANALYTICS OPERATIONS
-    # ==========================================
     
     def get_dashboard_stats(self):
         """Get dashboard statistics"""
@@ -637,5 +528,4 @@ def get_messages_by_lead(self, lead_id):
             }
 
 
-# Singleton instance
 db_manager = DatabaseManager()
