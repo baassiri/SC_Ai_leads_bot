@@ -375,32 +375,38 @@ class DatabaseManager:
             
             return messages_data
     
-    def get_messages_by_status_with_lead_info(self, status, limit=100):
-        """Get messages by status with lead information included - FIXED INDENTATION"""
-        with self.session_scope() as session:
-            messages = session.query(Message).join(Lead).filter(
-                Message.status == status
-            ).order_by(desc(Message.created_at)).limit(limit).all()
-            
-            messages_data = []
-            for msg in messages:
-                messages_data.append({
-                    'id': msg.id,
-                    'lead_id': msg.lead_id,
-                    'lead_name': msg.lead.name if msg.lead else 'Unknown',
-                    'lead_title': msg.lead.title if msg.lead else None,
-                    'lead_company': msg.lead.company if msg.lead else None,
-                    'message_type': msg.message_type,
-                    'content': msg.content,
-                    'variant': msg.variant,
-                    'status': msg.status,
-                    'generated_by': msg.generated_by,
-                    'sent_at': msg.sent_at.isoformat() if msg.sent_at else None,
-                    'created_at': msg.created_at.isoformat() if msg.created_at else None,
-                    'updated_at': msg.updated_at.isoformat() if msg.updated_at else None
-                })
-            
-            return messages_data
+    def get_messages_by_status_with_lead_info(self, status=None, lead_id=None, limit=100):
+            """Get messages by status with lead information included - supports filtering by status and/or lead_id"""
+            with self.session_scope() as session:
+                query = session.query(Message).join(Lead)
+                
+                # Apply filters conditionally
+                if status:
+                    query = query.filter(Message.status == status)
+                
+                if lead_id:
+                    query = query.filter(Message.lead_id == lead_id)
+                
+                messages = query.order_by(desc(Message.created_at)).limit(limit).all()
+                
+                messages_data = []
+                for msg in messages:
+                    messages_data.append({
+                        'id': msg.id,
+                        'lead_id': msg.lead_id,
+                        'lead_name': msg.lead.name if msg.lead else 'Unknown',
+                        'lead_title': msg.lead.title if msg.lead else None,
+                        'lead_company': msg.lead.company if msg.lead else None,
+                        'message_type': msg.message_type,
+                        'content': msg.content,
+                        'variant': msg.variant,
+                        'status': msg.status,
+                        'generated_by': msg.generated_by,
+                        'sent_at': msg.sent_at.isoformat() if msg.sent_at else None,
+                        'created_at': msg.created_at.isoformat() if msg.created_at else None,
+                        'updated_at': msg.updated_at.isoformat() if msg.updated_at else None
+                    })
+                return messages_data
     
     def get_message_stats(self):
         """Get message statistics - FIXED INDENTATION"""

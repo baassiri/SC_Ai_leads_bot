@@ -67,7 +67,7 @@ def save_credentials():
         linkedin_email = data.get('linkedin_email', '').strip()
         linkedin_password = data.get('linkedin_password', '').strip()
         openai_api_key = data.get('openai_api_key', '').strip()
-        sales_nav_enabled = data.get('sales_nav_enabled', False)  # ← ADD THIS LINE
+        sales_nav_enabled = data.get('sales_nav_enabled', False)
         
         if not all([linkedin_email, linkedin_password, openai_api_key]):
             return jsonify({
@@ -79,21 +79,20 @@ def save_credentials():
             linkedin_email=linkedin_email,
             linkedin_password=linkedin_password,
             openai_api_key=openai_api_key,
-            sales_nav_enabled=sales_nav_enabled  # ← ADD THIS LINE
+            sales_nav_enabled=sales_nav_enabled
         )
         
         if success:
-                    # Show which mode user selected
                     nav_type = "Sales Navigator" if sales_nav_enabled else "Regular LinkedIn"
                     db_manager.log_activity(
                         activity_type='credentials_saved',
-                        description=f'User credentials updated successfully (Using: {nav_type})',  # ← CHANGE THIS
+                        description=f'User credentials updated successfully (Using: {nav_type})',
                         status='success'
                     )
                     
                     return jsonify({
                         'success': True,
-                        'message': f'Credentials saved successfully! Using {nav_type}'  # ← CHANGE THIS
+                        'message': f'Credentials saved successfully! Using {nav_type}'
                     })
         
         return jsonify({
@@ -698,6 +697,32 @@ def generate_messages():
         error_details = traceback.format_exc()
         print(f"Error generating messages: {error_details}")
         
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+# 🔥 MISSING ENDPOINT - THIS FIXES TEST 2.2
+@app.route('/api/messages', methods=['GET'])
+def get_messages():
+    """Get messages with lead info - supports filtering by status and lead_id"""
+    try:
+        status = request.args.get('status')
+        lead_id = request.args.get('lead_id', type=int)
+        limit = request.args.get('limit', type=int)
+        
+        messages = db_manager.get_messages_by_status_with_lead_info(
+            status=status,
+            lead_id=lead_id,
+            limit=limit
+        )
+        
+        return jsonify({
+            'success': True,
+            'messages': messages,
+            'total': len(messages)
+        })
+    except Exception as e:
         return jsonify({
             'success': False,
             'message': f'Error: {str(e)}'
