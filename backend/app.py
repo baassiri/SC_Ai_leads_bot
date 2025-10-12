@@ -619,7 +619,118 @@ def get_activity_logs():
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
+# ==========================================
+# API ROUTES - MESSAGES
+# ==========================================
 
+@app.route('/api/messages', methods=['GET'])
+def get_messages():
+    try:
+        status = request.args.get('status', 'draft')
+        limit = request.args.get('limit', 100, type=int)
+        
+        messages = db_manager.get_messages_by_status(status, limit)
+        
+        return jsonify({
+            'success': True,
+            'messages': messages,
+            'total': len(messages)
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/messages/<int:message_id>/approve', methods=['POST'])
+def approve_message(message_id):
+    try:
+        success = db_manager.update_message_status(message_id, 'approved')
+        
+        if success:
+            db_manager.log_activity(
+                activity_type='message_approved',
+                description=f'Message {message_id} approved',
+                status='success'
+            )
+            
+            return jsonify({
+                'success': True,
+                'message': 'Message approved successfully'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Message not found'
+            }), 404
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/messages/<int:message_id>', methods=['PUT'])
+def update_message(message_id):
+    try:
+        data = request.json
+        content = data.get('content')
+        
+        if not content:
+            return jsonify({
+                'success': False,
+                'message': 'Content is required'
+            }), 400
+        
+        with db_manager.session_scope() as session:
+            from backend.database.models import Message
+            message = session.query(Message).filter(Message.id == message_id).first()
+            
+            if message:
+                message.content = content
+                message.updated_at = datetime.utcnow()
+                
+                return jsonify({
+                    'success': True,
+                    'message': 'Message updated successfully'
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'message': 'Message not found'
+                }), 404
+                
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/leads/<int:lead_id>/messages', methods=['GET'])
+def get_lead_messages(lead_id):
+    try:
+        messages = db_manager.get_messages_by_lead(lead_id)
+        
+        messages_data = []
+        for msg in messages:
+            messages_data.append({
+                'id': msg.id,
+                'message_type': msg.message_type,
+                'content': msg.content,
+                'variant': msg.variant,
+                'status': msg.status,
+                'created_at': msg.created_at.isoformat() if msg.created_at else None
+            })
+        
+        return jsonify({
+            'success': True,
+            'messages': messages_data
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
 # ==========================================
 # RUN APPLICATION
 # ==========================================
