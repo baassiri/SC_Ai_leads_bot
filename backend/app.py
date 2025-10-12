@@ -891,7 +891,194 @@ def get_lead_messages(lead_id):
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
+# ========================================
+# A/B TESTING API ENDPOINTS
+# ========================================
 
+@app.route('/api/ab-tests/create', methods=['POST'])
+def create_ab_test():
+    """Create a new A/B/C test"""
+    try:
+        from backend.automation.ab_test_manager import ABTestManager
+        
+        data = request.json
+        test_name = data.get('test_name')
+        campaign_id = data.get('campaign_id')
+        min_sends = data.get('min_sends', 20)
+        
+        if not test_name:
+            return jsonify({
+                'success': False,
+                'message': 'Test name is required'
+            }), 400
+        
+        manager = ABTestManager()
+        test_id = manager.create_test(
+            test_name=test_name,
+            campaign_id=campaign_id,
+            min_sends=min_sends
+        )
+        
+        db_manager.log_activity(
+            activity_type='ab_test_created',
+            description=f'Created A/B test: {test_name}',
+            status='success'
+        )
+        
+        return jsonify({
+            'success': True,
+            'test_id': test_id,
+            'message': f'A/B test "{test_name}" created successfully'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/ab-tests/<int:test_id>/results', methods=['GET'])
+def get_ab_test_results(test_id):
+    """Get A/B test results"""
+    try:
+        from backend.automation.ab_test_manager import ABTestManager
+        
+        manager = ABTestManager()
+        results = manager.get_test_results(test_id)
+        
+        if results:
+            return jsonify({
+                'success': True,
+                'results': results
+            })
+        
+        return jsonify({
+            'success': False,
+            'message': 'Test not found'
+        }), 404
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/ab-tests', methods=['GET'])
+def list_ab_tests():
+    """List all A/B tests"""
+    try:
+        from backend.automation.ab_test_manager import ABTestManager
+        
+        manager = ABTestManager()
+        tests = manager.get_all_active_tests()
+        
+        return jsonify({
+            'success': True,
+            'tests': tests,
+            'total': len(tests)
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/ab-tests/<int:test_id>/record-sent', methods=['POST'])
+def record_message_sent(test_id):
+    """Record that a message was sent for a variant"""
+    try:
+        from backend.automation.ab_test_manager import ABTestManager
+        
+        data = request.json
+        variant = data.get('variant')
+        
+        if not variant or variant not in ['A', 'B', 'C']:
+            return jsonify({
+                'success': False,
+                'message': 'Valid variant (A, B, or C) is required'
+            }), 400
+        
+        manager = ABTestManager()
+        manager.record_message_sent(test_id, variant)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Recorded message sent for Variant {variant}'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/ab-tests/<int:test_id>/record-reply', methods=['POST'])
+def record_reply(test_id):
+    """Record a reply for a variant"""
+    try:
+        from backend.automation.ab_test_manager import ABTestManager
+        
+        data = request.json
+        variant = data.get('variant')
+        sentiment_score = data.get('sentiment_score', 0.5)
+        
+        if not variant or variant not in ['A', 'B', 'C']:
+            return jsonify({
+                'success': False,
+                'message': 'Valid variant (A, B, or C) is required'
+            }), 400
+        
+        manager = ABTestManager()
+        manager.record_reply(test_id, variant, sentiment_score)
+        
+        results = manager.get_test_results(test_id)
+        winner_declared = results['status'] == 'completed' if results else False
+        
+        response = {
+            'success': True,
+            'message': f'Recorded reply for Variant {variant}'
+        }
+        
+        if winner_declared:
+            response['winner_declared'] = True
+            response['winning_variant'] = results['winning_variant']
+            response['message'] += f' - 🏆 Winner declared: Variant {results["winning_variant"]}!'
+        
+        return jsonify(response)
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/analytics/ab-test-performance', methods=['GET'])
+def get_ab_test_performance():
+    """Get A/B test performance for analytics dashboard"""
+    try:
+        from backend.automation.ab_test_manager import ABTestManager
+        
+        manager = ABTestManager()
+        tests = manager.get_all_active_tests()
+        
+        detailed_tests = []
+        for test in tests:
+            results = manager.get_test_results(test['id'])
+            if results:
+                detailed_tests.append(results)
+        
+        return jsonify({
+            'success': True,
+            'tests': detailed_tests,
+            'total': len(detailed_tests)
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
 # RUN APPLICATION
 
 if __name__ == '__main__':

@@ -12,7 +12,8 @@ from openai import OpenAI
 sys.path.append(str(Path(__file__).parent.parent))
 
 from backend.database.db_manager import db_manager
-
+from backend.database.db_manager import db_manager
+from backend.automation.ab_test_manager import ABTestManager  # ADD THIS LINE
 
 class ABCMessageGenerator:
     """Generate A/B/C message variants for leads"""
@@ -24,7 +25,7 @@ class ABCMessageGenerator:
             raise ValueError("OpenAI API key required")
         
         self.client = OpenAI(api_key=self.api_key)
-    
+        self.ab_manager = ABTestManager()  # ADD THIS LINE
     def generate_variants(self, lead_data: Dict, persona_data: Dict) -> Dict[str, str]:
         """
         Generate 3 message variants (A, B, C) for a lead
@@ -220,47 +221,83 @@ VARIANT_C:
             'variants': variants
         }
     
-    def batch_generate(self, lead_ids: List[int], max_leads: int = 20) -> Dict:
+    def batch_generate(self, lead_ids: List[int], max_leads: int = 20, 
+                    test_name: str = None, campaign_id: int = None) -> Dict:
         """
-        Generate A/B/C variants for multiple leads
-        
-        Args:
-            lead_ids: List of lead IDs
-            max_leads: Maximum number of leads to process
-            
-        Returns:
-            Summary of generation results
+        Generate A/B/C message variants for multiple leads
+        Automatically creates an A/B test and assigns variants
         """
+        from datetime import datetime
         
+        if not test_name:
+            test_name = f"Campaign_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        
+        # Create A/B test
+        test_id = self.ab_manager.create_test(
+            test_name=test_name,
+            campaign_id=campaign_id,
+            min_sends=min(20, len(lead_ids))
+        )
+        
+        print(f"🧪 Created A/B Test: {test_name} (ID: {test_id})")
+        
+        # Limit to max_leads
         lead_ids = lead_ids[:max_leads]
         
-        results = {
-            'total': len(lead_ids),
-            'successful': 0,
-            'failed': 0,
-            'messages_created': 0,
-            'details': []
-        }
+        successful = 0
+        failed = 0
+        messages_created = 0
         
         for lead_id in lead_ids:
             try:
-                result = self.generate_for_lead(lead_id, save_to_db=True)
-                results['successful'] += 1
-                results['messages_created'] += 3
-                results['details'].append(result)
+                lead = db_manager.get_lead_by_id(lead_id)
+                if not lead:
+                    print(f"⚠️ Lead {lead_id} not found")
+                    failed += 1
+                    continue
+                
+                persona = None
+                if lead.get('persona_id'):
+                    persona = db_manager.get_persona_by_id(lead['persona_id'])
+                
+                # Generate 3 variants
+                variants = self.generate_variants(lead, persona)
+                
+                # Save all 3 variants with A/B test assignment
+                for variant_letter in ['A', 'B', 'C']:
+                    variant_key = f'variant_{variant_letter.lower()}'
+                    
+                    message_id = db_manager.create_message(
+                        lead_id=lead_id,
+                        message_type='connection_request',
+                        content=variants[variant_key],
+                        campaign_id=campaign_id,
+                        variant=variant_letter,
+                        status='draft',
+                        generated_by='gpt-4'
+                    )
+                    
+                    if message_id:
+                        messages_created += 1
+                
+                successful += 1
+                print(f"  ✅ Generated 3 variants for {lead['name']}")
                 
             except Exception as e:
-                print(f"❌ Failed for lead {lead_id}: {str(e)}")
-                results['failed'] += 1
-                results['details'].append({
-                    'success': False,
-                    'lead_id': lead_id,
-                    'error': str(e)
-                })
+                print(f"  ❌ Failed for lead {lead_id}: {str(e)}")
+                failed += 1
         
-        return results
-
-
+        print(f"\n✅ Generated {messages_created} total messages")
+        print(f"   Success: {successful} leads | Failed: {failed} leads")
+        
+        return {
+            'test_id': test_id,
+            'test_name': test_name,
+            'total_leads': len(lead_ids),
+            'successful': successful,
+            'failed': failed,
+            'messages_created': messages_created
+        }
 if __name__ == '__main__':
     import argparse
     
