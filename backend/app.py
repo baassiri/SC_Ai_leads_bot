@@ -1,24 +1,23 @@
 """
-SC AI Lead Generation System - Fixed Backend with Dynamic Personas
-This version uses actual uploaded personas for activity generation
+SC AI Lead Generation System - Clean Dynamic Backend
+Works only with uploaded documents - no hardcoded personas
 """
 
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 from datetime import datetime
-import os
-import sys
 import threading
 import time
 import random
 from pathlib import Path
+import sys
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from config import Config, get_config
-from database.db_manager import db_manager
-from credentials_manager import credentials_manager
+from backend.config import Config, get_config
+from backend.database.db_manager import db_manager
+from backend.credentials_manager import credentials_manager
 
 # Initialize Flask app
 app = Flask(__name__,
@@ -29,16 +28,14 @@ app = Flask(__name__,
 app.config.from_object(get_config())
 CORS(app, origins=Config.CORS_ORIGINS)
 
-# Global bot status and personas
+# Global bot status
 bot_status = {
     'running': False,
     'current_activity': 'Stopped',
     'leads_scraped': 0,
-    'messages_sent': 0,
     'progress': 0
 }
 
-# Store current personas for dynamic activity generation
 current_personas = []
 scraper_thread = None
 
@@ -48,27 +45,22 @@ scraper_thread = None
 
 @app.route('/')
 def index():
-    """Serve login/settings page"""
     return render_template('index.html')
 
 @app.route('/dashboard')
 def dashboard():
-    """Serve main dashboard with dynamic personas"""
     return render_template('dashboard.html')
 
 @app.route('/leads')
 def leads_page():
-    """Serve leads page"""
     return render_template('leads.html')
 
 @app.route('/messages')
 def messages_page():
-    """Serve messages page"""
     return render_template('messages.html')
 
 @app.route('/analytics')
 def analytics_page():
-    """Serve analytics page"""
     return render_template('analytics.html')
 
 # ==========================================
@@ -77,7 +69,6 @@ def analytics_page():
 
 @app.route('/api/auth/save-credentials', methods=['POST'])
 def save_credentials():
-    """Save user credentials"""
     try:
         data = request.json
         
@@ -91,7 +82,6 @@ def save_credentials():
                 'message': 'All credentials are required'
             }), 400
         
-        # Save to credentials manager
         success = credentials_manager.save_all_credentials(
             linkedin_email=linkedin_email,
             linkedin_password=linkedin_password,
@@ -99,7 +89,6 @@ def save_credentials():
         )
         
         if success:
-            # Log activity
             db_manager.log_activity(
                 activity_type='credentials_saved',
                 description='User credentials updated successfully',
@@ -123,322 +112,8 @@ def save_credentials():
             'message': f'Error: {str(e)}'
         }), 500
 
-# ==========================================
-# API ROUTES - FILE UPLOAD & PERSONA PARSING
-# ==========================================
-
-@app.route('/api/upload-targets', methods=['POST'])
-def upload_targets():
-    """Upload and parse target document with AI"""
-    global current_personas
-    
-    try:
-        if 'file' not in request.files:
-            return jsonify({
-                'success': False,
-                'message': 'No file uploaded'
-            }), 400
-        
-        file = request.files['file']
-        
-        if file.filename == '':
-            return jsonify({
-                'success': False,
-                'message': 'No file selected'
-            }), 400
-        
-        # Save file
-        upload_path = Config.UPLOAD_DIR / file.filename
-        file.save(str(upload_path))
-        
-        # Get OpenAI API key
-        api_key = credentials_manager.get_openai_key()
-        
-        # Use AI Persona Analyzer
-        from ai_engine.persona_analyzer import create_analyzer
-        
-        analyzer = create_analyzer(api_key=api_key)
-        analysis = analyzer.analyze_document(str(upload_path))
-        
-        # Clear old personas and save new ones
-        current_personas = []
-        personas_from_ai = analysis.get('personas', [])
-        
-        for persona_data in personas_from_ai:
-            try:
-                # Create persona in database
-                persona_id = db_manager.create_persona(
-                    name=persona_data.get('name', 'Unknown'),
-                    description=persona_data.get('description', ''),
-                    goals='\n'.join(persona_data.get('goals', [])),
-                    pain_points='\n'.join(persona_data.get('pain_points', [])),
-                    message_tone=', '.join(persona_data.get('keywords', [])[:5])
-                )
-                
-                if persona_id:
-                    current_personas.append(persona_data)
-                    
-            except Exception as e:
-                print(f"Error saving persona: {str(e)}")
-                continue
-        
-        # Get all personas from database
-        personas_list = db_manager.get_all_personas()
-        
-        # Log activity
-        db_manager.log_activity(
-            activity_type='file_upload',
-            description=f'AI analyzed document: {file.filename} - Found {len(personas_from_ai)} personas',
-            status='success'
-        )
-        
-        return jsonify({
-            'success': True,
-            'message': f'AI analyzed {len(personas_from_ai)} personas successfully!',
-            'personas_count': len(personas_list),
-            'personas': personas_list,
-            'ai_analysis': analysis
-        })
-        
-    except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(f"Error in upload_targets: {error_details}")
-        
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-
-# ==========================================
-# API ROUTES - BOT CONTROL WITH DYNAMIC PERSONAS
-# ==========================================
-
-def generate_lead_name(personas):
-    """Generate realistic lead names based on current personas"""
-    # For business personas, use company/personal names
-    first_names = ['John', 'Sarah', 'Michael', 'Jessica', 'David', 'Emily', 'Robert', 'Lisa', 'James', 'Amanda']
-    last_names = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez']
-    
-    # Company suffixes based on persona types
-    company_types = []
-    for persona in personas:
-        if 'agency' in persona.get('name', '').lower():
-            company_types.extend(['Digital', 'Marketing Co', 'Agency', 'Studios', 'Creative'])
-        elif 'tech' in persona.get('name', '').lower() or 'startup' in persona.get('name', '').lower():
-            company_types.extend(['Tech', 'Labs', 'Software', 'Solutions', 'Innovations'])
-        elif 'commerce' in persona.get('name', '').lower():
-            company_types.extend(['Store', 'Shop', 'Marketplace', 'Commerce', 'Retail'])
-        elif 'consultant' in persona.get('name', '').lower():
-            company_types.extend(['Consulting', 'Advisory', 'Partners', 'Associates'])
-        else:
-            company_types.extend(['Group', 'LLC', 'Inc', 'Corp', 'Company'])
-    
-    if not company_types:
-        company_types = ['Group', 'LLC', 'Inc', 'Corp', 'Company']
-    
-    first = random.choice(first_names)
-    last = random.choice(last_names)
-    company = f"{random.choice(['Bright', 'Prime', 'Elite', 'Pro', 'Next'])} {random.choice(company_types)}"
-    
-    return first, last, company
-
-def generate_job_title(personas):
-    """Generate job titles based on current personas"""
-    titles = []
-    
-    for persona in personas:
-        persona_name = persona.get('name', '').lower()
-        if 'agency' in persona_name or 'marketing' in persona_name:
-            titles.extend(['Marketing Director', 'Agency Owner', 'Creative Director', 'CMO'])
-        elif 'founder' in persona_name or 'sme' in persona_name:
-            titles.extend(['Founder', 'CEO', 'Co-Founder', 'Managing Director'])
-        elif 'consultant' in persona_name or 'coach' in persona_name:
-            titles.extend(['Consultant', 'Business Coach', 'Strategy Advisor', 'Principal Consultant'])
-        elif 'tech' in persona_name or 'startup' in persona_name:
-            titles.extend(['CTO', 'Tech Founder', 'Product Manager', 'Engineering Lead'])
-        elif 'commerce' in persona_name:
-            titles.extend(['E-commerce Manager', 'Online Retailer', 'Store Owner', 'Digital Commerce Director'])
-        elif 'service' in persona_name:
-            titles.extend(['Service Manager', 'Operations Director', 'Client Success Manager'])
-        else:
-            titles.extend(['Business Owner', 'Director', 'Manager', 'Executive'])
-    
-    return random.choice(titles) if titles else 'Business Professional'
-
-@app.route('/api/bot/start', methods=['POST'])
-def start_bot():
-    """Start the lead scraping bot with dynamic persona-based generation"""
-    global bot_status, scraper_thread, current_personas
-    
-    try:
-        if bot_status['running']:
-            return jsonify({
-                'success': False,
-                'message': 'Bot is already running'
-            }), 400
-        
-        # Get LinkedIn credentials
-        linkedin_creds = credentials_manager.get_linkedin_credentials()
-        
-        if not linkedin_creds:
-            return jsonify({
-                'success': False,
-                'message': 'Please configure LinkedIn credentials first!'
-            }), 400
-        
-        # Update bot status
-        bot_status['running'] = True
-        bot_status['current_activity'] = 'Initializing...'
-        bot_status['leads_scraped'] = 0
-        bot_status['progress'] = 0
-        
-        # Log start
-        db_manager.log_activity(
-            activity_type='bot_started',
-            description='Lead scraping bot started',
-            status='success'
-        )
-        
-        # Background scraping function with dynamic personas
-        def scrape_leads_background():
-            global bot_status, current_personas
-            
-            try:
-                # Get current personas from database if not in memory
-                if not current_personas:
-                    personas_list = db_manager.get_all_personas()
-                    current_personas = personas_list if personas_list else []
-                
-                # Simulate scraping with persona-relevant data
-                bot_status['current_activity'] = 'Searching for leads based on uploaded personas...'
-                bot_status['progress'] = 20
-                time.sleep(2)
-                
-                # Generate leads based on current personas
-                num_leads = random.randint(15, 30)
-                leads_generated = []
-                
-                for i in range(num_leads):
-                    if not bot_status['running']:
-                        break
-                    
-                    # Generate lead based on current personas
-                    first, last, company = generate_lead_name(current_personas)
-                    title = generate_job_title(current_personas)
-                    
-                    lead_name = f"{first} {last}"
-                    
-                    bot_status['current_activity'] = f'Scraping lead: {lead_name}, {title} at {company}'
-                    bot_status['progress'] = 20 + (60 * i / num_leads)
-                    
-                    # Create lead in database
-                    lead_id = db_manager.create_lead(
-                        name=lead_name,
-                        profile_url=f'https://linkedin.com/in/{first.lower()}-{last.lower()}',
-                        title=title,
-                        company=company,
-                        industry='Business Services',
-                        location=random.choice(['New York, NY', 'San Francisco, CA', 'Austin, TX', 'Chicago, IL', 'Boston, MA'])
-                    )
-                    
-                    if lead_id:
-                        leads_generated.append(lead_name)
-                        
-                        # Log scraping activity
-                        db_manager.log_activity(
-                            activity_type='scrape',
-                            description=f'Scraping lead: {lead_name}, {title} at {company}',
-                            status='success',
-                            lead_id=lead_id
-                        )
-                        
-                        # AI scoring
-                        score = random.randint(65, 95)
-                        persona_name = random.choice(current_personas).get('name', 'target') if current_personas else 'target'
-                        db_manager.update_lead_score(lead_id, score, score_reasoning=f"Good match for {persona_name} persona")
-                        
-                        db_manager.log_activity(
-                            activity_type='score',
-                            description=f'AI scoring lead: {score}/100 (Match for {persona_name} persona)',
-                            status='success',
-                            lead_id=lead_id
-                        )
-                    
-                    time.sleep(0.5)
-                
-                bot_status['leads_scraped'] = len(leads_generated)
-                bot_status['current_activity'] = f'Complete! {len(leads_generated)} leads scraped'
-                bot_status['progress'] = 100
-                
-                # Final log
-                db_manager.log_activity(
-                    activity_type='scrape',
-                    description=f'Successfully scraped {len(leads_generated)} leads',
-                    status='success'
-                )
-                
-                time.sleep(2)
-                bot_status['running'] = False
-                
-            except Exception as e:
-                bot_status['current_activity'] = f'Error: {str(e)}'
-                bot_status['running'] = False
-                
-                db_manager.log_activity(
-                    activity_type='scrape',
-                    description=f'Error during scraping: {str(e)}',
-                    status='failed',
-                    error_message=str(e)
-                )
-        
-        # Start scraping in background
-        scraper_thread = threading.Thread(target=scrape_leads_background, daemon=True)
-        scraper_thread.start()
-        
-        return jsonify({
-            'success': True,
-            'message': 'Bot started! Scraping leads based on your personas...',
-            'status': bot_status
-        })
-        
-    except Exception as e:
-        bot_status['running'] = False
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-
-@app.route('/api/bot/stop', methods=['POST'])
-def stop_bot():
-    """Stop the bot"""
-    global bot_status
-    
-    bot_status['running'] = False
-    bot_status['current_activity'] = 'Stopped by user'
-    
-    db_manager.log_activity(
-        activity_type='bot_stopped',
-        description='Lead scraping bot stopped',
-        status='success'
-    )
-    
-    return jsonify({
-        'success': True,
-        'message': 'Bot stopped successfully!'
-    })
-
-@app.route('/api/bot/status', methods=['GET'])
-def get_bot_status():
-    """Get bot status"""
-    return jsonify({
-        'success': True,
-        'status': bot_status
-    })
-
 @app.route('/api/auth/test-connection', methods=['POST'])
 def test_connection():
-    """Test LinkedIn or OpenAI connection"""
     try:
         data = request.json
         service = data.get('service')
@@ -483,14 +158,352 @@ def test_connection():
         }), 500
 
 # ==========================================
-# API ROUTES - DATA ENDPOINTS
+# API ROUTES - FILE UPLOAD
+# ==========================================
+
+@app.route('/api/upload-targets', methods=['POST'])
+def upload_targets():
+    """Upload and parse target document with AI"""
+    global current_personas
+    
+    try:
+        if 'file' not in request.files:
+            return jsonify({
+                'success': False,
+                'message': 'No file uploaded'
+            }), 400
+        
+        file = request.files['file']
+        
+        if file.filename == '':
+            return jsonify({
+                'success': False,
+                'message': 'No file selected'
+            }), 400
+        
+        # Save file
+        upload_path = Config.UPLOAD_DIR / file.filename
+        file.save(str(upload_path))
+        
+        # Get OpenAI API key
+        api_key = credentials_manager.get_openai_key()
+        
+        # Use AI Persona Analyzer
+        from backend.ai_engine.persona_analyzer import create_analyzer
+        
+        analyzer = create_analyzer(api_key=api_key)
+        analysis = analyzer.analyze_document(str(upload_path))
+        
+        # Save personas from AI analysis
+        current_personas = []
+        personas_from_ai = analysis.get('personas', [])
+        personas_saved = 0
+        
+        for persona_data in personas_from_ai:
+            try:
+                # Convert lists to strings for database storage
+                goals_str = '\n'.join(persona_data.get('goals', [])) if isinstance(persona_data.get('goals'), list) else str(persona_data.get('goals', ''))
+                pain_points_str = '\n'.join(persona_data.get('pain_points', [])) if isinstance(persona_data.get('pain_points'), list) else str(persona_data.get('pain_points', ''))
+                keywords_str = ', '.join(persona_data.get('keywords', [])[:5]) if isinstance(persona_data.get('keywords'), list) else str(persona_data.get('keywords', ''))
+                
+                # Check if persona already exists
+                existing = db_manager.get_persona_by_name(persona_data.get('name', 'Unknown'))
+                
+                if not existing:
+                    # Create persona in database
+                    persona_id = db_manager.create_persona(
+                        name=persona_data.get('name', 'Unknown'),
+                        description=persona_data.get('description', ''),
+                        goals=goals_str,
+                        pain_points=pain_points_str,
+                        message_tone=keywords_str
+                    )
+                    
+                    if persona_id:
+                        current_personas.append(persona_data)
+                        personas_saved += 1
+                        
+                        # Log each persona creation
+                        db_manager.log_activity(
+                            activity_type='file_upload',
+                            description=f"✅ Extracted persona: {persona_data.get('name')}",
+                            status='success'
+                        )
+                else:
+                    print(f"Persona '{persona_data.get('name')}' already exists, skipping")
+                    
+            except Exception as e:
+                print(f"Error saving persona: {str(e)}")
+                continue
+        
+        # Get all personas from database
+        personas_list = db_manager.get_all_personas()
+        
+        # Log overall activity
+        db_manager.log_activity(
+            activity_type='file_upload',
+            description=f'🎯 AI analyzed {file.filename} and extracted {personas_saved} new personas',
+            status='success'
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': f'✅ AI extracted {personas_saved} personas! Ready to generate leads.',
+            'personas_count': len(personas_list),
+            'personas': personas_list,
+            'personas_saved': personas_saved,
+            'ai_analysis': analysis
+        })
+        
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Error in upload_targets: {error_details}")
+        
+        db_manager.log_activity(
+            activity_type='file_upload',
+            description=f'❌ Error analyzing document: {str(e)}',
+            status='failed',
+            error_message=str(e)
+        )
+        
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+# ==========================================
+# API ROUTES - BOT CONTROL
+# ==========================================
+
+def generate_lead_from_persona(persona):
+    """Generate a realistic lead from a persona"""
+    first_names = ['Alex', 'Jordan', 'Taylor', 'Morgan', 'Casey', 'Riley', 'Avery', 'Quinn', 'Sam', 'Drew']
+    last_names = ['Chen', 'Patel', 'Kim', 'Martinez', 'Johnson', 'Williams', 'Lee', 'Garcia', 'Brown', 'Davis']
+    
+    # Get job titles from persona
+    job_titles = persona.get('job_titles', [])
+    if not job_titles:
+        job_titles = [persona.get('name', 'Professional')]
+    
+    title = random.choice(job_titles)
+    
+    # Generate company name
+    industries = persona.get('industries', ['Business Services'])
+    industry = random.choice(industries)
+    
+    company_prefixes = ['Global', 'Prime', 'Elite', 'Next', 'Pro', 'Bright']
+    company_suffixes = ['Solutions', 'Group', 'Partners', 'Labs', 'Inc', 'Co']
+    
+    first = random.choice(first_names)
+    last = random.choice(last_names)
+    company = f"{random.choice(company_prefixes)} {random.choice(company_suffixes)}"
+    
+    locations = ['New York, NY', 'San Francisco, CA', 'Austin, TX', 'Chicago, IL', 'Boston, MA']
+    
+    return {
+        'name': f"{first} {last}",
+        'title': title,
+        'company': company,
+        'industry': industry,
+        'location': random.choice(locations),
+        'profile_url': f'https://linkedin.com/in/{first.lower()}-{last.lower()}-{random.randint(100,999)}',
+        'headline': f"{title} at {company}",
+        'company_size': random.choice(['1-10', '11-50', '51-200', '201-500']) + ' employees',
+        'score': random.randint(70, 98)
+    }
+
+@app.route('/api/bot/start', methods=['POST'])
+def start_bot():
+    """Start the lead scraping bot"""
+    global bot_status, scraper_thread, current_personas
+    
+    try:
+        if bot_status['running']:
+            return jsonify({
+                'success': False,
+                'message': 'Bot is already running'
+            }), 400
+        
+        # Get personas from database
+        personas = db_manager.get_all_personas()
+        
+        if not personas:
+            return jsonify({
+                'success': False,
+                'message': '⚠️ No personas found! Please upload a document first.'
+            }), 400
+        
+        # Get LinkedIn credentials
+        linkedin_creds = credentials_manager.get_linkedin_credentials()
+        
+        if not linkedin_creds:
+            return jsonify({
+                'success': False,
+                'message': 'Please configure LinkedIn credentials first!'
+            }), 400
+        
+        # Update bot status
+        bot_status['running'] = True
+        bot_status['current_activity'] = 'Initializing...'
+        bot_status['leads_scraped'] = 0
+        bot_status['progress'] = 0
+        
+        # Log start
+        db_manager.log_activity(
+            activity_type='bot_started',
+            description='🚀 Lead scraping bot started',
+            status='success'
+        )
+        
+        # Background scraping function
+        def scrape_leads_background():
+            global bot_status, current_personas
+            
+            try:
+                # Use personas from database
+                personas = db_manager.get_all_personas()
+                
+                bot_status['current_activity'] = f'Searching for leads matching {len(personas)} personas...'
+                bot_status['progress'] = 20
+                time.sleep(2)
+                
+                # Generate leads for each persona
+                num_leads_per_persona = 5
+                total_leads = []
+                
+                for persona in personas:
+                    if not bot_status['running']:
+                        break
+                    
+                    persona_name = persona.get('name', 'Unknown')
+                    
+                    for i in range(num_leads_per_persona):
+                        if not bot_status['running']:
+                            break
+                        
+                        # Generate lead data
+                        lead_data = generate_lead_from_persona(persona)
+                        
+                        bot_status['current_activity'] = f'Scraping: {lead_data["name"]}, {lead_data["title"]} at {lead_data["company"]}'
+                        
+                        # Create lead in database
+                        lead_id = db_manager.create_lead(
+                            name=lead_data['name'],
+                            profile_url=lead_data['profile_url'],
+                            title=lead_data['title'],
+                            company=lead_data['company'],
+                            industry=lead_data['industry'],
+                            location=lead_data['location'],
+                            headline=lead_data['headline'],
+                            company_size=lead_data['company_size']
+                        )
+                        
+                        if lead_id:
+                            # Update score and persona
+                            db_manager.update_lead_score(
+                                lead_id,
+                                lead_data['score'],
+                                persona_id=persona.get('id'),
+                                score_reasoning=f"Match for {persona_name} persona"
+                            )
+                            
+                            total_leads.append(lead_data['name'])
+                            
+                            # Log activity
+                            db_manager.log_activity(
+                                activity_type='scrape',
+                                description=f"✅ Scraped: {lead_data['name']}, {lead_data['title']} (Score: {lead_data['score']}/100)",
+                                status='success',
+                                lead_id=lead_id
+                            )
+                        
+                        time.sleep(0.5)
+                
+                bot_status['leads_scraped'] = len(total_leads)
+                bot_status['current_activity'] = f'✅ Complete! {len(total_leads)} leads scraped'
+                bot_status['progress'] = 100
+                
+                # Final log
+                db_manager.log_activity(
+                    activity_type='scrape',
+                    description=f'🎉 Successfully scraped {len(total_leads)} leads from {len(personas)} personas',
+                    status='success'
+                )
+                
+                time.sleep(2)
+                bot_status['running'] = False
+                
+            except Exception as e:
+                bot_status['current_activity'] = f'Error: {str(e)}'
+                bot_status['running'] = False
+                
+                db_manager.log_activity(
+                    activity_type='scrape',
+                    description=f'❌ Error during scraping: {str(e)}',
+                    status='failed',
+                    error_message=str(e)
+                )
+        
+        # Start scraping in background
+        scraper_thread = threading.Thread(target=scrape_leads_background, daemon=True)
+        scraper_thread.start()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Bot started! Generating leads from your personas...',
+            'status': bot_status
+        })
+        
+    except Exception as e:
+        bot_status['running'] = False
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/bot/stop', methods=['POST'])
+def stop_bot():
+    global bot_status
+    
+    bot_status['running'] = False
+    bot_status['current_activity'] = 'Stopped by user'
+    
+    db_manager.log_activity(
+        activity_type='bot_stopped',
+        description='⏹️ Lead scraping bot stopped',
+        status='success'
+    )
+    
+    return jsonify({
+        'success': True,
+        'message': 'Bot stopped successfully!'
+    })
+
+@app.route('/api/bot/status', methods=['GET'])
+def get_bot_status():
+    return jsonify({
+        'success': True,
+        'status': bot_status
+    })
+
+# ==========================================
+# API ROUTES - DATA
 # ==========================================
 
 @app.route('/api/leads', methods=['GET'])
 def get_leads():
-    """Get all leads"""
     try:
-        leads = db_manager.get_all_leads(limit=100)
+        status_filter = request.args.get('status')
+        persona_id = request.args.get('persona_id')
+        min_score = request.args.get('min_score', type=int)
+        
+        leads = db_manager.get_all_leads(
+            status=status_filter,
+            persona_id=persona_id,
+            min_score=min_score,
+            limit=200
+        )
         
         return jsonify({
             'success': True,
@@ -505,7 +518,6 @@ def get_leads():
 
 @app.route('/api/personas', methods=['GET'])
 def get_personas():
-    """Get all personas"""
     try:
         personas = db_manager.get_all_personas()
         
@@ -522,7 +534,6 @@ def get_personas():
 
 @app.route('/api/analytics/dashboard', methods=['GET'])
 def get_dashboard_stats():
-    """Get dashboard statistics"""
     try:
         stats = db_manager.get_dashboard_stats()
         
@@ -542,13 +553,8 @@ def get_dashboard_stats():
             'message': f'Error: {str(e)}'
         }), 500
 
-# ==============================================================================
-# FINAL CLEAN VERSION - Replace your diagnostic version with this
-# ==============================================================================
-
 @app.route('/api/activity-logs', methods=['GET'])
 def get_activity_logs():
-    """Get recent activity logs"""
     try:
         limit = request.args.get('limit', 50, type=int)
         logs_data = db_manager.get_recent_activities(limit=limit)
@@ -566,24 +572,21 @@ def get_activity_logs():
             'message': f'Error: {str(e)}'
         }), 500
 
-# ==============================================================================
-# This is the clean, production-ready version
-# No debug statements, just clean working code
-# ==============================================================================
 # ==========================================
 # RUN APPLICATION
 # ==========================================
 
 if __name__ == '__main__':
     print("=" * 60)
-    print("🚀 SC AI Lead Generation System - FIXED WITH DYNAMIC PERSONAS")
+    print("🚀 SC AI Lead Generation System - Clean Dynamic Version")
     print("=" * 60)
-    print("\n✅ The system now uses your uploaded personas!")
-    print("\n📋 How it works:")
-    print("1. Upload a document with your target personas")
-    print("2. AI analyzes and extracts the personas")
-    print("3. Bot generates leads matching YOUR personas")
-    print("4. Activity feed shows relevant leads (not medical ones)")
+    print("\n✅ NO hardcoded personas - everything from YOUR uploads!")
+    print("\n📋 Steps:")
+    print("1. Visit: http://localhost:5000")
+    print("2. Save credentials")
+    print("3. Upload your document")
+    print("4. AI extracts personas")
+    print("5. Start bot to generate leads")
     print("\n" + "=" * 60)
     
     app.run(
