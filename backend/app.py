@@ -542,33 +542,34 @@ def get_dashboard_stats():
             'message': f'Error: {str(e)}'
         }), 500
 
+# ==============================================================================
+# FINAL CLEAN VERSION - Replace your diagnostic version with this
+# ==============================================================================
+
 @app.route('/api/activity-logs', methods=['GET'])
 def get_activity_logs():
     """Get recent activity logs"""
     try:
         limit = request.args.get('limit', 50, type=int)
-        logs = db_manager.get_recent_activities(limit=limit)
-        
-        logs_data = []
-        for log in logs:
-            logs_data.append({
-                'id': log.id,
-                'activity_type': log.activity_type,
-                'description': log.description,
-                'status': log.status,
-                'created_at': log.created_at.isoformat() if log.created_at else datetime.utcnow().isoformat()
-            })
+        logs_data = db_manager.get_recent_activities(limit=limit)
         
         return jsonify({
             'success': True,
             'logs': logs_data
         })
+        
     except Exception as e:
+        import traceback
+        print(f"Error in activity logs: {traceback.format_exc()}")
         return jsonify({
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
 
+# ==============================================================================
+# This is the clean, production-ready version
+# No debug statements, just clean working code
+# ==============================================================================
 # ==========================================
 # RUN APPLICATION
 # ==========================================
