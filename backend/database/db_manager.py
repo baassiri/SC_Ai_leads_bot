@@ -403,10 +403,53 @@ class DatabaseManager:
             session.flush()
             return log.id
     
+# CRITICAL FIX FOR ACTIVITY LOGS
+# This fix ensures activity logs are serialized before the database session closes
+
+# In db_manager.py, replace the get_recent_activities method with this:
+
     def get_recent_activities(self, limit=50):
-        """Get recent activity logs"""
+        """Get recent activity logs - returns serialized dictionaries"""
         with self.session_scope() as session:
-            return session.query(ActivityLog).order_by(desc(ActivityLog.created_at)).limit(limit).all()
+            logs = session.query(ActivityLog).order_by(desc(ActivityLog.created_at)).limit(limit).all()
+            
+            # Serialize logs while session is still open
+            logs_data = []
+            for log in logs:
+                logs_data.append({
+                    'id': log.id,
+                    'activity_type': log.activity_type,
+                    'description': log.description,
+                    'status': log.status,
+                    'error_message': log.error_message,
+                    'lead_id': log.lead_id,
+                    'campaign_id': log.campaign_id,
+                    'created_at': log.created_at.isoformat() if log.created_at else None
+                })
+            
+            return logs_data
+
+    # ALSO UPDATE THE API ENDPOINT IN app.py to remove double serialization:
+
+    @app.route('/api/activity-logs', methods=['GET'])
+    def get_activity_logs():
+        """Get recent activity logs"""
+        try:
+            limit = request.args.get('limit', 50, type=int)
+            logs_data = db_manager.get_recent_activities(limit=limit)
+            
+            # logs_data is already serialized, so just return it
+            return jsonify({
+                'success': True,
+                'logs': logs_data  # Already serialized!
+            })
+        except Exception as e:
+            import traceback
+            print(f"Error in activity logs: {traceback.format_exc()}")
+            return jsonify({
+                'success': False,
+                'message': f'Error: {str(e)}'
+            }), 500
     
     # ==========================================
     # ANALYTICS OPERATIONS
