@@ -1,268 +1,146 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard | Aesthetic LinkWizard Pro</title>
-    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
-    <script src="https://unpkg.com/feather-icons"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '#2C3E50',
-                        secondary: '#3498DB',
-                        success: '#27AE60',
-                        warning: '#F39C12',
-                        danger: '#E74C3C',
-                    }
-                }
-            }
-        }
-    </script>
-    <style>
-        .sidebar {
-            transition: all 0.3s ease;
-        }
-        .activity-log {
-            max-height: 400px;
-            overflow-y: auto;
-        }
-        .activity-log::-webkit-scrollbar {
-            width: 6px;
-        }
-        .activity-log::-webkit-scrollbar-thumb {
-            background-color: #bdc3c7;
-            border-radius: 3px;
-        }
-        .log-info {
-            color: #3498DB;
-        }
-        .log-success {
-            color: #27AE60;
-        }
-        .log-error {
-            color: #E74C3C;
-        }
-        .status-running {
-            background-color: rgba(39, 174, 96, 0.1);
-            color: #27AE60;
-        }
-        .status-stopped {
-            background-color: rgba(231, 76, 60, 0.1);
-            color: #E74C3C;
-        }
-        .status-paused {
-            background-color: rgba(243, 156, 18, 0.1);
-            color: #F39C12;
-        }
-        
-        /* Scrollable Top Leads Container */
-        .top-leads-container {
-            max-height: 400px;
-            overflow-y: auto;
-            overflow-x: hidden;
-        }
-        
-        .top-leads-container::-webkit-scrollbar {
-            width: 8px;
-        }
-        
-        .top-leads-container::-webkit-scrollbar-track {
-            background: #f1f5f9;
-            border-radius: 4px;
-        }
-        
-        .top-leads-container::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 4px;
-        }
-        
-        .top-leads-container::-webkit-scrollbar-thumb:hover {
-            background: #94a3b8;
-        }
-    </style>
-</head>
-<body class="bg-gray-100">
-    <div class="flex h-screen">
-        <!-- Sidebar -->
-        <div class="sidebar bg-primary text-white w-64 flex-shrink-0">
-            <div class="p-4 border-b border-primary-light">
-                <h2 class="text-xl font-bold">Aesthetic LinkWizard</h2>
-                <p class="text-xs text-blue-100">AI-Powered Lead Generation</p>
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Aesthetic LinkWizard{% endblock %}
+
+{% block page_title %}Dashboard{% endblock %}
+
+{% block extra_styles %}
+.activity-log {
+    max-height: 400px;
+    overflow-y: auto;
+}
+.activity-log::-webkit-scrollbar {
+    width: 6px;
+}
+.activity-log::-webkit-scrollbar-thumb {
+    background-color: #bdc3c7;
+    border-radius: 3px;
+}
+.log-info {
+    color: #3498DB;
+}
+.log-success {
+    color: #27AE60;
+}
+.log-error {
+    color: #E74C3C;
+}
+.top-leads-container {
+    max-height: 400px;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+.top-leads-container::-webkit-scrollbar {
+    width: 8px;
+}
+.top-leads-container::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+}
+.top-leads-container::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+.top-leads-container::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+{% endblock %}
+
+{% block content %}
+<!-- Dashboard Content -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-500 text-sm">Total Leads Scraped</p>
+                <h3 class="text-2xl font-bold mt-1" id="total-leads">0</h3>
+                <p class="text-success text-sm mt-1 flex items-center">
+                    <i data-feather="arrow-up" class="w-3 h-3 mr-1"></i> <span id="total-leads-change">0%</span> from last week
+                </p>
             </div>
-            <nav class="p-4">
-                <div class="mb-8">
-                    <h3 class="text-xs uppercase tracking-wider text-blue-200 mb-3">Campaign Controls</h3>
-                    <button id="upload-btn" class="w-full flex items-center justify-between bg-secondary hover:bg-blue-500 text-white px-4 py-2 rounded-md mb-3">
-                        <span>Upload Target Document</span>
-                        <i data-feather="upload" class="w-4 h-4"></i>
-                    </button>
-                    <div class="bg-blue-900 bg-opacity-30 p-3 rounded-md mb-3">
-                        <p class="text-sm">Personas Loaded:</p>
-                        <p class="text-lg font-bold" id="personas-count">0</p>
-                    </div>
-                    <div class="flex space-x-2">
-                        <button id="start-bot" class="flex-1 bg-success hover:bg-green-500 text-white px-4 py-2 rounded-md">
-                            <i data-feather="play" class="w-4 h-4 inline mr-1"></i> Start
-                        </button>
-                        <button id="stop-bot" class="flex-1 bg-danger hover:bg-red-500 text-white px-4 py-2 rounded-md">
-                            <i data-feather="stop-circle" class="w-4 h-4 inline mr-1"></i> Stop
-                        </button>
-                    </div>
-                    <div id="bot-status" class="status-stopped text-xs px-3 py-1 rounded-full mt-2 inline-block">
-                        <i data-feather="circle" class="w-2 h-2 inline mr-1"></i> Stopped
-                    </div>
-                </div>
-                
-                <div>
-                    <h3 class="text-xs uppercase tracking-wider text-blue-200 mb-3">Navigation</h3>
-                    <a href="/dashboard" class="flex items-center px-3 py-2 bg-blue-800 rounded-md mb-1">
-                        <i data-feather="activity" class="w-4 h-4 mr-2"></i> Dashboard
-                    </a>
-                    <a href="/leads" class="flex items-center px-3 py-2 hover:bg-blue-800 rounded-md mb-1">
-                        <i data-feather="users" class="w-4 h-4 mr-2"></i> Leads
-                    </a>
-                    <a href="/messages" class="flex items-center px-3 py-2 hover:bg-blue-800 rounded-md mb-1">
-                        <i data-feather="message-square" class="w-4 h-4 mr-2"></i> Messages
-                    </a>
-                    <a href="/analytics" class="flex items-center px-3 py-2 hover:bg-blue-800 rounded-md mb-1">
-                        <i data-feather="bar-chart-2" class="w-4 h-4 mr-2"></i> Analytics
-                    </a>
-                    <a href="/" class="flex items-center px-3 py-2 hover:bg-blue-800 rounded-md">
-                        <i data-feather="settings" class="w-4 h-4 mr-2"></i> Settings
-                    </a>
-                </div>
-            </nav>
-        </div>
-        
-        <!-- Main Content -->
-        <div class="flex-1 overflow-auto">
-            <!-- Top Navigation -->
-            <header class="bg-white shadow-sm p-4 flex justify-between items-center">
-                <h1 class="text-xl font-semibold text-gray-800">Dashboard</h1>
-                <div class="flex items-center space-x-4">
-                    <div class="relative">
-                        <i data-feather="bell" class="w-5 h-5 text-gray-500"></i>
-                        <span class="absolute -top-1 -right-1 bg-danger text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">3</span>
-                    </div>
-                    <div class="flex items-center space-x-2">
-                        <img src="https://ui-avatars.com/api/?name=Admin&background=3498DB&color=fff" alt="User" class="w-8 h-8 rounded-full">
-                        <span class="text-sm font-medium">Admin</span>
-                    </div>
-                </div>
-            </header>
-            
-            <!-- Dashboard Content -->
-            <main class="p-6">
-                <!-- Overview Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                    <div class="bg-white rounded-lg shadow p-6">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="text-gray-500 text-sm">Total Leads Scraped</p>
-                                <h3 class="text-2xl font-bold mt-1" id="total-leads">0</h3>
-                                <p class="text-success text-sm mt-1 flex items-center">
-                                    <i data-feather="arrow-up" class="w-3 h-3 mr-1"></i> <span id="total-leads-change">0%</span> from last week
-                                </p>
-                            </div>
-                            <div class="bg-blue-100 p-3 rounded-full">
-                                <i data-feather="user-plus" class="w-5 h-5 text-secondary"></i>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="bg-white rounded-lg shadow p-6">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="text-gray-500 text-sm">Qualified Leads</p>
-                                <h3 class="text-2xl font-bold mt-1" id="qualified-leads">0</h3>
-                                <p class="text-success text-sm mt-1 flex items-center">
-                                    <i data-feather="arrow-up" class="w-3 h-3 mr-1"></i> <span id="qualified-leads-change">0%</span> from last week
-                                </p>
-                            </div>
-                            <div class="bg-green-100 p-3 rounded-full">
-                                <i data-feather="check-circle" class="w-5 h-5 text-success"></i>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="bg-white rounded-lg shadow p-6">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="text-gray-500 text-sm">Messages Sent</p>
-                                <h3 class="text-2xl font-bold mt-1" id="messages-sent">0</h3>
-                                <p class="text-warning text-sm mt-1 flex items-center">
-                                    <i data-feather="arrow-down" class="w-3 h-3 mr-1"></i> <span id="messages-sent-change">0%</span> from last week
-                                </p>
-                            </div>
-                            <div class="bg-yellow-100 p-3 rounded-full">
-                                <i data-feather="send" class="w-5 h-5 text-warning"></i>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="bg-white rounded-lg shadow p-6">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="text-gray-500 text-sm">Response Rate</p>
-                                <h3 class="text-2xl font-bold mt-1" id="response-rate">0%</h3>
-                                <p class="text-success text-sm mt-1 flex items-center">
-                                    <i data-feather="arrow-up" class="w-3 h-3 mr-1"></i> <span id="response-rate-change">0%</span> from last week
-                                </p>
-                            </div>
-                            <div class="bg-purple-100 p-3 rounded-full">
-                                <i data-feather="message-circle" class="w-5 h-5 text-purple-500"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Two Column Layout -->
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <!-- Activity Log -->
-                    <div class="bg-white rounded-lg shadow overflow-hidden">
-                        <div class="px-6 py-4 border-b border-gray-200">
-                            <h2 class="text-lg font-semibold text-gray-800">Live Activity Feed</h2>
-                        </div>
-                        <div class="activity-log p-6">
-                            <div class="space-y-4" id="activity-feed">
-                                <p class="text-gray-500 text-center py-4">Loading activity...</p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Top Qualified Leads -->
-                    <div class="bg-white rounded-lg shadow overflow-hidden">
-                        <div class="px-6 py-4 border-b border-gray-200">
-                            <div class="flex items-center justify-between">
-                                <h2 class="text-lg font-semibold text-gray-800">Top Qualified Leads</h2>
-                                <a href="/leads?min_score=70" class="text-secondary hover:text-blue-600 text-sm font-medium">
-                                    View All →
-                                </a>
-                            </div>
-                        </div>
-                        <div class="top-leads-container p-4">
-                            <p class="text-gray-500 text-center py-4">Loading leads...</p>
-                        </div>
-                    </div>
-                </div>
-            </main>
+            <div class="bg-blue-100 p-3 rounded-full">
+                <i data-feather="user-plus" class="w-5 h-5 text-secondary"></i>
+            </div>
         </div>
     </div>
-
-    <!-- Hidden File Input -->
-    <input type="file" id="file-upload-input" accept=".docx" style="display: none;">
-
-    <!-- Load Dashboard JavaScript -->
-    <script src="/static/js/dashboard.js"></script>
     
-    <!-- Initialize Feather Icons -->
-    <script>
-        feather.replace();
-    </script>
-</body>
-</html>
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-500 text-sm">Qualified Leads</p>
+                <h3 class="text-2xl font-bold mt-1" id="qualified-leads">0</h3>
+                <p class="text-success text-sm mt-1 flex items-center">
+                    <i data-feather="arrow-up" class="w-3 h-3 mr-1"></i> <span id="qualified-leads-change">0%</span> from last week
+                </p>
+            </div>
+            <div class="bg-green-100 p-3 rounded-full">
+                <i data-feather="check-circle" class="w-5 h-5 text-success"></i>
+            </div>
+        </div>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-500 text-sm">Messages Sent</p>
+                <h3 class="text-2xl font-bold mt-1" id="messages-sent">0</h3>
+                <p class="text-warning text-sm mt-1 flex items-center">
+                    <i data-feather="arrow-down" class="w-3 h-3 mr-1"></i> <span id="messages-sent-change">0%</span> from last week
+                </p>
+            </div>
+            <div class="bg-yellow-100 p-3 rounded-full">
+                <i data-feather="send" class="w-5 h-5 text-warning"></i>
+            </div>
+        </div>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-500 text-sm">Response Rate</p>
+                <h3 class="text-2xl font-bold mt-1" id="response-rate">0%</h3>
+                <p class="text-success text-sm mt-1 flex items-center">
+                    <i data-feather="arrow-up" class="w-3 h-3 mr-1"></i> <span id="response-rate-change">0%</span> from last week
+                </p>
+            </div>
+            <div class="bg-purple-100 p-3 rounded-full">
+                <i data-feather="message-circle" class="w-5 h-5 text-purple-500"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-800">Live Activity Feed</h2>
+        </div>
+        <div class="activity-log p-6">
+            <div class="space-y-4" id="activity-feed">
+                <p class="text-gray-500 text-center py-4">Loading activity...</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-800">Top Qualified Leads</h2>
+                <a href="/leads?min_score=70" class="text-secondary hover:text-blue-600 text-sm font-medium">
+                    View All →
+                </a>
+            </div>
+        </div>
+        <div class="top-leads-container p-4">
+            <p class="text-gray-500 text-center py-4">Loading leads...</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/dashboard.js"></script>
+<script>
+    feather.replace();
+</script>
+{% endblock %}

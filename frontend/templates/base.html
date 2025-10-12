@@ -4,13 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Aesthetic LinkWizard Pro{% endblock %}</title>
-    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    
-    {% block extra_css %}{% endblock %}
     
     <script>
         tailwind.config = {
@@ -29,21 +25,9 @@
     </script>
     
     <style>
-        .sidebar {
-            transition: all 0.3s ease;
-        }
-        .status-running {
-            background-color: rgba(39, 174, 96, 0.1);
-            color: #27AE60;
-        }
-        .status-stopped {
-            background-color: rgba(231, 76, 60, 0.1);
-            color: #E74C3C;
-        }
-        .status-paused {
-            background-color: rgba(243, 156, 18, 0.1);
-            color: #F39C12;
-        }
+        .sidebar { transition: all 0.3s ease; }
+        .status-running { background-color: rgba(39, 174, 96, 0.1); color: #27AE60; }
+        .status-stopped { background-color: rgba(231, 76, 60, 0.1); color: #E74C3C; }
         {% block extra_styles %}{% endblock %}
     </style>
 </head>
@@ -60,7 +44,7 @@
                     
                     <button id="upload-btn" class="w-full flex items-center justify-between bg-secondary hover:bg-blue-500 text-white px-4 py-2 rounded-md mb-3">
                         <span>Upload Target Document</span>
-                        <i data-feather="upload" class="w-4 h-4"></i>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                     </button>
                     
                     <input type="file" id="file-upload-input" accept=".docx,.doc" style="display: none;">
@@ -72,35 +56,25 @@
                     
                     <div class="flex space-x-2">
                         <button id="start-bot" class="flex-1 bg-success hover:bg-green-500 text-white px-4 py-2 rounded-md">
-                            <i data-feather="play" class="w-4 h-4 inline mr-1"></i> Start
+                            Start
                         </button>
                         <button id="stop-bot" class="flex-1 bg-danger hover:bg-red-500 text-white px-4 py-2 rounded-md">
-                            <i data-feather="stop-circle" class="w-4 h-4 inline mr-1"></i> Stop
+                            Stop
                         </button>
                     </div>
                     
                     <div id="bot-status" class="status-stopped text-xs px-3 py-1 rounded-full mt-2 inline-block">
-                        <i data-feather="circle" class="w-2 h-2 inline mr-1"></i> Stopped
+                        ● Stopped
                     </div>
                 </div>
                 
                 <div>
                     <h3 class="text-xs uppercase tracking-wider text-blue-200 mb-3">Navigation</h3>
-                    <a href="/dashboard" class="flex items-center px-3 py-2 {% if request.endpoint == 'dashboard' %}bg-blue-800{% else %}hover:bg-blue-800{% endif %} rounded-md mb-1">
-                        <i data-feather="activity" class="w-4 h-4 mr-2"></i> Dashboard
-                    </a>
-                    <a href="/leads" class="flex items-center px-3 py-2 {% if request.endpoint == 'leads_page' %}bg-blue-800{% else %}hover:bg-blue-800{% endif %} rounded-md mb-1">
-                        <i data-feather="users" class="w-4 h-4 mr-2"></i> Leads
-                    </a>
-                    <a href="/messages" class="flex items-center px-3 py-2 {% if request.endpoint == 'messages_page' %}bg-blue-800{% else %}hover:bg-blue-800{% endif %} rounded-md mb-1">
-                        <i data-feather="message-square" class="w-4 h-4 mr-2"></i> Messages
-                    </a>
-                    <a href="/analytics" class="flex items-center px-3 py-2 {% if request.endpoint == 'analytics_page' %}bg-blue-800{% else %}hover:bg-blue-800{% endif %} rounded-md mb-1">
-                        <i data-feather="bar-chart-2" class="w-4 h-4 mr-2"></i> Analytics
-                    </a>
-                    <a href="/" class="flex items-center px-3 py-2 {% if request.endpoint == 'index' %}bg-blue-800{% else %}hover:bg-blue-800{% endif %} rounded-md">
-                        <i data-feather="settings" class="w-4 h-4 mr-2"></i> Settings
-                    </a>
+                    <a href="/dashboard" class="flex items-center px-3 py-2 {% if request.endpoint == 'dashboard' %}bg-blue-800{% else %}hover:bg-blue-800{% endif %} rounded-md mb-1">Dashboard</a>
+                    <a href="/leads" class="flex items-center px-3 py-2 {% if request.endpoint == 'leads_page' %}bg-blue-800{% else %}hover:bg-blue-800{% endif %} rounded-md mb-1">Leads</a>
+                    <a href="/messages" class="flex items-center px-3 py-2 {% if request.endpoint == 'messages_page' %}bg-blue-800{% else %}hover:bg-blue-800{% endif %} rounded-md mb-1">Messages</a>
+                    <a href="/analytics" class="flex items-center px-3 py-2 {% if request.endpoint == 'analytics_page' %}bg-blue-800{% else %}hover:bg-blue-800{% endif %} rounded-md mb-1">Analytics</a>
+                    <a href="/" class="flex items-center px-3 py-2 {% if request.endpoint == 'index' %}bg-blue-800{% else %}hover:bg-blue-800{% endif %} rounded-md">Settings</a>
                 </div>
             </nav>
         </div>
@@ -108,144 +82,102 @@
         <div class="flex-1 overflow-auto">
             <header class="bg-white shadow-sm p-4 flex justify-between items-center">
                 <h1 class="text-xl font-semibold text-gray-800">{% block page_title %}Dashboard{% endblock %}</h1>
-                <div class="flex items-center space-x-4">
-                    <div class="relative">
-                        <i data-feather="bell" class="w-5 h-5 text-gray-500 cursor-pointer"></i>
-                        <span class="absolute -top-1 -right-1 bg-danger text-white text-xs rounded-full h-4 w-4 flex items-center justify-center" id="notification-count">0</span>
-                    </div>
-                    
-                    <div class="flex items-center space-x-2">
-                        <img src="https://ui-avatars.com/api/?name=Admin&background=3498DB&color=fff" alt="User" class="w-8 h-8 rounded-full">
-                        <span class="text-sm font-medium">Admin</span>
-                    </div>
-                </div>
             </header>
             
             <main class="p-6">
-                {% block content %}{% endblock %}
+                {% block content %}
+                <h2>Content goes here</h2>
+                {% endblock %}
             </main>
         </div>
     </div>
 
     <script>
-        feather.replace();
+        console.log('🚀 BASE.HTML SCRIPT STARTING...');
         
-        const startBtn = document.getElementById('start-bot');
-        const stopBtn = document.getElementById('stop-bot');
-        const statusIndicator = document.getElementById('bot-status');
-        
-        if (startBtn && stopBtn && statusIndicator) {
-            startBtn.addEventListener('click', async function() {
-                try {
-                    const response = await fetch('/api/bot/start', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({})
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (data.success) {
-                        statusIndicator.className = 'status-running text-xs px-3 py-1 rounded-full mt-2 inline-block';
-                        statusIndicator.innerHTML = '<i data-feather="circle" class="w-2 h-2 inline mr-1"></i> Running';
-                        feather.replace();
-                        showNotification('Bot started successfully!', 'success');
-                    } else {
-                        showNotification(data.message || 'Failed to start bot', 'error');
-                    }
-                } catch (error) {
-                    console.error('Error starting bot:', error);
-                    showNotification('Error starting bot', 'error');
-                }
-            });
-            
-            stopBtn.addEventListener('click', async function() {
-                try {
-                    const response = await fetch('/api/bot/stop', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (data.success) {
-                        statusIndicator.className = 'status-stopped text-xs px-3 py-1 rounded-full mt-2 inline-block';
-                        statusIndicator.innerHTML = '<i data-feather="circle" class="w-2 h-2 inline mr-1"></i> Stopped';
-                        feather.replace();
-                        showNotification('Bot stopped successfully!', 'success');
-                    } else {
-                        showNotification(data.message || 'Failed to stop bot', 'error');
-                    }
-                } catch (error) {
-                    console.error('Error stopping bot:', error);
-                    showNotification('Error stopping bot', 'error');
-                }
-            });
+        function showNotification(message, type) {
+            console.log('📢 Notification:', message, type);
+            const div = document.createElement('div');
+            div.className = 'fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 ' + 
+                (type === 'success' ? 'bg-green-500 text-white' : 
+                 type === 'error' ? 'bg-red-500 text-white' : 'bg-blue-500 text-white');
+            div.textContent = message;
+            document.body.appendChild(div);
+            setTimeout(() => div.remove(), 3000);
         }
         
-        const uploadBtn = document.getElementById('upload-btn');
-        const fileInput = document.getElementById('file-upload-input');
+        console.log('🔍 Looking for elements...');
         
-        if (uploadBtn && fileInput) {
-            uploadBtn.addEventListener('click', function() {
-                fileInput.click();
-            });
+        setTimeout(function() {
+            console.log('⏰ Timeout fired - setting up handlers...');
             
-            fileInput.addEventListener('change', async function(e) {
+            const uploadBtn = document.getElementById('upload-btn');
+            const fileInput = document.getElementById('file-upload-input');
+            
+            console.log('📤 Upload Button:', uploadBtn);
+            console.log('📁 File Input:', fileInput);
+            
+            if (!uploadBtn) {
+                console.error('❌ UPLOAD BUTTON NOT FOUND!');
+                return;
+            }
+            
+            if (!fileInput) {
+                console.error('❌ FILE INPUT NOT FOUND!');
+                return;
+            }
+            
+            console.log('✅ Both elements found!');
+            
+            uploadBtn.onclick = function(e) {
+                console.log('🎯 BUTTON CLICKED!!!');
+                e.preventDefault();
+                fileInput.click();
+            };
+            
+            fileInput.onchange = function(e) {
                 const file = e.target.files[0];
+                console.log('📂 FILE SELECTED:', file ? file.name : 'NONE');
+                
                 if (!file) return;
                 
-                showNotification('Uploading and analyzing document...', 'info');
+                if (!file.name.endsWith('.docx') && !file.name.endsWith('.doc')) {
+                    showNotification('Please select a .docx or .doc file', 'error');
+                    return;
+                }
+                
+                showNotification('Uploading...', 'info');
                 
                 const formData = new FormData();
                 formData.append('file', file);
                 
-                try {
-                    const response = await fetch('/api/upload-targets', {
-                        method: 'POST',
-                        body: formData
-                    });
-                    
-                    const data = await response.json();
-                    
+                fetch('/api/upload-targets', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('✅ UPLOAD SUCCESS:', data);
                     if (data.success) {
                         document.getElementById('personas-count').textContent = data.personas_count || 0;
                         showNotification(data.message, 'success');
                     } else {
-                        showNotification(data.message || 'Failed to upload file', 'error');
+                        showNotification(data.message, 'error');
                     }
-                } catch (error) {
-                    console.error('Error uploading file:', error);
-                    showNotification('Error uploading file', 'error');
-                }
+                })
+                .catch(error => {
+                    console.error('❌ UPLOAD ERROR:', error);
+                    showNotification('Upload failed: ' + error.message, 'error');
+                });
                 
                 fileInput.value = '';
-            });
-        }
-        
-        function showNotification(message, type = 'info') {
-            const notification = document.createElement('div');
-            notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 ${
-                type === 'success' ? 'bg-success text-white' : 
-                type === 'error' ? 'bg-danger text-white' : 
-                'bg-secondary text-white'
-            }`;
-            notification.textContent = message;
+            };
             
-            document.body.appendChild(notification);
+            console.log('✅ HANDLERS ATTACHED!');
             
-            setTimeout(() => {
-                notification.remove();
-            }, 3000);
-        }
+        }, 500);
         
-        document.addEventListener('DOMContentLoaded', function() {
-            feather.replace();
-        });
+        console.log('✅ BASE.HTML SCRIPT LOADED!');
     </script>
     
     {% block extra_js %}{% endblock %}

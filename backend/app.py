@@ -695,7 +695,88 @@ def get_activity_logs():
 # ==========================================
 # API ROUTES - MESSAGES
 # ==========================================
+@app.route('/api/messages/generate', methods=['POST'])
+def generate_messages():
+    """Generate A/B/C message variants for leads"""
+    try:
+        data = request.json
+        lead_ids = data.get('lead_ids', [])
+        
+        if not lead_ids:
+            # If no lead IDs provided, get top 20
+            leads = db_manager.get_all_leads(min_score=70, limit=20)
+            lead_ids = [lead['id'] for lead in leads]
+        
+        if not lead_ids:
+            return jsonify({
+                'success': False,
+                'message': 'No leads found to generate messages for'
+            }), 400
+        
+        # Get OpenAI API key
+        api_key = credentials_manager.get_openai_key()
+        
+        if not api_key:
+            return jsonify({
+                'success': False,
+                'message': 'OpenAI API key not configured'
+            }), 400
+        
+        # Import generator
+        from backend.ai_engine.message_generator_abc import ABCMessageGenerator
+        
+        # Generate messages
+        generator = ABCMessageGenerator(api_key=api_key)
+        results = generator.batch_generate(lead_ids, max_leads=20)
+        
+        # Log activity
+        db_manager.log_activity(
+            activity_type='message_generation',
+            description=f'🎨 Generated {results["messages_created"]} A/B/C message variants for {results["successful"]} leads',
+            status='success'
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': f'Generated {results["messages_created"]} message variants',
+            'results': results
+        })
+        
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Error generating messages: {error_details}")
+        
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
 
+@app.route('/api/leads/top', methods=['GET'])
+def get_top_leads():
+    """Get top N leads by AI score"""
+    try:
+        limit = request.args.get('limit', 20, type=int)
+        min_score = request.args.get('min_score', 70, type=int)
+        
+        all_leads = db_manager.get_all_leads()
+        qualified_leads = [lead for lead in all_leads if lead.get('ai_score', 0) >= min_score]
+        qualified_leads.sort(key=lambda x: x.get('ai_score', 0), reverse=True)
+        top_leads = qualified_leads[:limit]
+        
+        return jsonify({
+            'success': True,
+            'count': len(top_leads),
+            'leads': top_leads,
+            'total_qualified': len(qualified_leads),
+            'message': f'Found {len(top_leads)} top leads (score >= {min_score})'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
 @app.route('/api/messages', methods=['GET'])
 def get_messages():
     try:

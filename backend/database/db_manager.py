@@ -396,6 +396,110 @@ class DatabaseManager:
                 message.updated_at = datetime.utcnow()
                 return True
             return False
+    def get_lead_by_id(self, lead_id):
+    """Get a single lead by ID"""
+    try:
+        with self.session_scope() as session:
+            from backend.database.models import Lead
+            lead = session.query(Lead).filter(Lead.id == lead_id).first()
+            
+            if not lead:
+                return None
+            
+            return {
+                'id': lead.id,
+                'name': lead.name,
+                'title': lead.title,
+                'company': lead.company,
+                'industry': lead.industry,
+                'location': lead.location,
+                'profile_url': lead.profile_url,
+                'headline': lead.headline,
+                'company_size': lead.company_size,
+                'ai_score': lead.ai_score,
+                'persona_id': lead.persona_id,
+                'status': lead.status
+            }
+    except Exception as e:
+        print(f"Error getting lead: {str(e)}")
+        return None
+
+def get_persona_by_id(self, persona_id):
+    """Get a single persona by ID"""
+    try:
+        with self.session_scope() as session:
+            from backend.database.models import Persona
+            persona = session.query(Persona).filter(Persona.id == persona_id).first()
+            
+            if not persona:
+                return None
+            
+            return {
+                'id': persona.id,
+                'name': persona.name,
+                'description': persona.description,
+                'goals': persona.goals,
+                'pain_points': persona.pain_points,
+                'message_tone': persona.message_tone
+            }
+    except Exception as e:
+        print(f"Error getting persona: {str(e)}")
+        return None
+
+def create_message(self, lead_id, message_type, content, variant=None, 
+                  generated_by='gpt-4', status='draft', campaign_id=None):
+    """
+    Create a new message
+    
+    Args:
+        lead_id: Lead ID
+        message_type: Type of message (connection_request, follow_up, etc.)
+        content: Message content
+        variant: A, B, or C
+        generated_by: Who/what generated the message
+        status: draft, approved, sent, etc.
+        campaign_id: Optional campaign ID
+    """
+    try:
+        with self.session_scope() as session:
+            from backend.database.models import Message
+            
+            message = Message(
+                lead_id=lead_id,
+                campaign_id=campaign_id,
+                message_type=message_type,
+                content=content,
+                variant=variant,
+                generated_by=generated_by,
+                status=status
+            )
+            
+            session.add(message)
+            session.flush()
+            
+            message_id = message.id
+            
+            return message_id
+            
+    except Exception as e:
+        print(f"Error creating message: {str(e)}")
+        return None
+
+def get_messages_by_lead(self, lead_id):
+    """Get all messages for a specific lead"""
+    try:
+        with self.session_scope() as session:
+            from backend.database.models import Message
+            
+            messages = session.query(Message).filter(
+                Message.lead_id == lead_id
+            ).order_by(Message.created_at.desc()).all()
+            
+            return messages
+            
+    except Exception as e:
+        print(f"Error getting messages: {str(e)}")
+        return []    
     
     # ==========================================
     # CAMPAIGN OPERATIONS
