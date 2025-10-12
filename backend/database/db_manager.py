@@ -304,107 +304,79 @@ class DatabaseManager:
             session.add(message)
             session.flush()
             return message.id
-    def get_pending_messages(self, limit: int = 50):
-    """
-    Get messages that are approved and ready to send
     
-    Args:
-        limit: Maximum number of messages to retrieve
+    def get_pending_messages(self, limit=50):
+        """
+        Get messages that are approved and ready to send
         
-    Returns:
-        List of message dicts with lead info
-    """
-    with self.session_scope() as session:
-        messages = session.query(Message).join(Lead).filter(
-            Message.status == 'approved',
-            Message.sent_at == None
-        ).order_by(Message.created_at).limit(limit).all()
-        
-        # Serialize with lead info
-        messages_data = []
-        for msg in messages:
-            messages_data.append({
-                'id': msg.id,
-                'lead_id': msg.lead_id,
-                'lead_name': msg.lead.name if msg.lead else None,
-                'message_type': msg.message_type,
-                'content': msg.content,
-                'variant': msg.variant,
-                'status': msg.status,
-                'created_at': msg.created_at.isoformat() if msg.created_at else None
-            })
-        
-        return messages_data
-
-def get_lead_by_id(self, lead_id: int):
-    """
-    Get a single lead by ID
+        Args:
+            limit: Maximum number of messages to retrieve
+            
+        Returns:
+            List of message dicts with lead info
+        """
+        with self.session_scope() as session:
+            messages = session.query(Message).join(Lead).filter(
+                Message.status == 'approved',
+                Message.sent_at == None
+            ).order_by(Message.created_at).limit(limit).all()
+            
+            # Serialize with lead info
+            messages_data = []
+            for msg in messages:
+                messages_data.append({
+                    'id': msg.id,
+                    'lead_id': msg.lead_id,
+                    'lead_name': msg.lead.name if msg.lead else None,
+                    'message_type': msg.message_type,
+                    'content': msg.content,
+                    'variant': msg.variant,
+                    'status': msg.status,
+                    'created_at': msg.created_at.isoformat() if msg.created_at else None
+                })
+            
+            return messages_data
     
-    Args:
-        lead_id: Lead ID
-        
-    Returns:
-        Lead dict or None
-    """
-    with self.session_scope() as session:
-        lead = session.query(Lead).filter(Lead.id == lead_id).first()
-        
-        if not lead:
-            return None
-        
-        # Serialize
-        return {
-            'id': lead.id,
-            'name': lead.name,
-            'title': lead.title,
-            'company': lead.company,
-            'profile_url': lead.profile_url,
-            'location': lead.location,
-            'ai_score': lead.ai_score,
-            'status': lead.status,
-            'connection_status': lead.connection_status
-        }
-
-def get_approved_messages_count(self):
-    """Get count of approved messages waiting to be sent"""
-    with self.session_scope() as session:
-        count = session.query(Message).filter(
-            Message.status == 'approved',
-            Message.sent_at == None
-        ).count()
-        return count
-
-def get_messages_by_status(self, status: str, limit: int = 100):
-    """
-    Get messages by status
+    def get_approved_messages_count(self):
+        """Get count of approved messages waiting to be sent"""
+        with self.session_scope() as session:
+            count = session.query(Message).filter(
+                Message.status == 'approved',
+                Message.sent_at == None
+            ).count()
+            return count
     
-    Args:
-        status: Message status (draft, approved, sent, failed)
-        limit: Max messages to return
+    def get_messages_by_status(self, status, limit=100):
+        """
+        Get messages by status
         
-    Returns:
-        List of message dicts
-    """
-    with self.session_scope() as session:
-        messages = session.query(Message).filter(
-            Message.status == status
-        ).order_by(desc(Message.created_at)).limit(limit).all()
-        
-        messages_data = []
-        for msg in messages:
-            messages_data.append({
-                'id': msg.id,
-                'lead_id': msg.lead_id,
-                'lead_name': msg.lead.name if msg.lead else None,
-                'message_type': msg.message_type,
-                'content': msg.content[:100] + '...' if len(msg.content) > 100 else msg.content,
-                'variant': msg.variant,
-                'status': msg.status,
-                'sent_at': msg.sent_at.isoformat() if msg.sent_at else None,
-                'created_at': msg.created_at.isoformat() if msg.created_at else None
-            })
-        
-        return messages_data
+        Args:
+            status: Message status (draft, approved, sent, failed)
+            limit: Max messages to return
+            
+        Returns:
+            List of message dicts
+        """
+        with self.session_scope() as session:
+            messages = session.query(Message).filter(
+                Message.status == status
+            ).order_by(desc(Message.created_at)).limit(limit).all()
+            
+            messages_data = []
+            for msg in messages:
+                messages_data.append({
+                    'id': msg.id,
+                    'lead_id': msg.lead_id,
+                    'lead_name': msg.lead.name if msg.lead else None,
+                    'message_type': msg.message_type,
+                    'content': msg.content[:100] + '...' if len(msg.content) > 100 else msg.content,
+                    'variant': msg.variant,
+                    'status': msg.status,
+                    'sent_at': msg.sent_at.isoformat() if msg.sent_at else None,
+                    'created_at': msg.created_at.isoformat() if msg.created_at else None
+                })
+            
+            return messages_data
 
     def get_messages_by_lead(self, lead_id):
         """Get all messages for a lead"""
