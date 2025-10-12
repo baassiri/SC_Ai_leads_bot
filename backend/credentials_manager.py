@@ -1,6 +1,7 @@
 """
 SC AI Lead Generation System - Credentials Manager
 Secure storage and retrieval of user credentials
+UPDATED: Now includes Sales Navigator preference
 """
 
 import os
@@ -38,7 +39,8 @@ class CredentialsManager:
         initial_data = {
             'linkedin': {
                 'email': '',
-                'password': ''
+                'password': '',
+                'sales_nav_enabled': False
             },
             'openai': {
                 'api_key': ''
@@ -71,13 +73,14 @@ class CredentialsManager:
         except Exception as e:
             print(f"Error saving credentials: {e}")
     
-    def save_linkedin_credentials(self, email: str, password: str) -> bool:
+    def save_linkedin_credentials(self, email: str, password: str, sales_nav_enabled: bool = False) -> bool:
         """
         Save LinkedIn credentials
         
         Args:
             email: LinkedIn email
             password: LinkedIn password
+            sales_nav_enabled: Whether user has Sales Navigator
             
         Returns:
             bool: True if successful
@@ -87,7 +90,8 @@ class CredentialsManager:
             
             credentials['linkedin'] = {
                 'email': email,
-                'password': password
+                'password': password,
+                'sales_nav_enabled': sales_nav_enabled
             }
             
             self._save_credentials(credentials)
@@ -101,7 +105,7 @@ class CredentialsManager:
         Get LinkedIn credentials
         
         Returns:
-            Dict with 'email' and 'password', or None if not found
+            Dict with 'email', 'password', and 'sales_nav_enabled', or None if not found
         """
         try:
             credentials = self._load_credentials()
@@ -110,12 +114,29 @@ class CredentialsManager:
             if linkedin_creds.get('email') and linkedin_creds.get('password'):
                 return {
                     'email': linkedin_creds['email'],
-                    'password': linkedin_creds['password']
+                    'password': linkedin_creds['password'],
+                    'sales_nav_enabled': linkedin_creds.get('sales_nav_enabled', False)
                 }
             return None
         except Exception as e:
             print(f"Error getting LinkedIn credentials: {e}")
             return None
+    
+    def has_sales_navigator(self) -> bool:
+        """
+        Check if user has Sales Navigator enabled
+        
+        Returns:
+            bool: True if Sales Navigator is enabled
+        """
+        try:
+            linkedin_creds = self.get_linkedin_credentials()
+            if linkedin_creds:
+                return linkedin_creds.get('sales_nav_enabled', False)
+            return False
+        except Exception as e:
+            print(f"Error checking Sales Navigator status: {e}")
+            return False
     
     def save_openai_key(self, api_key: str) -> bool:
         """
@@ -200,7 +221,8 @@ class CredentialsManager:
     def save_all_credentials(self, linkedin_email: str = None, 
                            linkedin_password: str = None,
                            openai_api_key: str = None,
-                           hubspot_api_key: str = None) -> bool:
+                           hubspot_api_key: str = None,
+                           sales_nav_enabled: bool = None) -> bool:
         """
         Save multiple credentials at once
         
@@ -209,6 +231,7 @@ class CredentialsManager:
             linkedin_password: LinkedIn password
             openai_api_key: OpenAI API key
             hubspot_api_key: HubSpot API key
+            sales_nav_enabled: Whether user has Sales Navigator
             
         Returns:
             bool: True if successful
@@ -220,7 +243,8 @@ class CredentialsManager:
             if linkedin_email and linkedin_password:
                 credentials['linkedin'] = {
                     'email': linkedin_email,
-                    'password': linkedin_password
+                    'password': linkedin_password,
+                    'sales_nav_enabled': sales_nav_enabled if sales_nav_enabled is not None else False
                 }
             
             # Update OpenAI if provided
@@ -255,7 +279,8 @@ class CredentialsManager:
             masked_credentials = {
                 'linkedin': {
                     'email': credentials.get('linkedin', {}).get('email', ''),
-                    'password': '***' if credentials.get('linkedin', {}).get('password') else ''
+                    'password': '***' if credentials.get('linkedin', {}).get('password') else '',
+                    'sales_nav_enabled': credentials.get('linkedin', {}).get('sales_nav_enabled', False)
                 },
                 'openai': {
                     'api_key': f"sk-...{credentials.get('openai', {}).get('api_key', '')[-4:]}" if credentials.get('openai', {}).get('api_key') else ''
