@@ -510,6 +510,7 @@ def start_bot():
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
+
 @app.route('/api/bot/stop', methods=['POST'])
 def stop_bot():
     global bot_status
@@ -519,7 +520,7 @@ def stop_bot():
     
     db_manager.log_activity(
         activity_type='bot_stopped',
-        description='⏹️ Lead scraping bot stopped',
+        description='ℹ️ Lead scraping bot stopped',
         status='success'
     )
     
@@ -558,6 +559,77 @@ def get_leads():
             'leads': leads,
             'total': len(leads)
         })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/leads/top', methods=['GET'])
+def get_top_leads():
+    """Get top N leads by AI score"""
+    try:
+        limit = request.args.get('limit', 20, type=int)
+        min_score = request.args.get('min_score', 70, type=int)
+        
+        all_leads = db_manager.get_all_leads()
+        qualified_leads = [lead for lead in all_leads if lead.get('ai_score', 0) >= min_score]
+        qualified_leads.sort(key=lambda x: x.get('ai_score', 0), reverse=True)
+        top_leads = qualified_leads[:limit]
+        
+        return jsonify({
+            'success': True,
+            'count': len(top_leads),
+            'leads': top_leads,
+            'total_qualified': len(qualified_leads),
+            'message': f'Found {len(top_leads)} top leads (score >= {min_score})'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/leads/auto-select', methods=['POST'])
+def auto_select_leads():
+    """Auto-select top leads and mark them for message generation"""
+    try:
+        data = request.json
+        limit = data.get('limit', 20)
+        min_score = data.get('min_score', 70)
+        
+        all_leads = db_manager.get_all_leads()
+        qualified_leads = [lead for lead in all_leads if lead.get('ai_score', 0) >= min_score]
+        qualified_leads.sort(key=lambda x: x.get('ai_score', 0), reverse=True)
+        top_leads = qualified_leads[:limit]
+        
+        selected_ids = []
+        for lead in top_leads:
+            try:
+                db_manager.update_lead(
+                    lead_id=lead['id'],
+                    status='selected_for_outreach',
+                    notes=f"Auto-selected (score: {lead.get('ai_score', 0)})"
+                )
+                selected_ids.append(lead['id'])
+            except Exception as e:
+                print(f"Error updating lead {lead['id']}: {str(e)}")
+                continue
+        
+        db_manager.log_activity(
+            activity_type='lead_selection',
+            description=f'🎯 Auto-selected top {len(selected_ids)} leads for outreach',
+            status='success'
+        )
+        
+        return jsonify({
+            'success': True,
+            'selected_count': len(selected_ids),
+            'selected_ids': selected_ids,
+            'message': f'✅ Selected {len(selected_ids)} top leads for outreach'
+        })
+        
     except Exception as e:
         return jsonify({
             'success': False,
@@ -619,6 +691,7 @@ def get_activity_logs():
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
+
 # ==========================================
 # API ROUTES - MESSAGES
 # ==========================================
@@ -731,6 +804,7 @@ def get_lead_messages(lead_id):
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
+
 # ==========================================
 # RUN APPLICATION
 # ==========================================

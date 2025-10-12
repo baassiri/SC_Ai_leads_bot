@@ -6,14 +6,8 @@
     <title>{% block title %}Aesthetic LinkWizard Pro{% endblock %}</title>
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
     
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Feather Icons -->
     <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
-    <script src="https://unpkg.com/feather-icons"></script>
-    
-    <!-- jQuery (required for DataTables) -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     
     {% block extra_css %}{% endblock %}
@@ -55,30 +49,27 @@
 </head>
 <body class="bg-gray-100">
     <div class="flex h-screen">
-        <!-- Sidebar -->
         <div class="sidebar bg-primary text-white w-64 flex-shrink-0">
             <div class="p-4 border-b border-primary-light">
                 <h2 class="text-xl font-bold">Aesthetic LinkWizard</h2>
                 <p class="text-xs text-blue-100">AI-Powered Lead Generation</p>
             </div>
             <nav class="p-4">
-                <!-- Campaign Controls -->
                 <div class="mb-8">
                     <h3 class="text-xs uppercase tracking-wider text-blue-200 mb-3">Campaign Controls</h3>
                     
-                    <!-- Upload Button -->
                     <button id="upload-btn" class="w-full flex items-center justify-between bg-secondary hover:bg-blue-500 text-white px-4 py-2 rounded-md mb-3">
                         <span>Upload Target Document</span>
                         <i data-feather="upload" class="w-4 h-4"></i>
                     </button>
                     
-                    <!-- Personas Count -->
+                    <input type="file" id="file-upload-input" accept=".docx,.doc" style="display: none;">
+
                     <div class="bg-blue-900 bg-opacity-30 p-3 rounded-md mb-3">
                         <p class="text-sm">Personas Loaded:</p>
-                        <p class="text-lg font-bold" id="personas-count">6</p>
+                        <p class="text-lg font-bold" id="personas-count">0</p>
                     </div>
                     
-                    <!-- Start/Stop Buttons -->
                     <div class="flex space-x-2">
                         <button id="start-bot" class="flex-1 bg-success hover:bg-green-500 text-white px-4 py-2 rounded-md">
                             <i data-feather="play" class="w-4 h-4 inline mr-1"></i> Start
@@ -88,13 +79,11 @@
                         </button>
                     </div>
                     
-                    <!-- Bot Status -->
                     <div id="bot-status" class="status-stopped text-xs px-3 py-1 rounded-full mt-2 inline-block">
                         <i data-feather="circle" class="w-2 h-2 inline mr-1"></i> Stopped
                     </div>
                 </div>
                 
-                <!-- Navigation Links -->
                 <div>
                     <h3 class="text-xs uppercase tracking-wider text-blue-200 mb-3">Navigation</h3>
                     <a href="/dashboard" class="flex items-center px-3 py-2 {% if request.endpoint == 'dashboard' %}bg-blue-800{% else %}hover:bg-blue-800{% endif %} rounded-md mb-1">
@@ -116,19 +105,15 @@
             </nav>
         </div>
         
-        <!-- Main Content -->
         <div class="flex-1 overflow-auto">
-            <!-- Top Navigation -->
             <header class="bg-white shadow-sm p-4 flex justify-between items-center">
                 <h1 class="text-xl font-semibold text-gray-800">{% block page_title %}Dashboard{% endblock %}</h1>
                 <div class="flex items-center space-x-4">
-                    <!-- Notifications -->
                     <div class="relative">
                         <i data-feather="bell" class="w-5 h-5 text-gray-500 cursor-pointer"></i>
-                        <span class="absolute -top-1 -right-1 bg-danger text-white text-xs rounded-full h-4 w-4 flex items-center justify-center" id="notification-count">3</span>
+                        <span class="absolute -top-1 -right-1 bg-danger text-white text-xs rounded-full h-4 w-4 flex items-center justify-center" id="notification-count">0</span>
                     </div>
                     
-                    <!-- User Profile -->
                     <div class="flex items-center space-x-2">
                         <img src="https://ui-avatars.com/api/?name=Admin&background=3498DB&color=fff" alt="User" class="w-8 h-8 rounded-full">
                         <span class="text-sm font-medium">Admin</span>
@@ -136,22 +121,15 @@
                 </div>
             </header>
             
-            <!-- Page Content -->
             <main class="p-6">
                 {% block content %}{% endblock %}
             </main>
         </div>
     </div>
 
-    <!-- Hidden File Upload Input -->
-    <input type="file" id="file-upload-input" accept=".docx" style="display: none;">
-
-    <!-- Core JavaScript -->
     <script>
-        // Initialize Feather Icons
         feather.replace();
         
-        // Bot Status Management
         const startBtn = document.getElementById('start-bot');
         const stopBtn = document.getElementById('stop-bot');
         const statusIndicator = document.getElementById('bot-status');
@@ -209,7 +187,6 @@
             });
         }
         
-        // File Upload Handler
         const uploadBtn = document.getElementById('upload-btn');
         const fileInput = document.getElementById('file-upload-input');
         
@@ -221,6 +198,8 @@
             fileInput.addEventListener('change', async function(e) {
                 const file = e.target.files[0];
                 if (!file) return;
+                
+                showNotification('Uploading and analyzing document...', 'info');
                 
                 const formData = new FormData();
                 formData.append('file', file);
@@ -234,7 +213,7 @@
                     const data = await response.json();
                     
                     if (data.success) {
-                        document.getElementById('personas-count').textContent = data.personas_count || 6;
+                        document.getElementById('personas-count').textContent = data.personas_count || 0;
                         showNotification(data.message, 'success');
                     } else {
                         showNotification(data.message || 'Failed to upload file', 'error');
@@ -244,12 +223,10 @@
                     showNotification('Error uploading file', 'error');
                 }
                 
-                // Reset file input
                 fileInput.value = '';
             });
         }
         
-        // Notification System
         function showNotification(message, type = 'info') {
             const notification = document.createElement('div');
             notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 ${
@@ -266,7 +243,6 @@
             }, 3000);
         }
         
-        // Refresh icons after dynamic content loads
         document.addEventListener('DOMContentLoaded', function() {
             feather.replace();
         });
