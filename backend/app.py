@@ -55,7 +55,6 @@ def leads_page():
     """Serve leads page"""
     return render_template('leads.html')
 
-
 @app.route('/messages')
 def messages_page():
     """Serve messages page"""
