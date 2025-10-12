@@ -1,11 +1,12 @@
 """
-SC AI Lead Generation System - AI Engine Package
-AI-powered lead scoring and message generation
+SC AI Lead Generation System - Backend Package
+Main backend package initialization
 """
 
-from .message_generator import MessageGenerator, generate_connection_message
+# Import main configuration
+from .config import Config
 
+# Make commonly used modules easily accessible
 __all__ = [
-    'MessageGenerator',
-    'generate_connection_message'
+    'Config'
 ]
