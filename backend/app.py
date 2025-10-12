@@ -67,6 +67,7 @@ def save_credentials():
         linkedin_email = data.get('linkedin_email', '').strip()
         linkedin_password = data.get('linkedin_password', '').strip()
         openai_api_key = data.get('openai_api_key', '').strip()
+        sales_nav_enabled = data.get('sales_nav_enabled', False)  # ← ADD THIS LINE
         
         if not all([linkedin_email, linkedin_password, openai_api_key]):
             return jsonify({
@@ -77,20 +78,23 @@ def save_credentials():
         success = credentials_manager.save_all_credentials(
             linkedin_email=linkedin_email,
             linkedin_password=linkedin_password,
-            openai_api_key=openai_api_key
+            openai_api_key=openai_api_key,
+            sales_nav_enabled=sales_nav_enabled  # ← ADD THIS LINE
         )
         
         if success:
-            db_manager.log_activity(
-                activity_type='credentials_saved',
-                description='User credentials updated successfully',
-                status='success'
-            )
-            
-            return jsonify({
-                'success': True,
-                'message': 'Credentials saved successfully!'
-            })
+                    # Show which mode user selected
+                    nav_type = "Sales Navigator" if sales_nav_enabled else "Regular LinkedIn"
+                    db_manager.log_activity(
+                        activity_type='credentials_saved',
+                        description=f'User credentials updated successfully (Using: {nav_type})',  # ← CHANGE THIS
+                        status='success'
+                    )
+                    
+                    return jsonify({
+                        'success': True,
+                        'message': f'Credentials saved successfully! Using {nav_type}'  # ← CHANGE THIS
+                    })
         
         return jsonify({
             'success': False,

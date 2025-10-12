@@ -72,7 +72,7 @@ except ImportError:
 class LinkedInScraper:
     """LinkedIn Sales Navigator scraper using Selenium"""
     
-    def __init__(self, email: str, password: str, headless: bool = False):
+    def __init__(self, email: str, password: str, headless: bool = False, sales_nav_preference: bool = False):  # ← ADD PARAMETER
         """
         Initialize LinkedIn scraper
         
@@ -80,10 +80,12 @@ class LinkedInScraper:
             email: LinkedIn email/username
             password: LinkedIn password
             headless: Run browser in headless mode (invisible)
+            sales_nav_preference: User's preference for using Sales Navigator  # ← ADD THIS
         """
         self.email = email
         self.password = password
         self.headless = headless
+        self.sales_nav_preference = sales_nav_preference  # ← ADD THIS LINE
         self.driver = None
         self.wait = None
         
@@ -92,9 +94,10 @@ class LinkedInScraper:
             'leads_scraped': 0,
             'errors': 0,
             'start_time': None,
-            'end_time': None
+            'end_time': None,
+            'using_sales_nav': False  # ← ADD THIS LINE
         }
-    
+        
     def setup_driver(self):
         """Set up Chrome WebDriver with options"""
         print("🔧 Setting up Chrome WebDriver...")
@@ -208,13 +211,22 @@ class LinkedInScraper:
     
     def navigate_to_sales_navigator(self) -> bool:
         """
-        Navigate to LinkedIn Sales Navigator
+        Navigate to LinkedIn Sales Navigator (respects user preference)
         
         Returns:
             bool: True if navigation successful
         """
         try:
-            print("\n🧭 Navigating to Sales Navigator...")
+            # ← ADD THIS CHECK
+            # Check user preference first
+            if not self.sales_nav_preference:
+                print("\n📋 User preference: Regular LinkedIn search")
+                print("   ℹ️  Sales Navigator is disabled in settings")
+                self.stats['using_sales_nav'] = False
+                return False
+            # ← END OF NEW CHECK
+            
+            print("\n🧭 Attempting to use Sales Navigator (user has it enabled)...")  # ← CHANGE MESSAGE
             
             # Go to Sales Navigator
             self.driver.get('https://www.linkedin.com/sales/home')
@@ -222,15 +234,30 @@ class LinkedInScraper:
             
             if 'sales' in self.driver.current_url:
                 print("✅ Successfully navigated to Sales Navigator!")
+                self.stats['using_sales_nav'] = True  # ← ADD THIS LINE
+                if USE_DATABASE:  # ← ADD THIS BLOCK
+                    db_manager.log_activity(
+                        activity_type='navigation',
+                        description='Using LinkedIn Sales Navigator for search',
+                        status='success'
+                    )
                 return True
             else:
-                print("⚠️ Sales Navigator access may not be available")
-                print("  → Using regular LinkedIn search instead...")
+                print("⚠️ Sales Navigator not accessible")
+                print("   → Falling back to regular LinkedIn search...")
+                self.stats['using_sales_nav'] = False  # ← ADD THIS LINE
+                if USE_DATABASE:  # ← ADD THIS BLOCK
+                    db_manager.log_activity(
+                        activity_type='navigation',
+                        description='Sales Navigator unavailable, using regular LinkedIn',
+                        status='warning'
+                    )
                 return False
                 
         except Exception as e:
-            print(f"⚠️ Error navigating to Sales Navigator: {str(e)}")
-            print("  → Will use regular LinkedIn search...")
+            print(f"⚠️ Error accessing Sales Navigator: {str(e)}")
+            print("   → Will use regular LinkedIn search...")
+            self.stats['using_sales_nav'] = False  # ← ADD THIS LINE
             return False
     
     def search_regular_linkedin(self, keywords: str):
@@ -541,14 +568,14 @@ class LinkedInScraper:
         
         print(f"✅ Leads Scraped: {self.stats['leads_scraped']}")
         print(f"❌ Errors: {self.stats['errors']}")
+        
+        # ← ADD THESE LINES
+        # Show which mode was used
+        mode = "Sales Navigator" if self.stats['using_sales_nav'] else "Regular LinkedIn"
+        print(f"🔍 Search Mode: {mode}")
+        # ← END OF NEW LINES
+        
         print("="*60)
-    
-    def close(self):
-        """Close the browser"""
-        if self.driver:
-            print("\n🔒 Closing browser...")
-            self.driver.quit()
-            print("✅ Browser closed")
 
 
 # CLI for testing

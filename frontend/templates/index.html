@@ -87,6 +87,28 @@
                 <p class="text-xs text-gray-500 mt-1">Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" class="text-secondary hover:underline">platform.openai.com</a></p>
             </div>
 
+            <!-- LinkedIn Account Type - NEW SECTION -->
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <label class="flex items-start cursor-pointer">
+                    <input 
+                        type="checkbox" 
+                        id="sales-nav-enabled" 
+                        name="sales_nav_enabled"
+                        class="mt-1 w-5 h-5 text-secondary rounded focus:ring-2 focus:ring-secondary"
+                    >
+                    <div class="ml-3">
+                        <span class="text-sm font-medium text-gray-700">I have LinkedIn Sales Navigator</span>
+                        <p class="text-xs text-gray-600 mt-1">
+                            <strong class="text-success">✓ Sales Navigator:</strong> Advanced filters, unlimited searches, better lead quality<br>
+                            <strong class="text-gray-700">✓ Regular LinkedIn:</strong> Basic search (still works great!)
+                        </p>
+                        <p class="text-xs text-warning mt-2">
+                            💡 Don't have Sales Nav? No problem! The bot will use regular LinkedIn search.
+                        </p>
+                    </div>
+                </label>
+            </div>
+
             <!-- Test Buttons -->
             <div class="grid grid-cols-2 gap-3">
                 <button 
@@ -154,14 +176,15 @@
             }, 3000);
         }
 
-        // Form Submission
+        // Form Submission - UPDATED TO INCLUDE SALES NAV SETTING
         document.getElementById('settings-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             
             const formData = {
                 linkedin_email: document.getElementById('linkedin-email').value,
                 linkedin_password: document.getElementById('linkedin-password').value,
-                openai_api_key: document.getElementById('openai-key').value
+                openai_api_key: document.getElementById('openai-key').value,
+                sales_nav_enabled: document.getElementById('sales-nav-enabled').checked
             };
             
             try {

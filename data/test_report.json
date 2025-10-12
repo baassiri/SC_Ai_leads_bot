@@ -1,6 +1,6 @@
 {
-  "timestamp": "2025-10-12T19:22:36.819687",
-  "duration_seconds": 12,
+  "timestamp": "2025-10-13T00:52:31.752903",
+  "duration_seconds": 13,
   "results": {
     "passed": [
       "Python version",
@@ -45,20 +45,20 @@
     "system": {
       "os": "Windows",
       "python_version": "3.13.7",
-      "free_space_gb": 145.29093551635742
+      "free_space_gb": 145.28318405151367
     },
     "database": {
       "connected": true,
-      "activity_log_count": 144
+      "activity_log_count": 0
     },
     "tables": {
       "users": 0,
-      "personas": 19,
-      "leads": 105,
+      "personas": 0,
+      "leads": 0,
       "messages": 0,
       "campaigns": 0,
       "responses": 0,
-      "activity_logs": 144
+      "activity_logs": 0
     },
     "credentials": {
       "linkedin_configured": true,
@@ -89,14 +89,14 @@
       "saved": 1
     },
     "lead_generation": {
-      "created": 6,
-      "personas_used": 2
+      "created": 3,
+      "personas_used": 1
     },
     "lead_scoring": {
-      "scored": 5,
-      "average_score": 65.2,
+      "scored": 3,
+      "average_score": 61.0,
       "min_score": 61,
-      "max_score": 75
+      "max_score": 61
     },
     "api": {
       "working": 5,
@@ -109,6 +109,6 @@
     "failed": 2,
     "warnings": 0,
     "personas_created": 1,
-    "leads_created": 6
+    "leads_created": 3
   }
 }
