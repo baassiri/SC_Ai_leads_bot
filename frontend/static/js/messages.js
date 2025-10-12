@@ -1,6 +1,6 @@
 /**
  * SC AI Lead Generation System - Enhanced Messages JavaScript
- * Handles message loading, approval, editing, and A/B/C testing
+ * Improved UI with custom modals and professional notifications
  */
 
 let allMessages = [];
@@ -212,7 +212,7 @@ function createVariantCard(variant, msg) {
                         <button onclick="editMessage(${msg.id})" class="text-xs bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-md flex items-center transition">
                             <i data-feather="edit" class="w-3 h-3 mr-1"></i> Edit
                         </button>
-                        <button onclick="deleteMessage(${msg.id})" class="text-xs bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-md flex items-center transition">
+                        <button onclick="confirmDelete(${msg.id})" class="text-xs bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-md flex items-center transition">
                             <i data-feather="trash-2" class="w-3 h-3 mr-1"></i>
                         </button>
                     ` : ''}
@@ -235,6 +235,59 @@ function createVariantCard(variant, msg) {
 }
 
 /**
+ * Custom Confirmation Modal
+ */
+function showConfirmDialog(title, message, onConfirm, confirmText = 'Confirm', cancelText = 'Cancel') {
+    // Create modal overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4';
+    overlay.id = 'confirm-modal';
+    
+    // Create modal
+    overlay.innerHTML = `
+        <div class="bg-white rounded-lg shadow-2xl max-w-md w-full transform transition-all">
+            <div class="p-6">
+                <div class="flex items-start space-x-4">
+                    <div class="flex-shrink-0">
+                        <div class="w-12 h-12 rounded-full bg-yellow-100 flex items-center justify-center">
+                            <i data-feather="alert-triangle" class="w-6 h-6 text-yellow-600"></i>
+                        </div>
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-2">${title}</h3>
+                        <p class="text-gray-600 text-sm">${message}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-gray-50 px-6 py-4 flex justify-end space-x-3 rounded-b-lg">
+                <button id="modal-cancel" class="px-4 py-2 bg-white border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition">
+                    ${cancelText}
+                </button>
+                <button id="modal-confirm" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition flex items-center">
+                    <i data-feather="check" class="w-4 h-4 mr-2"></i>
+                    ${confirmText}
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    feather.replace();
+    
+    // Event listeners
+    document.getElementById('modal-cancel').onclick = () => overlay.remove();
+    document.getElementById('modal-confirm').onclick = () => {
+        onConfirm();
+        overlay.remove();
+    };
+    
+    // Click outside to close
+    overlay.onclick = (e) => {
+        if (e.target === overlay) overlay.remove();
+    };
+}
+
+/**
  * Approve a message
  */
 async function approveMessage(messageId) {
@@ -246,7 +299,7 @@ async function approveMessage(messageId) {
         const data = await response.json();
         
         if (data.success) {
-            showNotification('✅ Message approved!', 'success');
+            showNotification('Message approved successfully!', 'success');
             loadMessages(currentFilter);
         } else {
             showNotification(data.message || 'Failed to approve message', 'error');
@@ -329,7 +382,7 @@ async function saveMessage(messageId) {
         const data = await response.json();
         
         if (data.success) {
-            showNotification('✅ Message updated!', 'success');
+            showNotification('Message updated successfully!', 'success');
             loadMessages(currentFilter);
         } else {
             showNotification(data.message || 'Failed to update message', 'error');
@@ -351,13 +404,22 @@ function cancelEdit(messageId, originalContent) {
 }
 
 /**
+ * Confirm delete with custom modal
+ */
+function confirmDelete(messageId) {
+    showConfirmDialog(
+        'Delete Message',
+        'Are you sure you want to delete this message? This action cannot be undone.',
+        () => deleteMessage(messageId),
+        'Delete',
+        'Cancel'
+    );
+}
+
+/**
  * Delete a message
  */
 async function deleteMessage(messageId) {
-    if (!confirm('Are you sure you want to delete this message?')) {
-        return;
-    }
-    
     try {
         const response = await fetch(`/api/messages/${messageId}`, {
             method: 'DELETE'
@@ -366,7 +428,7 @@ async function deleteMessage(messageId) {
         const data = await response.json();
         
         if (data.success) {
-            showNotification('Message deleted', 'success');
+            showNotification('Message deleted successfully', 'success');
             loadMessages(currentFilter);
         } else {
             showNotification('Failed to delete message', 'error');
@@ -381,7 +443,7 @@ async function deleteMessage(messageId) {
  * Send a message (placeholder - requires LinkedIn automation)
  */
 async function sendMessage(messageId) {
-    showNotification('🚀 LinkedIn message sending coming soon!', 'info');
+    showNotification('LinkedIn message sending coming soon!', 'info');
     // TODO: Implement actual LinkedIn sending
 }
 
@@ -475,46 +537,67 @@ function showError(message) {
 }
 
 /**
- * Show notification
+ * Professional Notification Toast
  */
 function showNotification(message, type = 'info') {
     const notification = document.createElement('div');
     const colors = {
-        success: 'bg-green-500',
-        error: 'bg-red-500',
-        info: 'bg-blue-500',
-        warning: 'bg-yellow-500'
+        success: { bg: 'bg-green-50', border: 'border-green-500', text: 'text-green-800', icon: 'check-circle' },
+        error: { bg: 'bg-red-50', border: 'border-red-500', text: 'text-red-800', icon: 'x-circle' },
+        info: { bg: 'bg-blue-50', border: 'border-blue-500', text: 'text-blue-800', icon: 'info' },
+        warning: { bg: 'bg-yellow-50', border: 'border-yellow-500', text: 'text-yellow-800', icon: 'alert-triangle' }
     };
     
-    notification.className = `fixed top-4 right-4 ${colors[type] || colors.info} text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-slide-in`;
-    notification.textContent = message;
+    const style = colors[type] || colors.info;
+    
+    notification.className = `fixed top-4 right-4 ${style.bg} ${style.text} border-l-4 ${style.border} px-6 py-4 rounded-lg shadow-xl z-50 animate-slide-in flex items-center space-x-3 max-w-md`;
+    notification.innerHTML = `
+        <i data-feather="${style.icon}" class="w-5 h-5 flex-shrink-0"></i>
+        <span class="font-medium">${message}</span>
+        <button onclick="this.parentElement.remove()" class="ml-auto text-gray-400 hover:text-gray-600 transition">
+            <i data-feather="x" class="w-4 h-4"></i>
+        </button>
+    `;
     
     document.body.appendChild(notification);
+    feather.replace();
     
     setTimeout(() => {
+        notification.style.transition = 'all 0.3s ease-out';
         notification.style.opacity = '0';
-        notification.style.transform = 'translateY(-20px)';
+        notification.style.transform = 'translateX(100%)';
         setTimeout(() => notification.remove(), 300);
-    }, 3000);
+    }, 4000);
 }
 
 /**
- * Bulk actions
+ * Bulk actions - Approve all drafts
  */
 function approveAllDrafts() {
-    if (!confirm('Approve all draft messages?')) return;
-    
     const draftMessages = allMessages.filter(msg => msg.status === 'draft');
     
-    showNotification(`Approving ${draftMessages.length} messages...`, 'info');
+    if (draftMessages.length === 0) {
+        showNotification('No draft messages to approve', 'info');
+        return;
+    }
     
-    Promise.all(draftMessages.map(msg => 
-        fetch(`/api/messages/${msg.id}/approve`, { method: 'POST' })
-    )).then(() => {
-        showNotification('✅ All messages approved!', 'success');
-        loadMessages(currentFilter);
-    }).catch(error => {
-        showNotification('Error approving messages', 'error');
-        console.error(error);
-    });
+    showConfirmDialog(
+        'Approve All Drafts',
+        `Are you sure you want to approve all ${draftMessages.length} draft messages?`,
+        () => {
+            showNotification(`Approving ${draftMessages.length} messages...`, 'info');
+            
+            Promise.all(draftMessages.map(msg => 
+                fetch(`/api/messages/${msg.id}/approve`, { method: 'POST' })
+            )).then(() => {
+                showNotification('All messages approved successfully!', 'success');
+                loadMessages(currentFilter);
+            }).catch(error => {
+                showNotification('Error approving messages', 'error');
+                console.error(error);
+            });
+        },
+        'Approve All',
+        'Cancel'
+    );
 }
