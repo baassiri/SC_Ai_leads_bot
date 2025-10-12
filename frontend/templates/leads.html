@@ -1,384 +1,122 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Leads | Aesthetic LinkWizard Pro</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.datatables.net/1.10.25/js/jquery.dataTables.min.js"></script>
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.10.25/css/jquery.dataTables.min.css">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '#2C3E50',
-                        secondary: '#3498DB',
-                        success: '#27AE60',
-                        warning: '#F39C12',
-                        danger: '#E74C3C',
-                    }
-                }
-            }
-        }
-    </script>
-    <style>
-        .sidebar { transition: all 0.3s ease; }
-        .score-high { background-color: rgba(39, 174, 96, 0.1); color: #27AE60; }
-        .score-medium { background-color: rgba(243, 156, 18, 0.1); color: #F39C12; }
-        .score-low { background-color: rgba(231, 76, 60, 0.1); color: #E74C3C; }
-        .status-new { background-color: rgba(52, 152, 219, 0.1); color: #3498DB; }
-        .status-contacted { background-color: rgba(155, 89, 182, 0.1); color: #9B59B6; }
-        .status-replied { background-color: rgba(26, 188, 156, 0.1); color: #1ABC9C; }
-        .status-archived { background-color: rgba(149, 165, 166, 0.1); color: #95A5A6; }
-        .persona-match { background-color: rgba(52, 152, 219, 0.1); color: #3498DB; }
-    </style>
-</head>
-<body class="bg-gray-100">
-    <div class="flex h-screen">
-        <!-- Sidebar -->
-        <div class="sidebar bg-primary text-white w-64 flex-shrink-0">
-            <div class="p-4 border-b border-primary-light">
-                <h2 class="text-xl font-bold">Aesthetic LinkWizard</h2>
-                <p class="text-xs text-blue-100">AI-Powered Lead Generation</p>
-            </div>
-            <nav class="p-4">
-                <div class="mb-8">
-                    <h3 class="text-xs uppercase tracking-wider text-blue-200 mb-3">Campaign Controls</h3>
-                    <button class="w-full flex items-center justify-between bg-secondary hover:bg-blue-500 text-white px-4 py-2 rounded-md mb-3">
-                        <span>Upload Target Document</span>
-                        <i data-feather="upload" class="w-4 h-4"></i>
-                    </button>
-                    <div class="bg-blue-900 bg-opacity-30 p-3 rounded-md mb-3">
-                        <p class="text-sm">Personas Loaded:</p>
-                        <p class="text-lg font-bold" id="personas-count">6</p>
-                    </div>
-                    <div class="flex space-x-2">
-                        <button class="flex-1 bg-success hover:bg-green-500 text-white px-4 py-2 rounded-md">
-                            <i data-feather="play" class="w-4 h-4 inline mr-1"></i> Start
-                        </button>
-                        <button class="flex-1 bg-danger hover:bg-red-500 text-white px-4 py-2 rounded-md">
-                            <i data-feather="stop-circle" class="w-4 h-4 inline mr-1"></i> Stop
-                        </button>
-                    </div>
-                    <div class="status-stopped text-xs px-3 py-1 rounded-full mt-2 inline-block">
-                        <i data-feather="circle" class="w-2 h-2 inline mr-1"></i> Stopped
-                    </div>
-                </div>
-                
-                <div>
-                    <h3 class="text-xs uppercase tracking-wider text-blue-200 mb-3">Navigation</h3>
-                    <a href="/dashboard" class="flex items-center px-3 py-2 hover:bg-blue-800 rounded-md mb-1">
-                        <i data-feather="activity" class="w-4 h-4 mr-2"></i> Dashboard
-                    </a>
-                    <a href="/leads" class="flex items-center px-3 py-2 bg-blue-800 rounded-md mb-1">
-                        <i data-feather="users" class="w-4 h-4 mr-2"></i> Leads
-                    </a>
-                    <a href="/messages" class="flex items-center px-3 py-2 hover:bg-blue-800 rounded-md mb-1">
-                        <i data-feather="message-square" class="w-4 h-4 mr-2"></i> Messages
-                    </a>
-                    <a href="/analytics" class="flex items-center px-3 py-2 hover:bg-blue-800 rounded-md mb-1">
-                        <i data-feather="bar-chart-2" class="w-4 h-4 mr-2"></i> Analytics
-                    </a>
-                    <a href="/" class="flex items-center px-3 py-2 hover:bg-blue-800 rounded-md">
-                        <i data-feather="settings" class="w-4 h-4 mr-2"></i> Settings
-                    </a>
-                </div>
-            </nav>
-        </div>
-        
-        <!-- Main Content -->
-        <div class="flex-1 overflow-auto">
-            <!-- Top Navigation -->
-            <header class="bg-white shadow-sm p-4 flex justify-between items-center">
-                <h1 class="text-xl font-semibold text-gray-800">Leads Management</h1>
-                <div class="flex items-center space-x-4">
-                    <button onclick="loadLeads()" class="text-secondary hover:text-blue-500" title="Refresh">
-                        <i data-feather="refresh-cw" class="w-5 h-5"></i>
-                    </button>
-                    <div class="flex items-center space-x-2">
-                        <img src="https://ui-avatars.com/api/?name=Admin&background=3498DB&color=fff" alt="User" class="w-8 h-8 rounded-full">
-                        <span class="text-sm font-medium">Admin</span>
-                    </div>
-                </div>
-            </header>
-            
-            <!-- Leads Content -->
-            <main class="p-6">
-                <!-- Stats Bar -->
-                <div class="bg-white rounded-lg shadow p-4 mb-6" id="leads-stats">
-                    <div class="text-center text-gray-500">Loading statistics...</div>
-                </div>
+{% extends 'base.html' %}
 
-                <!-- Filters -->
-                <div class="bg-white rounded-lg shadow p-4 mb-6">
-                    <div class="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
-                        <div class="flex space-x-2">
-                            <select id="filter-status" class="border border-gray-300 rounded-md px-3 py-2 text-sm">
-                                <option value="all">All Statuses</option>
-                                <option value="new">New</option>
-                                <option value="contacted">Contacted</option>
-                                <option value="replied">Replied</option>
-                                <option value="archived">Archived</option>
-                            </select>
-                            <select id="filter-persona" class="border border-gray-300 rounded-md px-3 py-2 text-sm">
-                                <option value="all">All Personas</option>
-                            </select>
-                        </div>
-                        <div class="flex space-x-2">
-                            <button onclick="loadLeads()" class="bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-md text-sm flex items-center">
-                                <i data-feather="filter" class="w-4 h-4 mr-1"></i> Apply
-                            </button>
-                            <button onclick="resetFilters()" class="bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-md text-sm flex items-center">
-                                <i data-feather="refresh-cw" class="w-4 h-4 mr-1"></i> Reset
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Leads Table -->
-                <div class="bg-white rounded-lg shadow overflow-hidden">
-                    <table id="leadsTable" class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                                    <input type="checkbox" id="select-all" class="rounded">
-                                </th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Company</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">AI Score</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Persona</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="leadsTableBody" class="bg-white divide-y divide-gray-200">
-                            <tr>
-                                <td colspan="8" class="px-6 py-8 text-center text-gray-500">
-                                    <i data-feather="loader" class="w-8 h-8 mx-auto animate-spin mb-2"></i>
-                                    <p>Loading leads from database...</p>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </main>
+{% block title %}Leads - Aesthetic LinkWizard{% endblock %}
+
+{% block page_title %}Leads Management{% endblock %}
+
+{% block extra_styles %}
+.score-high { background-color: rgba(39, 174, 96, 0.1); color: #27AE60; }
+.score-medium { background-color: rgba(243, 156, 18, 0.1); color: #F39C12; }
+.score-low { background-color: rgba(231, 76, 60, 0.1); color: #E74C3C; }
+.status-new { background-color: rgba(52, 152, 219, 0.1); color: #3498DB; }
+.status-contacted { background-color: rgba(155, 89, 182, 0.1); color: #9B59B6; }
+.status-replied { background-color: rgba(26, 188, 156, 0.1); color: #1ABC9C; }
+.status-archived { background-color: rgba(149, 165, 166, 0.1); color: #95A5A6; }
+.persona-match { background-color: rgba(52, 152, 219, 0.1); color: #3498DB; }
+{% endblock %}
+
+{% block content %}
+<!-- Stats Bar -->
+<div class="bg-white rounded-lg shadow p-4 mb-6" id="leads-stats">
+    <div class="text-center text-gray-500">Loading statistics...</div>
+</div>
+
+<!-- Filters -->
+<div class="bg-white rounded-lg shadow p-4 mb-6">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
+        <div class="flex flex-wrap gap-2">
+            <select id="filter-status" class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-secondary">
+                <option value="all">All Statuses</option>
+                <option value="new">New</option>
+                <option value="contacted">Contacted</option>
+                <option value="replied">Replied</option>
+                <option value="archived">Archived</option>
+            </select>
+            <select id="filter-persona" class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-secondary">
+                <option value="all">All Personas</option>
+            </select>
+            <input type="number" id="filter-min-score" placeholder="Min Score" min="0" max="100" class="border border-gray-300 rounded-md px-3 py-2 text-sm w-32 focus:outline-none focus:border-secondary">
+            <input type="number" id="filter-max-score" placeholder="Max Score" min="0" max="100" class="border border-gray-300 rounded-md px-3 py-2 text-sm w-32 focus:outline-none focus:border-secondary">
+        </div>
+        <div class="flex space-x-2">
+            <button id="apply-filters" class="bg-secondary hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm flex items-center">
+                <i data-feather="filter" class="w-4 h-4 mr-1"></i> Apply Filters
+            </button>
+            <button id="reset-filters" class="bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-md text-sm flex items-center">
+                <i data-feather="refresh-cw" class="w-4 h-4 mr-1"></i> Reset
+            </button>
         </div>
     </div>
+</div>
 
-    <script>
+<!-- Bulk Actions Bar -->
+<div class="bg-white rounded-lg shadow p-4 mb-6">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <span class="text-sm text-gray-600" id="selected-count">0 leads selected</span>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            <button id="bulk-message" class="bulk-action-btn bg-success hover:bg-green-600 text-white px-4 py-2 rounded-md text-sm flex items-center disabled:opacity-50">
+                <i data-feather="message-square" class="w-4 h-4 mr-1"></i> Generate Messages
+            </button>
+            <button id="bulk-archive" class="bulk-action-btn bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md text-sm flex items-center disabled:opacity-50">
+                <i data-feather="archive" class="w-4 h-4 mr-1"></i> Archive
+            </button>
+            <button id="bulk-delete" class="bulk-action-btn bg-danger hover:bg-red-600 text-white px-4 py-2 rounded-md text-sm flex items-center disabled:opacity-50">
+                <i data-feather="trash-2" class="w-4 h-4 mr-1"></i> Delete
+            </button>
+            <button id="bulk-export" class="bg-secondary hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm flex items-center">
+                <i data-feather="download" class="w-4 h-4 mr-1"></i> Export CSV
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Leads Table -->
+<div class="bg-white rounded-lg shadow overflow-hidden">
+    <table id="leadsTable" class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+            <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <input type="checkbox" id="select-all-leads" class="rounded border-gray-300 text-secondary focus:ring-secondary">
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">AI Score</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Persona</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+        </thead>
+        <tbody id="leadsTableBody" class="bg-white divide-y divide-gray-200">
+            <tr>
+                <td colspan="8" class="px-6 py-8 text-center text-gray-500">
+                    <i data-feather="loader" class="w-8 h-8 mx-auto animate-spin mb-2"></i>
+                    <p>Loading leads from database...</p>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Lead Stats Summary (hidden, updated by JS) -->
+<div id="lead-stats" class="mt-4"></div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- DataTables -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.25/js/jquery.dataTables.min.js"></script>
+<link rel="stylesheet" href="https://cdn.datatables.net/1.10.25/css/jquery.dataTables.min.css">
+
+<!-- Leads JS -->
+<script src="/static/js/leads.js"></script>
+
+<script>
+    // Replace feather icons after page load
+    document.addEventListener('DOMContentLoaded', function() {
         feather.replace();
-        let leadsDataTable = null;
-        
-        // Load leads from API
-        async function loadLeads() {
-            try {
-                const statusFilter = document.getElementById('filter-status').value;
-                const personaFilter = document.getElementById('filter-persona').value;
-                
-                let url = '/api/leads?';
-                if (statusFilter !== 'all') url += `status=${statusFilter}&`;
-                if (personaFilter !== 'all') url += `persona_id=${personaFilter}&`;
-                
-                const response = await fetch(url);
-                const data = await response.json();
-                
-                if (data.success) {
-                    displayLeads(data.leads);
-                    updateStats(data.leads);
-                } else {
-                    showError('Failed to load leads');
-                }
-            } catch (error) {
-                console.error('Error loading leads:', error);
-                showError('Error loading leads from database');
-            }
-        }
-        
-        // Display leads in table
-        function displayLeads(leads) {
-            const tbody = document.getElementById('leadsTableBody');
-            
-            if (!leads || leads.length === 0) {
-                tbody.innerHTML = `
-                    <tr>
-                        <td colspan="8" class="px-6 py-8 text-center text-gray-500">
-                            <i data-feather="inbox" class="w-8 h-8 mx-auto mb-2"></i>
-                            <p>No leads found. Start the bot to generate leads!</p>
-                        </td>
-                    </tr>
-                `;
-                feather.replace();
-                return;
-            }
-            
-            tbody.innerHTML = '';
-            
-            leads.forEach(lead => {
-                const row = createLeadRow(lead);
-                tbody.appendChild(row);
-            });
-            
-            feather.replace();
-        }
-        
-        // Create table row for a lead
-        function createLeadRow(lead) {
-            const tr = document.createElement('tr');
-            const scoreClass = getScoreClass(lead.ai_score);
-            const statusClass = getStatusClass(lead.status);
-            const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(lead.name)}&background=3498DB&color=fff`;
-            
-            tr.innerHTML = `
-                <td class="px-6 py-4 whitespace-nowrap">
-                    <input type="checkbox" class="rounded lead-checkbox" data-id="${lead.id}">
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="flex items-center">
-                        <img class="h-10 w-10 rounded-full mr-3" src="${avatarUrl}" alt="">
-                        <div>
-                            <div class="text-sm font-medium text-gray-900">${lead.name}</div>
-                            <div class="text-sm text-gray-500">${lead.location || 'Location not specified'}</div>
-                        </div>
-                    </div>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="text-sm text-gray-900">${lead.title || 'Title not specified'}</div>
-                    <div class="text-sm text-gray-500">${lead.industry || 'Industry not specified'}</div>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="text-sm text-gray-900">${lead.company || 'Company not specified'}</div>
-                    <div class="text-sm text-gray-500">${lead.company_size || 'Size unknown'}</div>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap">
-                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${scoreClass}">
-                        ${lead.ai_score}/100
-                    </span>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap">
-                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full persona-match">
-                        ${lead.persona_name || 'Unassigned'}
-                    </span>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap">
-                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">
-                        ${capitalizeFirst(lead.status)}
-                    </span>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm">
-                    <div class="flex space-x-2">
-                        <button onclick="viewLead(${lead.id})" class="text-secondary hover:text-blue-500" title="View">
-                            <i data-feather="eye" class="w-4 h-4"></i>
-                        </button>
-                        <button onclick="archiveLead(${lead.id})" class="text-gray-500 hover:text-gray-600" title="Archive">
-                            <i data-feather="archive" class="w-4 h-4"></i>
-                        </button>
-                    </div>
-                </td>
-            `;
-            
-            return tr;
-        }
-        
-        // Helper functions
-        function getScoreClass(score) {
-            if (score >= 80) return 'score-high';
-            if (score >= 60) return 'score-medium';
-            return 'score-low';
-        }
-        
-        function getStatusClass(status) {
-            const classes = {
-                'new': 'status-new',
-                'contacted': 'status-contacted',
-                'replied': 'status-replied',
-                'archived': 'status-archived'
-            };
-            return classes[status] || 'status-new';
-        }
-        
-        function capitalizeFirst(str) {
-            return str.charAt(0).toUpperCase() + str.slice(1);
-        }
-        
-        function updateStats(leads) {
-            const stats = {
-                total: leads.length,
-                qualified: leads.filter(l => l.ai_score >= 70).length,
-                contacted: leads.filter(l => l.status === 'contacted').length,
-                replied: leads.filter(l => l.status === 'replied').length
-            };
-            
-            document.getElementById('leads-stats').innerHTML = `
-                <div class="flex justify-around text-sm">
-                    <div><span class="text-gray-500">Total:</span> <strong>${stats.total}</strong></div>
-                    <div><span class="text-gray-500">Qualified (70+):</span> <strong class="text-success">${stats.qualified}</strong></div>
-                    <div><span class="text-gray-500">Contacted:</span> <strong class="text-secondary">${stats.contacted}</strong></div>
-                    <div><span class="text-gray-500">Replied:</span> <strong class="text-purple-500">${stats.replied}</strong></div>
-                </div>
-            `;
-        }
-        
-        function showError(message) {
-            const tbody = document.getElementById('leadsTableBody');
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="8" class="px-6 py-8 text-center text-danger">
-                        <i data-feather="alert-circle" class="w-8 h-8 mx-auto mb-2"></i>
-                        <p>${message}</p>
-                    </td>
-                </tr>
-            `;
-            feather.replace();
-        }
-        
-        function resetFilters() {
-            document.getElementById('filter-status').value = 'all';
-            document.getElementById('filter-persona').value = 'all';
-            loadLeads();
-        }
-        
-        async function viewLead(id) {
-            alert('Lead details for ID: ' + id);
-        }
-        
-        async function archiveLead(id) {
-            if (confirm('Archive this lead?')) {
-                alert('Archive functionality coming soon!');
-            }
-        }
-        
-        // Load personas for filter
-        async function loadPersonas() {
-            try {
-                const response = await fetch('/api/personas');
-                const data = await response.json();
-                
-                if (data.success) {
-                    const select = document.getElementById('filter-persona');
-                    data.personas.forEach(persona => {
-                        const option = document.createElement('option');
-                        option.value = persona.id;
-                        option.textContent = persona.name;
-                        select.appendChild(option);
-                    });
-                    
-                    // Update count
-                    document.getElementById('personas-count').textContent = data.total;
-                }
-            } catch (error) {
-                console.error('Error loading personas:', error);
-            }
-        }
-        
-        // Initialize on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            loadLeads();
-            loadPersonas();
-        });
-    </script>
-</body>
-</html>
+    });
+</script>
+{% endblock %}
