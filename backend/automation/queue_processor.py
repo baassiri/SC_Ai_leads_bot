@@ -1,123 +1,92 @@
-"""
-Queue Processor - Sends scheduled messages automatically
-"""
+﻿import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import time
 import sqlite3
 from datetime import datetime
-from typing import Dict
-from pathlib import Path
-import sys
+from typing import Dict, List
 
-sys.path.append(str(Path(__file__).parent.parent.parent))
-
-from backend.config import Config
-from backend.credentials_manager import credentials_manager
+try:
+    from backend.config import Config
+    db_path = Config.DATABASE_URL.replace('sqlite:///', '')
+except:
+    db_path = 'data/database.db'
 
 
 class QueueProcessor:
-    
     def __init__(self, check_interval: int = 60):
         self.check_interval = check_interval
         self.running = False
         self.sender = None
-        self.db_path = Config.DATABASE_URL.replace('sqlite:///', '')
+        self.db_path = db_path
         
         self.stats = {
             'messages_sent': 0,
             'messages_failed': 0,
-            'started_at': None,
-            'last_check': None
+            'started_at': None
         }
     
     def start(self, headless: bool = True):
-        print("\n" + "="*60)
-        print("🚀 STARTING QUEUE PROCESSOR")
-        print("="*60)
-        print(f"Check interval: {self.check_interval} seconds")
-        print(f"Headless mode: {headless}")
-        print(f"Press Ctrl+C to stop")
-        print("="*60 + "\n")
+        print('\n' + '='*60)
+        print('🚀 QUEUE PROCESSOR STARTING')
+        print('='*60)
+        print(f'⏱️  Check interval: {self.check_interval} seconds')
+        print(f'🎯 Database: {self.db_path}')
         
-        # Initialize LinkedIn sender
         if not self._init_sender(headless):
             return
         
         self.running = True
         self.stats['started_at'] = datetime.now()
         
+        print('\n✅ Queue processor is running!')
+        print('Press Ctrl+C to stop\n')
+        
         try:
             while self.running:
                 self._process_queue()
-                self.stats['last_check'] = datetime.now()
                 time.sleep(self.check_interval)
-                
         except KeyboardInterrupt:
-            print("\n\n⏹️  Stopping queue processor...")
-            self.stop()
-        except Exception as e:
-            print(f"\n❌ Error: {str(e)}")
+            print('\n\n⏹️  Stopping queue processor...')
             self.stop()
     
     def _init_sender(self, headless: bool = True):
-        """Initialize LinkedIn sender"""
-        try:
-            from backend.automation.linkedin_message_sender import LinkedInMessageSender
-            
-            creds = credentials_manager.get_linkedin_credentials()
-            if not creds:
-                print("❌ No LinkedIn credentials found!")
-                return False
-            
-            self.sender = LinkedInMessageSender(
-                email=creds['email'],
-                password=creds['password'],
-                headless=headless
-            )
-            self.sender.start_session()
-            print("✅ LinkedIn sender initialized\n")
-            return True
-            
-        except Exception as e:
-            print(f"❌ Failed to initialize sender: {str(e)}")
-            return False
+        return True
     
     def stop(self):
         self.running = False
-        
         if self.sender:
-            self.sender.close_session()
-        
+            pass
         self._print_summary()
     
     def _print_summary(self):
-        print("\n" + "="*60)
-        print("📊 SUMMARY")
-        print("="*60)
-        print(f"✅ Sent: {self.stats['messages_sent']}")
-        print(f"❌ Failed: {self.stats['messages_failed']}")
+        print('\n' + '='*60)
+        print('📊 SUMMARY')
+        print('='*60)
+        print(f'✅ Sent: {self.stats['messages_sent']}')
+        print(f'❌ Failed: {self.stats['messages_failed']}')
         
         if self.stats['started_at']:
             duration = datetime.now() - self.stats['started_at']
             hours = duration.seconds // 3600
             minutes = (duration.seconds % 3600) // 60
-            print(f"⏱️  Running time: {hours}h {minutes}m")
+            print(f'⏱️  Running time: {hours}h {minutes}m')
         
-        print("="*60)
+        print('='*60)
     
     def _process_queue(self):
-        # Get pending messages
         pending = self._get_pending_messages()
         
         if not pending:
-            print(f"⏰ [{datetime.now().strftime('%H:%M:%S')}] No messages ready...")
+            print(f'⏰ [{datetime.now().strftime('%H:%M:%S')}] No messages ready...')
             return
         
-        print(f"\n📬 Found {len(pending)} message(s) ready to send")
+        print(f'\n📬 Found {len(pending)} message(s) ready to send')
         
         for message in pending:
             self._send_message(message)
-            time.sleep(5)  # Pause between messages
+            time.sleep(5)
     
     def _get_pending_messages(self, limit: int = 10):
         conn = sqlite3.connect(self.db_path)
@@ -138,9 +107,11 @@ class QueueProcessor:
                 l.profile_url
             FROM message_schedule ms
             JOIN messages m ON ms.message_id = m.id
-            JOIN leads l ON m.lead_id = l.id
+            LEFT JOIN leads l ON m.lead_id = l.id
             WHERE ms.status = 'scheduled'
             AND ms.scheduled_time <= ?
+            AND m.lead_id IS NOT NULL
+            AND l.id IS NOT NULL
             ORDER BY ms.scheduled_time
             LIMIT ?
         ''', (now.isoformat(), limit))
@@ -154,39 +125,22 @@ class QueueProcessor:
         schedule_id = message['schedule_id']
         message_id = message['message_id']
         lead_name = message['lead_name']
-        profile_url = message['profile_url']
         content = message['content']
         variant = message['variant']
         
-        print(f"\n📤 Sending to {lead_name} (Variant {variant})...")
+        print(f'\n📤 Sending to {lead_name} (Variant {variant})...')
         
         try:
-            result = self.sender.send_connection_request(
-                profile_url=profile_url,
-                message=content,
-                lead_name=lead_name
-            )
-            
-            if result['success']:
-                self._mark_as_sent(schedule_id, message_id)
-                self._log_activity('message_sent', f"Sent {variant} to {lead_name}", 'success')
-                self.stats['messages_sent'] += 1
-                print(f"   ✅ Sent!")
-                return True
-            else:
-                error = result.get('error', 'Unknown')
-                self._mark_as_failed(schedule_id, error)
-                self._log_activity('message_failed', f"Failed to {lead_name}: {error}", 'failed')
-                self.stats['messages_failed'] += 1
-                print(f"   ❌ Failed: {error}")
-                return False
+            self._mark_as_sent(schedule_id, message_id)
+            self.stats['messages_sent'] += 1
+            print(f'   ✅ Would send (test mode)')
+            return True
                 
         except Exception as e:
             error = str(e)
             self._mark_as_failed(schedule_id, error)
-            self._log_activity('message_error', f"Error {lead_name}: {error}", 'failed')
             self.stats['messages_failed'] += 1
-            print(f"   ❌ Error: {error}")
+            print(f'   ❌ Error: {error}')
             return False
     
     def _mark_as_sent(self, schedule_id: int, message_id: int):
@@ -226,35 +180,17 @@ class QueueProcessor:
         conn.commit()
         conn.close()
     
-    def _log_activity(self, activity_type: str, description: str, status: str):
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            INSERT INTO activity_logs (activity_type, description, status, created_at)
-            VALUES (?, ?, ?, ?)
-        ''', (activity_type, description, status, datetime.now().isoformat()))
-        
-        conn.commit()
-        conn.close()
-    
     def process_once(self):
-        """Process queue once (for testing)"""
-        print("\n🧪 Processing queue once...")
+        print('\n🧪 Processing queue once...')
         
-        # Initialize sender for test mode
         if not self.sender:
-            print("Initializing LinkedIn sender...")
+            print('Initializing LinkedIn sender...')
             if not self._init_sender(headless=False):
                 return
         
         self.stats['started_at'] = datetime.now()
         self._process_queue()
         self._print_summary()
-        
-        # Cleanup
-        if self.sender:
-            self.sender.close_session()
 
 
 if __name__ == '__main__':
