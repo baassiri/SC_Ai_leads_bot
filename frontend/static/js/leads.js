@@ -15,11 +15,134 @@ let currentFilters = {
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
+    injectTimelineStyles();
     initializeLeadsTable();
     initializeFilters();
     initializeBulkActions();
     loadLeads();
 });
+
+/**
+ * Inject timeline styles
+ */
+function injectTimelineStyles() {
+    const timelineStyles = `
+        .timeline-modal {
+            display: block;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .timeline-modal.active {
+            opacity: 1;
+        }
+        
+        .timeline-modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 30px;
+            border: 1px solid #888;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+        }
+        
+        .close-timeline {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 1;
+        }
+        
+        .close-timeline:hover {
+            color: #000;
+        }
+        
+        .timeline-modal-content h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        
+        .timeline-container {
+            margin-top: 20px;
+            position: relative;
+            padding-left: 40px;
+        }
+        
+        .timeline-container::before {
+            content: '';
+            position: absolute;
+            left: 15px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #ddd;
+        }
+        
+        .timeline-event {
+            position: relative;
+            margin-bottom: 30px;
+        }
+        
+        .timeline-marker {
+            position: absolute;
+            left: -33px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #9333ea;
+            border: 3px solid white;
+            box-shadow: 0 0 0 2px #9333ea;
+        }
+        
+        .timeline-content {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 3px solid #9333ea;
+        }
+        
+        .timeline-date {
+            color: #666;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+        
+        .timeline-action {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #333;
+        }
+        
+        .timeline-details {
+            color: #555;
+            font-size: 14px;
+        }
+        
+        .no-events {
+            text-align: center;
+            color: #999;
+            padding: 40px;
+            font-style: italic;
+        }
+    `;
+    
+    const styleSheet = document.createElement('style');
+    styleSheet.textContent = timelineStyles;
+    document.head.appendChild(styleSheet);
+}
 
 /**
  * Initialize DataTable
@@ -170,6 +293,9 @@ function createLeadRow(lead) {
             <div class="flex space-x-2">
                 <button class="text-secondary hover:text-blue-500" onclick="viewLead(${lead.id})" title="View Details">
                     <i data-feather="eye" class="w-4 h-4"></i>
+                </button>
+                <button class="text-purple-500 hover:text-purple-600" onclick="showTimeline(${lead.id})" title="View Timeline">
+                    <i data-feather="clock" class="w-4 h-4"></i>
                 </button>
                 <button class="text-green-500 hover:text-green-600" onclick="messageLead(${lead.id})" title="Send Message">
                     <i data-feather="message-square" class="w-4 h-4"></i>
@@ -716,6 +842,93 @@ function loadSampleLeads() {
     ];
     
     displayLeads(sampleLeads);
+}
+
+/**
+ * Show timeline for a lead
+ */
+async function showTimeline(leadId) {
+    try {
+        const response = await fetch(`/api/leads/${leadId}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            displayTimelineModal(data.lead);
+        } else {
+            showNotification('Failed to load timeline', 'error');
+        }
+    } catch (error) {
+        console.error('Error loading timeline:', error);
+        showNotification('Error loading timeline', 'error');
+    }
+}
+
+/**
+ * Display timeline modal
+ */
+function displayTimelineModal(lead) {
+    const modal = document.createElement('div');
+    modal.className = 'timeline-modal';
+    modal.innerHTML = `
+        <div class="timeline-modal-content">
+            <span class="close-timeline" onclick="closeTimeline()">&times;</span>
+            <h2>Lead Timeline - ${lead.name || lead.email}</h2>
+            <div class="timeline-container">
+                ${generateTimelineHTML(lead)}
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    setTimeout(() => modal.classList.add('active'), 10);
+}
+
+/**
+ * Close timeline modal
+ */
+function closeTimeline() {
+    const modal = document.querySelector('.timeline-modal');
+    if (modal) {
+        modal.classList.remove('active');
+        setTimeout(() => modal.remove(), 300);
+    }
+}
+
+/**
+ * Generate timeline HTML
+ */
+function generateTimelineHTML(lead) {
+    const events = lead.timeline || lead.history || [];
+    
+    if (!events.length) {
+        return '<p class="no-events">No timeline events recorded for this lead.</p>';
+    }
+    
+    return events.map(event => `
+        <div class="timeline-event">
+            <div class="timeline-marker"></div>
+            <div class="timeline-content">
+                <div class="timeline-date">${formatTimelineDate(event.date || event.timestamp)}</div>
+                <div class="timeline-action">${event.action || event.type || 'Activity'}</div>
+                ${event.details || event.description ? `<div class="timeline-details">${event.details || event.description}</div>` : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+/**
+ * Format date for timeline
+ */
+function formatTimelineDate(dateString) {
+    if (!dateString) return 'Date unknown';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
 }
 
 /**

@@ -1567,6 +1567,83 @@ def get_lead_summary(lead_id):
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
+    # Add this endpoint to backend/app.py after the /api/leads route
+
+@app.route('/api/leads/<int:lead_id>', methods=['GET'])
+def get_lead(lead_id):
+    """Get a single lead by ID with timeline data"""
+    try:
+        import sqlite3
+        
+        conn = sqlite3.connect('data/database.db')
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Get lead details
+        cursor.execute("""
+            SELECT 
+                l.*,
+                p.name as persona_name
+            FROM leads l
+            LEFT JOIN personas p ON l.persona_id = p.id
+            WHERE l.id = ?
+        """, (lead_id,))
+        
+        row = cursor.fetchone()
+        
+        if not row:
+            conn.close()
+            return jsonify({
+                'success': False,
+                'message': 'Lead not found'
+            }), 404
+        
+        lead = dict(row)
+        
+        # Get timeline/activity data for this lead
+        cursor.execute("""
+            SELECT 
+                'Message Sent' as action,
+                created_at as date,
+                'Sent ' || variant || ' variant message' as details
+            FROM messages
+            WHERE lead_id = ?
+            ORDER BY created_at DESC
+        """, (lead_id,))
+        
+        timeline = []
+        for row in cursor.fetchall():
+            timeline.append({
+                'action': row[0],
+                'date': row[1],
+                'details': row[2]
+            })
+        
+        # Add lead creation event
+        if lead.get('created_at'):
+            timeline.append({
+                'action': 'Lead Created',
+                'date': lead['created_at'],
+                'details': f'Added to database with AI score {lead.get("ai_score", 0)}/100'
+            })
+        
+        # Sort timeline by date descending
+        timeline.sort(key=lambda x: x['date'], reverse=True)
+        
+        lead['timeline'] = timeline
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'lead': lead
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
 # ============================================================================
 # API ROUTES - SALES NAVIGATOR
 # ============================================================================
