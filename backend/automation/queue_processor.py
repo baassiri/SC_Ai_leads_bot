@@ -1,4 +1,9 @@
-﻿import sys
+﻿"""
+Queue Processor - Production Version with LinkedIn Sender
+Automatically sends scheduled messages via LinkedIn
+"""
+
+import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -33,6 +38,7 @@ class QueueProcessor:
         print('='*60)
         print(f'⏱️  Check interval: {self.check_interval} seconds')
         print(f'🎯 Database: {self.db_path}')
+        print(f'🤖 Mode: {"PRODUCTION (Real LinkedIn)" if not self._is_test_mode() else "TEST MODE"}')
         
         if not self._init_sender(headless):
             return
@@ -51,21 +57,65 @@ class QueueProcessor:
             print('\n\n⏹️  Stopping queue processor...')
             self.stop()
     
+    def _is_test_mode(self):
+        """Check if we're in test mode (no credentials)"""
+        try:
+            from backend.credentials_manager import credentials_manager
+            creds = credentials_manager.get_linkedin_credentials()
+            return not creds or not creds.get('email')
+        except:
+            return True
+    
     def _init_sender(self, headless: bool = True):
-        return True
+        """Initialize LinkedIn sender if credentials available"""
+        try:
+            # Try to import and initialize LinkedIn sender
+            from backend.automation.linkedin_message_sender import LinkedInMessageSender
+            from backend.credentials_manager import credentials_manager
+            
+            print("\n🔐 Checking LinkedIn credentials...")
+            creds = credentials_manager.get_linkedin_credentials()
+            
+            if not creds or not creds.get('email'):
+                print("⚠️  No credentials - running in TEST MODE")
+                print("    Messages will be marked as sent but not actually sent")
+                return True
+            
+            print("✅ Credentials found - initializing LinkedIn sender...")
+            self.sender = LinkedInMessageSender(
+                email=creds['email'],
+                password=creds['password'],
+                headless=headless
+            )
+            self.sender.start_session()
+            print("✅ LinkedIn sender ready!\n")
+            return True
+            
+        except ImportError:
+            print("⚠️  LinkedIn sender not available - running in TEST MODE")
+            return True
+        except Exception as e:
+            print(f"❌ Failed to initialize sender: {str(e)}")
+            print("⚠️  Continuing in TEST MODE")
+            return True
     
     def stop(self):
         self.running = False
+        
         if self.sender:
-            pass
+            try:
+                self.sender.close_session()
+            except:
+                pass
+        
         self._print_summary()
     
     def _print_summary(self):
         print('\n' + '='*60)
         print('📊 SUMMARY')
         print('='*60)
-        print(f'✅ Sent: {self.stats['messages_sent']}')
-        print(f'❌ Failed: {self.stats['messages_failed']}')
+        print(f'✅ Sent: {self.stats["messages_sent"]}')
+        print(f'❌ Failed: {self.stats["messages_failed"]}')
         
         if self.stats['started_at']:
             duration = datetime.now() - self.stats['started_at']
@@ -79,16 +129,17 @@ class QueueProcessor:
         pending = self._get_pending_messages()
         
         if not pending:
-            print(f'⏰ [{datetime.now().strftime('%H:%M:%S')}] No messages ready...')
+            print(f'⏰ [{datetime.now().strftime("%H:%M:%S")}] No messages ready...')
             return
         
         print(f'\n📬 Found {len(pending)} message(s) ready to send')
         
         for message in pending:
             self._send_message(message)
-            time.sleep(5)
+            time.sleep(5)  # Pause between messages
     
     def _get_pending_messages(self, limit: int = 10):
+        """Get messages ready to send"""
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -122,28 +173,57 @@ class QueueProcessor:
         return results
     
     def _send_message(self, message: Dict) -> bool:
+        """Send a message via LinkedIn or test mode"""
         schedule_id = message['schedule_id']
         message_id = message['message_id']
         lead_name = message['lead_name']
+        profile_url = message['profile_url']
         content = message['content']
         variant = message['variant']
         
         print(f'\n📤 Sending to {lead_name} (Variant {variant})...')
         
         try:
-            self._mark_as_sent(schedule_id, message_id)
-            self.stats['messages_sent'] += 1
-            print(f'   ✅ Would send (test mode)')
-            return True
+            # PRODUCTION MODE: Send via LinkedIn
+            if self.sender:
+                result = self.sender.send_connection_request(
+                    profile_url=profile_url,
+                    message=content,
+                    lead_name=lead_name
+                )
+                
+                if result['success']:
+                    self._mark_as_sent(schedule_id, message_id)
+                    self._log_activity('message_sent', f'Sent {variant} to {lead_name}', 'success')
+                    self.stats['messages_sent'] += 1
+                    print(f'   ✅ Sent via LinkedIn!')
+                    return True
+                else:
+                    error = result.get('error', 'Unknown error')
+                    self._mark_as_failed(schedule_id, error)
+                    self._log_activity('message_failed', f'Failed {lead_name}: {error}', 'failed')
+                    self.stats['messages_failed'] += 1
+                    print(f'   ❌ Failed: {error}')
+                    return False
+            
+            # TEST MODE: Just mark as sent
+            else:
+                self._mark_as_sent(schedule_id, message_id)
+                self._log_activity('message_sent', f'TEST: Would send {variant} to {lead_name}', 'success')
+                self.stats['messages_sent'] += 1
+                print(f'   ✅ Would send (test mode)')
+                return True
                 
         except Exception as e:
             error = str(e)
             self._mark_as_failed(schedule_id, error)
+            self._log_activity('message_error', f'Error {lead_name}: {error}', 'failed')
             self.stats['messages_failed'] += 1
             print(f'   ❌ Error: {error}')
             return False
     
     def _mark_as_sent(self, schedule_id: int, message_id: int):
+        """Mark message as sent in database"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -165,6 +245,7 @@ class QueueProcessor:
         conn.close()
     
     def _mark_as_failed(self, schedule_id: int, error: str):
+        """Mark message as failed in database"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -180,7 +261,24 @@ class QueueProcessor:
         conn.commit()
         conn.close()
     
+    def _log_activity(self, activity_type: str, description: str, status: str):
+        """Log activity to database"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                INSERT INTO activity_logs (activity_type, description, status, created_at)
+                VALUES (?, ?, ?, ?)
+            ''', (activity_type, description, status, datetime.now().isoformat()))
+            
+            conn.commit()
+            conn.close()
+        except:
+            pass  # Don't fail if activity log fails
+    
     def process_once(self):
+        """Process queue once (for testing)"""
         print('\n🧪 Processing queue once...')
         
         if not self.sender:
@@ -197,9 +295,9 @@ if __name__ == '__main__':
     import argparse
     
     parser = argparse.ArgumentParser(description='Message Queue Processor')
-    parser.add_argument('--interval', type=int, default=60)
-    parser.add_argument('--headless', action='store_true')
-    parser.add_argument('--test', action='store_true')
+    parser.add_argument('--interval', type=int, default=60, help='Check interval in seconds')
+    parser.add_argument('--headless', action='store_true', help='Run browser in headless mode')
+    parser.add_argument('--test', action='store_true', help='Process queue once and exit')
     
     args = parser.parse_args()
     
