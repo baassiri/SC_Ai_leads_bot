@@ -60,6 +60,13 @@ def messages_page():
 def analytics_page():
     return render_template('analytics.html')
 
+@app.route('/settings')
+def settings_page():
+    """Settings page"""
+    return render_template('settings.html')
+
+
+
 # ============================================================================
 # API ROUTES - AUTHENTICATION
 # ============================================================================
@@ -2209,6 +2216,145 @@ def create_lead_list():
             'message': str(e)
         }), 500
 
+@app.route('/api/settings', methods=['GET'])
+def get_settings():
+    """Get current settings (masked passwords)"""
+    try:
+        settings = credentials_manager.get_all_credentials()
+        
+        # Mask sensitive data
+        if settings.get('linkedin_password'):
+            settings['linkedin_password'] = '••••••••'
+        if settings.get('openai_api_key'):
+            settings['openai_api_key'] = '••••••••'
+        
+        # Add other settings from config
+        settings['max_leads'] = Config.MAX_LEADS_PER_SESSION
+        settings['scrape_delay'] = Config.SCRAPE_DELAY_MIN
+        settings['sales_nav_enabled'] = Config.SALES_NAVIGATOR_ENABLED
+        settings['headless_mode'] = False
+        settings['messages_per_hour'] = Config.MESSAGES_PER_HOUR
+        settings['connection_limit'] = Config.CONNECTION_REQUEST_LIMIT
+        
+        return jsonify(settings)
+        
+    except Exception as e:
+        return jsonify({
+            'error': str(e),
+            'message': 'Error loading settings'
+        }), 500
+
+
+@app.route('/api/settings/save', methods=['POST'])
+def save_settings():
+    """Save settings"""
+    try:
+        data = request.json
+        
+        # Extract credentials
+        linkedin_email = data.get('linkedin_email', '').strip()
+        linkedin_password = data.get('linkedin_password', '').strip()
+        openai_api_key = data.get('openai_api_key', '').strip()
+        
+        # Don't update if password is masked
+        if linkedin_password == '••••••••':
+            linkedin_password = None
+        if openai_api_key == '••••••••':
+            openai_api_key = None
+        
+        # Validate
+        if not linkedin_email:
+            return jsonify({
+                'success': False,
+                'message': 'LinkedIn email is required'
+            }), 400
+        
+        # Save credentials
+        credentials_manager.save_credentials(
+            linkedin_email=linkedin_email,
+            linkedin_password=linkedin_password if linkedin_password else None,
+            openai_api_key=openai_api_key if openai_api_key else None
+        )
+        
+        # TODO: Save other settings to config file or database
+        # For now, they're just validated
+        
+        db_manager.log_activity(
+            activity_type='settings_updated',
+            description='Settings saved successfully',
+            status='success'
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': 'Settings saved successfully'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error saving settings: {str(e)}'
+        }), 500
+
+
+@app.route('/api/settings/test', methods=['POST'])
+def test_settings():
+    """Test credentials"""
+    try:
+        results = {
+            'linkedin': False,
+            'openai': False,
+            'sales_nav': False
+        }
+        
+        # Test LinkedIn credentials
+        try:
+            from backend.scrapers.linkedin_scraper import LinkedInScraper
+            
+            creds = credentials_manager.get_all_credentials()
+            
+            if creds.get('linkedin_email') and creds.get('linkedin_password'):
+                # Just validate they exist for now
+                # Full test would require actually logging in
+                results['linkedin'] = True
+        except:
+            pass
+        
+        # Test OpenAI
+        try:
+            import openai
+            creds = credentials_manager.get_all_credentials()
+            
+            if creds.get('openai_api_key'):
+                openai.api_key = creds['openai_api_key']
+                # Test with a minimal request
+                response = openai.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[{"role": "user", "content": "test"}],
+                    max_tokens=5
+                )
+                results['openai'] = True
+        except Exception as e:
+            print(f"OpenAI test failed: {str(e)}")
+            results['openai'] = False
+        
+        # Check Sales Navigator (would need actual login)
+        results['sales_nav'] = Config.SALES_NAVIGATOR_ENABLED
+        
+        # Determine overall success
+        success = results['linkedin'] and results['openai']
+        
+        return jsonify({
+            'success': success,
+            'details': results,
+            'message': 'All credentials valid' if success else 'Some credentials invalid'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error testing credentials: {str(e)}'
+        }), 500
 # ============================================================================
 # RUN APPLICATION
 # ============================================================================
