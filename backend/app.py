@@ -1876,39 +1876,37 @@ def get_lead_lists():
         }), 500
 @app.route('/api/stats/overview', methods=['GET'])
 def get_stats_overview():
+    """Get overview statistics - FIXED VERSION"""
     try:
-        leads = db_manager.get_all_leads()
+        # Use db_manager methods which properly handle the database schema
+        stats = db_manager.get_dashboard_stats()
         
-        # Calculate stats
-        total_leads = len(leads)
-        qualified_leads = len([l for l in leads if l.get('ai_score', 0) > 70])
-        
-        # Get message stats from database
-        import sqlite3
-        conn = sqlite3.connect('data/database.db')
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT COUNT(*) FROM messages WHERE status = 'sent'")
-        messages_sent = cursor.fetchone()[0]
-        
-        cursor.execute("SELECT COUNT(*) FROM messages WHERE status = 'sent' AND reply_received = 1")
-        replies = cursor.fetchone()[0]
-        
-        conn.close()
-        
-        reply_rate = (replies / messages_sent * 100) if messages_sent > 0 else 0
+        # Calculate reply rate
+        if stats.get('messages_sent', 0) > 0:
+            stats['reply_rate'] = round(
+                (stats.get('replies_received', 0) / stats['messages_sent']) * 100, 
+                1
+            )
+        else:
+            stats['reply_rate'] = 0.0
         
         return jsonify({
             'success': True,
             'stats': {
-                'total_leads': total_leads,
-                'qualified_leads': qualified_leads,
-                'messages_sent': messages_sent,
-                'reply_rate': round(reply_rate, 1)
+                'total_leads': stats.get('total_leads', 0),
+                'qualified_leads': stats.get('qualified_leads', 0),
+                'messages_sent': stats.get('messages_sent', 0),
+                'reply_rate': stats.get('reply_rate', 0.0)
             }
         })
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        import traceback
+        print(f"Error in get_stats_overview: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False, 
+            'error': str(e)
+        }), 500
 @app.route('/api/sales-nav/lead-lists', methods=['POST'])
 def create_lead_list():
     """Create a new lead list"""
