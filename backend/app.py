@@ -1402,7 +1402,171 @@ def get_ab_test_stats():
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
+# Add these routes to app.py after the existing AB test routes
 
+# ============================================================================
+# API ROUTES - A/B TEST WINNER DETECTION
+# ============================================================================
+
+@app.route('/api/ab-tests/<int:test_id>/analyze', methods=['GET'])
+def analyze_ab_test(test_id):
+    """Analyze A/B test and detect winner"""
+    try:
+        from backend.ai_engine.ab_test_analyzer import ab_analyzer
+        
+        result = ab_analyzer.analyze_test(test_id)
+        
+        return jsonify({
+            'success': True,
+            'analysis': result
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/ab-tests/auto-analyze', methods=['POST'])
+def auto_analyze_tests():
+    """Auto-analyze all active tests and declare winners"""
+    try:
+        from backend.ai_engine.ab_test_analyzer import ab_analyzer
+        
+        results = ab_analyzer.auto_analyze_all_active_tests()
+        
+        # Log activity for each winner
+        for result in results:
+            db_manager.log_activity(
+                activity_type='ab_test_winner',
+                description=f"🏆 Variant {result['winning_variant']} won with {result['confidence']*100:.1f}% confidence",
+                status='success'
+            )
+        
+        return jsonify({
+            'success': True,
+            'winners_declared': len(results),
+            'results': results,
+            'message': f'Analyzed tests, declared {len(results)} winner(s)'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/ab-tests/best-practices', methods=['GET'])
+def get_best_practices():
+    """Get best practices from all completed tests"""
+    try:
+        from backend.ai_engine.ab_test_analyzer import ab_analyzer
+        
+        practices = ab_analyzer.get_best_practices()
+        
+        return jsonify({
+            'success': True,
+            'best_practices': practices
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/ab-tests/winners', methods=['GET'])
+def get_all_winners():
+    """Get all tests with declared winners"""
+    try:
+        from backend.ai_engine.ab_test_analyzer import ab_analyzer
+        
+        winners = ab_analyzer.get_all_winners()
+        
+        return jsonify({
+            'success': True,
+            'count': len(winners),
+            'winners': winners
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+# ============================================================================
+# API ROUTES - LEAD TIMELINE
+# ============================================================================
+
+@app.route('/api/leads/<int:lead_id>/timeline', methods=['GET'])
+def get_lead_timeline(lead_id):
+    """Get complete activity timeline for a lead"""
+    try:
+        from backend.ai_engine.lead_timeline import timeline_manager
+        
+        timeline = timeline_manager.get_timeline(lead_id)
+        summary = timeline_manager.get_summary(lead_id)
+        
+        return jsonify({
+            'success': True,
+            'lead_id': lead_id,
+            'timeline': timeline,
+            'summary': summary
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/leads/<int:lead_id>/summary', methods=['GET'])
+def get_lead_summary(lead_id):
+    """Get summary stats for a lead"""
+    try:
+        from backend.ai_engine.lead_timeline import timeline_manager
+        
+        # Get lead details
+        conn = sqlite3.connect('data/database.db')
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT 
+                l.*,
+                p.name as persona_name
+            FROM leads l
+            LEFT JOIN personas p ON l.persona_id = p.id
+            WHERE l.id = ?
+        """, (lead_id,))
+        
+        lead = cursor.fetchone()
+        conn.close()
+        
+        if not lead:
+            return jsonify({
+                'success': False,
+                'message': 'Lead not found'
+            }), 404
+        
+        # Get timeline summary
+        timeline_summary = timeline_manager.get_summary(lead_id)
+        
+        # Combine data
+        lead_data = dict(lead)
+        lead_data['timeline_summary'] = timeline_summary
+        
+        return jsonify({
+            'success': True,
+            'lead': lead_data
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
 # ============================================================================
 # API ROUTES - SALES NAVIGATOR
 # ============================================================================
