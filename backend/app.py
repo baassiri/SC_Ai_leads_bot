@@ -1874,7 +1874,41 @@ def get_lead_lists():
             'success': False,
             'message': str(e)
         }), 500
-
+@app.route('/api/stats/overview', methods=['GET'])
+def get_stats_overview():
+    try:
+        leads = db_manager.get_all_leads()
+        
+        # Calculate stats
+        total_leads = len(leads)
+        qualified_leads = len([l for l in leads if l.get('ai_score', 0) > 70])
+        
+        # Get message stats from database
+        import sqlite3
+        conn = sqlite3.connect('data/database.db')
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT COUNT(*) FROM messages WHERE status = 'sent'")
+        messages_sent = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(*) FROM messages WHERE status = 'sent' AND reply_received = 1")
+        replies = cursor.fetchone()[0]
+        
+        conn.close()
+        
+        reply_rate = (replies / messages_sent * 100) if messages_sent > 0 else 0
+        
+        return jsonify({
+            'success': True,
+            'stats': {
+                'total_leads': total_leads,
+                'qualified_leads': qualified_leads,
+                'messages_sent': messages_sent,
+                'reply_rate': round(reply_rate, 1)
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 @app.route('/api/sales-nav/lead-lists', methods=['POST'])
 def create_lead_list():
     """Create a new lead list"""
