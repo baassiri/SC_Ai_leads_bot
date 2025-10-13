@@ -1,6 +1,7 @@
 """
 SC AI Lead Generation System - Clean Dynamic Backend
 Works only with uploaded documents - no hardcoded personas
+FIXED: Clean AB test routes, no duplicates
 """
 
 from flask import Flask, request, jsonify, render_template
@@ -35,7 +36,9 @@ bot_status = {
 current_personas = []
 scraper_thread = None
 
+# ============================================================================
 # HTML ROUTES
+# ============================================================================
 
 @app.route('/')
 def index():
@@ -57,7 +60,9 @@ def messages_page():
 def analytics_page():
     return render_template('analytics.html')
 
+# ============================================================================
 # API ROUTES - AUTHENTICATION
+# ============================================================================
 
 @app.route('/api/auth/save-credentials', methods=['POST'])
 def save_credentials():
@@ -83,17 +88,17 @@ def save_credentials():
         )
         
         if success:
-                    nav_type = "Sales Navigator" if sales_nav_enabled else "Regular LinkedIn"
-                    db_manager.log_activity(
-                        activity_type='credentials_saved',
-                        description=f'User credentials updated successfully (Using: {nav_type})',
-                        status='success'
-                    )
-                    
-                    return jsonify({
-                        'success': True,
-                        'message': f'Credentials saved successfully! Using {nav_type}'
-                    })
+            nav_type = "Sales Navigator" if sales_nav_enabled else "Regular LinkedIn"
+            db_manager.log_activity(
+                activity_type='credentials_saved',
+                description=f'User credentials updated successfully (Using: {nav_type})',
+                status='success'
+            )
+            
+            return jsonify({
+                'success': True,
+                'message': f'Credentials saved successfully! Using {nav_type}'
+            })
         
         return jsonify({
             'success': False,
@@ -152,7 +157,9 @@ def test_connection():
             'message': f'Error: {str(e)}'
         }), 500
 
+# ============================================================================
 # API ROUTES - FILE UPLOAD
+# ============================================================================
 
 @app.route('/api/upload-targets', methods=['POST'])
 def upload_targets():
@@ -255,7 +262,9 @@ def upload_targets():
             'message': f'Error: {str(e)}'
         }), 500
 
+# ============================================================================
 # API ROUTES - BOT CONTROL
+# ============================================================================
 
 def generate_lead_from_persona(persona):
     """Generate a realistic lead from a persona"""
@@ -496,7 +505,9 @@ def get_bot_status():
         'status': bot_status
     })
 
-# API ROUTES - DATA
+# ============================================================================
+# API ROUTES - LEADS
+# ============================================================================
 
 @app.route('/api/leads', methods=['GET'])
 def get_leads():
@@ -593,6 +604,36 @@ def auto_select_leads():
             'message': f'Error: {str(e)}'
         }), 500
 
+@app.route('/api/leads/<int:lead_id>/messages', methods=['GET'])
+def get_lead_messages(lead_id):
+    try:
+        messages = db_manager.get_messages_by_lead(lead_id)
+        
+        messages_data = []
+        for msg in messages:
+            messages_data.append({
+                'id': msg.id,
+                'message_type': msg.message_type,
+                'content': msg.content,
+                'variant': msg.variant,
+                'status': msg.status,
+                'created_at': msg.created_at.isoformat() if msg.created_at else None
+            })
+        
+        return jsonify({
+            'success': True,
+            'messages': messages_data
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+# ============================================================================
+# API ROUTES - PERSONAS
+# ============================================================================
+
 @app.route('/api/personas', methods=['GET'])
 def get_personas():
     try:
@@ -609,46 +650,9 @@ def get_personas():
             'message': f'Error: {str(e)}'
         }), 500
 
-@app.route('/api/analytics/dashboard', methods=['GET'])
-def get_dashboard_stats():
-    try:
-        stats = db_manager.get_dashboard_stats()
-        
-        if stats.get('messages_sent', 0) > 0:
-            stats['reply_rate'] = round((stats.get('replies_received', 0) / stats['messages_sent']) * 100, 1)
-        else:
-            stats['reply_rate'] = 0
-        
-        return jsonify({
-            'success': True,
-            'stats': stats
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-
-@app.route('/api/activity-logs', methods=['GET'])
-def get_activity_logs():
-    try:
-        limit = request.args.get('limit', 50, type=int)
-        logs_data = db_manager.get_recent_activities(limit=limit)
-        
-        return jsonify({
-            'success': True,
-            'logs': logs_data
-        })
-        
-    except Exception as e:
-        import traceback
-        print(f"Error in activity logs: {traceback.format_exc()}")
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-
+# ============================================================================
 # API ROUTES - MESSAGES
+# ============================================================================
 
 @app.route('/api/messages/generate', methods=['POST'])
 def generate_messages():
@@ -702,14 +706,13 @@ def generate_messages():
             'message': f'Error: {str(e)}'
         }), 500
 
-# 🔥 MISSING ENDPOINT - THIS FIXES TEST 2.2
 @app.route('/api/messages', methods=['GET'])
 def get_messages():
-    """Get messages with lead info - supports filtering by status and lead_id"""
+    """Get messages with lead info"""
     try:
         status = request.args.get('status')
         lead_id = request.args.get('lead_id', type=int)
-        limit = request.args.get('limit', type=int)
+        limit = request.args.get('limit', 100, type=int)
         
         messages = db_manager.get_messages_by_status_with_lead_info(
             status=status,
@@ -744,6 +747,34 @@ def get_message_stats():
             'message': f'Error: {str(e)}'
         }), 500
 
+@app.route('/api/messages/<int:message_id>/approve', methods=['POST'])
+def approve_message(message_id):
+    try:
+        success = db_manager.update_message_status(message_id, 'approved')
+        
+        if success:
+            db_manager.log_activity(
+                activity_type='message_approved',
+                description=f'Message {message_id} approved',
+                status='success'
+            )
+            
+            return jsonify({
+                'success': True,
+                'message': 'Message approved successfully'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Message not found'
+            }), 404
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
 @app.route('/api/messages/<int:message_id>/unapprove', methods=['POST'])
 def unapprove_message(message_id):
     """Unapprove a message (set back to draft)"""
@@ -760,63 +791,6 @@ def unapprove_message(message_id):
             return jsonify({
                 'success': True,
                 'message': 'Message set back to draft'
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'message': 'Message not found'
-            }), 404
-            
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-
-@app.route('/api/messages/<int:message_id>', methods=['DELETE'])
-def delete_message(message_id):
-    """Delete a message"""
-    try:
-        success = db_manager.delete_message(message_id)
-        
-        if success:
-            db_manager.log_activity(
-                activity_type='message_deleted',
-                description=f'Message {message_id} deleted',
-                status='success'
-            )
-            
-            return jsonify({
-                'success': True,
-                'message': 'Message deleted successfully'
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'message': 'Message not found'
-            }), 404
-            
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-
-@app.route('/api/messages/<int:message_id>/approve', methods=['POST'])
-def approve_message(message_id):
-    try:
-        success = db_manager.update_message_status(message_id, 'approved')
-        
-        if success:
-            db_manager.log_activity(
-                activity_type='message_approved',
-                description=f'Message {message_id} approved',
-                status='success'
-            )
-            
-            return jsonify({
-                'success': True,
-                'message': 'Message approved successfully'
             })
         else:
             return jsonify({
@@ -866,44 +840,90 @@ def update_message(message_id):
             'message': f'Error: {str(e)}'
         }), 500
 
-@app.route('/api/leads/<int:lead_id>/messages', methods=['GET'])
-def get_lead_messages(lead_id):
+@app.route('/api/messages/<int:message_id>', methods=['DELETE'])
+def delete_message(message_id):
+    """Delete a message"""
     try:
-        messages = db_manager.get_messages_by_lead(lead_id)
+        success = db_manager.delete_message(message_id)
         
-        messages_data = []
-        for msg in messages:
-            messages_data.append({
-                'id': msg.id,
-                'message_type': msg.message_type,
-                'content': msg.content,
-                'variant': msg.variant,
-                'status': msg.status,
-                'created_at': msg.created_at.isoformat() if msg.created_at else None
+        if success:
+            db_manager.log_activity(
+                activity_type='message_deleted',
+                description=f'Message {message_id} deleted',
+                status='success'
+            )
+            
+            return jsonify({
+                'success': True,
+                'message': 'Message deleted successfully'
             })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Message not found'
+            }), 404
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+# ============================================================================
+# API ROUTES - ANALYTICS
+# ============================================================================
+
+@app.route('/api/analytics/dashboard', methods=['GET'])
+def get_dashboard_stats():
+    try:
+        stats = db_manager.get_dashboard_stats()
+        
+        if stats.get('messages_sent', 0) > 0:
+            stats['reply_rate'] = round((stats.get('replies_received', 0) / stats['messages_sent']) * 100, 1)
+        else:
+            stats['reply_rate'] = 0
         
         return jsonify({
             'success': True,
-            'messages': messages_data
+            'stats': stats
         })
     except Exception as e:
         return jsonify({
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
-# ========================================
-# A/B TESTING API ENDPOINTS
-# ========================================
+
+@app.route('/api/activity-logs', methods=['GET'])
+def get_activity_logs():
+    try:
+        limit = request.args.get('limit', 50, type=int)
+        logs_data = db_manager.get_recent_activities(limit=limit)
+        
+        return jsonify({
+            'success': True,
+            'logs': logs_data
+        })
+        
+    except Exception as e:
+        import traceback
+        print(f"Error in activity logs: {traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+# ============================================================================
+# API ROUTES - A/B TESTING
+# ============================================================================
 
 @app.route('/api/ab-tests/create', methods=['POST'])
 def create_ab_test():
     """Create a new A/B/C test"""
     try:
-        from backend.automation.ab_test_manager import ABTestManager
-        
         data = request.json
         test_name = data.get('test_name')
         campaign_id = data.get('campaign_id')
+        lead_persona = data.get('lead_persona')
         min_sends = data.get('min_sends', 20)
         
         if not test_name:
@@ -912,10 +932,10 @@ def create_ab_test():
                 'message': 'Test name is required'
             }), 400
         
-        manager = ABTestManager()
-        test_id = manager.create_test(
+        test_id = db_manager.create_ab_test(
             test_name=test_name,
             campaign_id=campaign_id,
+            lead_persona=lead_persona,
             min_sends=min_sends
         )
         
@@ -929,33 +949,7 @@ def create_ab_test():
             'success': True,
             'test_id': test_id,
             'message': f'A/B test "{test_name}" created successfully'
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-
-@app.route('/api/ab-tests/<int:test_id>/results', methods=['GET'])
-def get_ab_test_results(test_id):
-    """Get A/B test results"""
-    try:
-        from backend.automation.ab_test_manager import ABTestManager
-        
-        manager = ABTestManager()
-        results = manager.get_test_results(test_id)
-        
-        if results:
-            return jsonify({
-                'success': True,
-                'results': results
-            })
-        
-        return jsonify({
-            'success': False,
-            'message': 'Test not found'
-        }), 404
+        }), 201
         
     except Exception as e:
         return jsonify({
@@ -964,18 +958,16 @@ def get_ab_test_results(test_id):
         }), 500
 
 @app.route('/api/ab-tests', methods=['GET'])
-def list_ab_tests():
-    """List all A/B tests"""
+def get_ab_tests():
+    """Get all AB tests"""
     try:
-        from backend.automation.ab_test_manager import ABTestManager
-        
-        manager = ABTestManager()
-        tests = manager.get_all_active_tests()
+        status = request.args.get('status')
+        tests = db_manager.get_all_ab_tests(status=status)
         
         return jsonify({
             'success': True,
-            'tests': tests,
-            'total': len(tests)
+            'count': len(tests),
+            'tests': tests
         })
         
     except Exception as e:
@@ -984,27 +976,71 @@ def list_ab_tests():
             'message': f'Error: {str(e)}'
         }), 500
 
-@app.route('/api/ab-tests/<int:test_id>/record-sent', methods=['POST'])
-def record_message_sent(test_id):
-    """Record that a message was sent for a variant"""
+@app.route('/api/ab-tests/active', methods=['GET'])
+def get_active_ab_tests():
+    """Get all active AB tests"""
     try:
-        from backend.automation.ab_test_manager import ABTestManager
-        
-        data = request.json
-        variant = data.get('variant')
-        
-        if not variant or variant not in ['A', 'B', 'C']:
-            return jsonify({
-                'success': False,
-                'message': 'Valid variant (A, B, or C) is required'
-            }), 400
-        
-        manager = ABTestManager()
-        manager.record_message_sent(test_id, variant)
+        tests = db_manager.get_active_ab_tests()
         
         return jsonify({
             'success': True,
-            'message': f'Recorded message sent for Variant {variant}'
+            'count': len(tests),
+            'tests': tests
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/ab-tests/<int:test_id>', methods=['GET'])
+def get_ab_test(test_id):
+    """Get specific AB test details"""
+    try:
+        test = db_manager.get_ab_test_by_id(test_id)
+        
+        if not test:
+            return jsonify({
+                'success': False,
+                'message': 'Test not found'
+            }), 404
+        
+        return jsonify({
+            'success': True,
+            'test': test
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/ab-tests/<int:test_id>/record-send', methods=['POST'])
+def record_ab_test_send(test_id):
+    """Record that a message was sent for a variant"""
+    try:
+        data = request.json
+        variant = data.get('variant', '').upper()
+        
+        if variant not in ['A', 'B', 'C']:
+            return jsonify({
+                'success': False,
+                'message': 'Invalid variant. Must be A, B, or C'
+            }), 400
+        
+        success = db_manager.record_ab_test_message_sent(test_id, variant)
+        
+        if not success:
+            return jsonify({
+                'success': False,
+                'message': 'Test not found'
+            }), 404
+        
+        return jsonify({
+            'success': True,
+            'message': f'Recorded send for variant {variant}'
         })
         
     except Exception as e:
@@ -1014,36 +1050,45 @@ def record_message_sent(test_id):
         }), 500
 
 @app.route('/api/ab-tests/<int:test_id>/record-reply', methods=['POST'])
-def record_reply(test_id):
+def record_ab_test_reply(test_id):
     """Record a reply for a variant"""
     try:
-        from backend.automation.ab_test_manager import ABTestManager
-        
         data = request.json
-        variant = data.get('variant')
+        variant = data.get('variant', '').upper()
         sentiment_score = data.get('sentiment_score', 0.5)
         
-        if not variant or variant not in ['A', 'B', 'C']:
+        if variant not in ['A', 'B', 'C']:
             return jsonify({
                 'success': False,
-                'message': 'Valid variant (A, B, or C) is required'
+                'message': 'Invalid variant. Must be A, B, or C'
             }), 400
         
-        manager = ABTestManager()
-        manager.record_reply(test_id, variant, sentiment_score)
+        if not 0 <= sentiment_score <= 1:
+            return jsonify({
+                'success': False,
+                'message': 'sentiment_score must be between 0 and 1'
+            }), 400
         
-        results = manager.get_test_results(test_id)
-        winner_declared = results['status'] == 'completed' if results else False
+        success = db_manager.record_ab_test_reply(test_id, variant, sentiment_score)
+        
+        if not success:
+            return jsonify({
+                'success': False,
+                'message': 'Test not found'
+            }), 404
+        
+        test = db_manager.get_ab_test_by_id(test_id)
+        winner_declared = test['status'] == 'completed' if test else False
         
         response = {
             'success': True,
-            'message': f'Recorded reply for Variant {variant}'
+            'message': f'Recorded reply for variant {variant}'
         }
         
         if winner_declared:
             response['winner_declared'] = True
-            response['winning_variant'] = results['winning_variant']
-            response['message'] += f' - 🏆 Winner declared: Variant {results["winning_variant"]}!'
+            response['winning_variant'] = test['winning_variant']
+            response['message'] += f' - 🏆 Winner: Variant {test["winning_variant"]}!'
         
         return jsonify(response)
         
@@ -1053,25 +1098,21 @@ def record_reply(test_id):
             'message': f'Error: {str(e)}'
         }), 500
 
-@app.route('/api/analytics/ab-test-performance', methods=['GET'])
-def get_ab_test_performance():
-    """Get A/B test performance for analytics dashboard"""
+@app.route('/api/ab-tests/<int:test_id>/comparison', methods=['GET'])
+def get_ab_test_comparison(test_id):
+    """Get performance comparison of all variants"""
     try:
-        from backend.automation.ab_test_manager import ABTestManager
+        comparison = db_manager.get_ab_test_performance_comparison(test_id)
         
-        manager = ABTestManager()
-        tests = manager.get_all_active_tests()
-        
-        detailed_tests = []
-        for test in tests:
-            results = manager.get_test_results(test['id'])
-            if results:
-                detailed_tests.append(results)
+        if not comparison:
+            return jsonify({
+                'success': False,
+                'message': 'Test not found'
+            }), 404
         
         return jsonify({
             'success': True,
-            'tests': detailed_tests,
-            'total': len(detailed_tests)
+            'comparison': comparison
         })
         
     except Exception as e:
@@ -1079,7 +1120,105 @@ def get_ab_test_performance():
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
+
+@app.route('/api/ab-tests/<int:test_id>/status', methods=['PUT'])
+def update_ab_test_status(test_id):
+    """Update AB test status"""
+    try:
+        data = request.json
+        status = data.get('status', '').lower()
+        
+        if status not in ['active', 'completed', 'paused']:
+            return jsonify({
+                'success': False,
+                'message': 'Invalid status. Must be active, completed, or paused'
+            }), 400
+        
+        success = db_manager.update_ab_test_status(test_id, status)
+        
+        if not success:
+            return jsonify({
+                'success': False,
+                'message': 'Test not found'
+            }), 404
+        
+        return jsonify({
+            'success': True,
+            'message': f'Test status updated to {status}'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/ab-tests/leaderboard', methods=['GET'])
+def get_ab_test_leaderboard():
+    """Get performance leaderboard of completed tests"""
+    try:
+        leaderboard = db_manager.get_ab_test_leaderboard()
+        
+        return jsonify({
+            'success': True,
+            'count': len(leaderboard),
+            'leaderboard': leaderboard
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/ab-tests/<int:test_id>/next-variant', methods=['GET'])
+def get_next_ab_test_variant(test_id):
+    """Get next variant to assign (round-robin)"""
+    try:
+        variant = db_manager.get_next_variant_for_test(test_id)
+        
+        return jsonify({
+            'success': True,
+            'variant': variant
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/ab-tests/stats', methods=['GET'])
+def get_ab_test_stats():
+    """Get overall AB testing statistics"""
+    try:
+        all_tests = db_manager.get_all_ab_tests()
+        active_tests = db_manager.get_active_ab_tests()
+        
+        total_tests = len(all_tests)
+        completed_tests = sum(1 for t in all_tests if t.get('status') == 'completed')
+        total_messages_tested = sum(t.get('total_sent', 0) for t in all_tests)
+        
+        return jsonify({
+            'success': True,
+            'stats': {
+                'total_tests': total_tests,
+                'active_tests': len(active_tests),
+                'completed_tests': completed_tests,
+                'total_messages_tested': total_messages_tested,
+                'avg_messages_per_test': total_messages_tested / total_tests if total_tests > 0 else 0
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+# ============================================================================
 # RUN APPLICATION
+# ============================================================================
 
 if __name__ == '__main__':
     print("=" * 60)

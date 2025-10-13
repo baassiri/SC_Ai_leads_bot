@@ -120,7 +120,7 @@ class Message(Base):
     id = Column(Integer, primary_key=True)
     lead_id = Column(Integer, ForeignKey('leads.id'), nullable=False)
     campaign_id = Column(Integer, ForeignKey('campaigns.id'))
-    ab_test_id = Column(Integer, ForeignKey('ab_tests.id'))
+    ab_test_id = Column(Integer, ForeignKey('ab_tests.id'))  # NEW: Link to AB test
     
     # Message details
     message_type = Column(String(50))  # connection_request, follow_up_1, follow_up_2
@@ -148,7 +148,7 @@ class Message(Base):
     # Relationships
     lead = relationship("Lead", back_populates="messages")
     campaign = relationship("Campaign", back_populates="messages")
-    ab_test = relationship("ABTest", back_populates="messages")
+    ab_test = relationship("ABTest", back_populates="messages")  # NEW
     
     def __repr__(self):
         return f"<Message(id={self.id}, type='{self.message_type}', status='{self.status}')>"
@@ -186,7 +186,7 @@ class Campaign(Base):
     # Relationships
     user = relationship("User", back_populates="campaigns")
     messages = relationship("Message", back_populates="campaign")
-    ab_tests = relationship("ABTest", back_populates="campaign")
+    ab_tests = relationship("ABTest", back_populates="campaign")  # NEW
     
     def __repr__(self):
         return f"<Campaign(id={self.id}, name='{self.name}', status='{self.status}')>"

@@ -1,7 +1,7 @@
 """
 SC AI Lead Generation System - Database Manager
 CRUD operations for all database models
-CORRECTED VERSION - All methods properly indented inside class
+FIXED VERSION - AB test methods properly indented inside class
 """
 
 from sqlalchemy import create_engine, desc, func
@@ -376,40 +376,39 @@ class DatabaseManager:
             return messages_data
     
     def get_messages_by_status_with_lead_info(self, status=None, lead_id=None, limit=100):
-            """Get messages by status with lead information included - supports filtering by status and/or lead_id"""
-            with self.session_scope() as session:
-                query = session.query(Message).join(Lead)
-                
-                # Apply filters conditionally
-                if status:
-                    query = query.filter(Message.status == status)
-                
-                if lead_id:
-                    query = query.filter(Message.lead_id == lead_id)
-                
-                messages = query.order_by(desc(Message.created_at)).limit(limit).all()
-                
-                messages_data = []
-                for msg in messages:
-                    messages_data.append({
-                        'id': msg.id,
-                        'lead_id': msg.lead_id,
-                        'lead_name': msg.lead.name if msg.lead else 'Unknown',
-                        'lead_title': msg.lead.title if msg.lead else None,
-                        'lead_company': msg.lead.company if msg.lead else None,
-                        'message_type': msg.message_type,
-                        'content': msg.content,
-                        'variant': msg.variant,
-                        'status': msg.status,
-                        'generated_by': msg.generated_by,
-                        'sent_at': msg.sent_at.isoformat() if msg.sent_at else None,
-                        'created_at': msg.created_at.isoformat() if msg.created_at else None,
-                        'updated_at': msg.updated_at.isoformat() if msg.updated_at else None
-                    })
-                return messages_data
+        """Get messages by status with lead information included"""
+        with self.session_scope() as session:
+            query = session.query(Message).join(Lead)
+            
+            if status:
+                query = query.filter(Message.status == status)
+            
+            if lead_id:
+                query = query.filter(Message.lead_id == lead_id)
+            
+            messages = query.order_by(desc(Message.created_at)).limit(limit).all()
+            
+            messages_data = []
+            for msg in messages:
+                messages_data.append({
+                    'id': msg.id,
+                    'lead_id': msg.lead_id,
+                    'lead_name': msg.lead.name if msg.lead else 'Unknown',
+                    'lead_title': msg.lead.title if msg.lead else None,
+                    'lead_company': msg.lead.company if msg.lead else None,
+                    'message_type': msg.message_type,
+                    'content': msg.content,
+                    'variant': msg.variant,
+                    'status': msg.status,
+                    'generated_by': msg.generated_by,
+                    'sent_at': msg.sent_at.isoformat() if msg.sent_at else None,
+                    'created_at': msg.created_at.isoformat() if msg.created_at else None,
+                    'updated_at': msg.updated_at.isoformat() if msg.updated_at else None
+                })
+            return messages_data
     
     def get_message_stats(self):
-        """Get message statistics - FIXED INDENTATION"""
+        """Get message statistics"""
         with self.session_scope() as session:
             stats = {
                 'draft': session.query(Message).filter(Message.status == 'draft').count(),
@@ -420,7 +419,7 @@ class DatabaseManager:
             return stats
     
     def delete_message(self, message_id):
-        """Delete a message - FIXED INDENTATION"""
+        """Delete a message"""
         with self.session_scope() as session:
             message = session.query(Message).filter(Message.id == message_id).first()
             if message:
@@ -580,6 +579,287 @@ class DatabaseManager:
                 'total_replied': total_replied,
                 'reply_rate': round(reply_rate, 2)
             }
+    
+    # =============================================================================
+    # AB TEST OPERATIONS
+    # =============================================================================
+    
+    def create_ab_test(self, test_name, campaign_id=None, lead_persona=None, min_sends=20):
+        """Create a new A/B/C test"""
+        with self.session_scope() as session:
+            from backend.database.models import ABTest
+            
+            ab_test = ABTest(
+                test_name=test_name,
+                campaign_id=campaign_id,
+                lead_persona=lead_persona,
+                min_sends_required=min_sends
+            )
+            session.add(ab_test)
+            session.flush()
+            
+            print(f"✅ Created A/B test: {test_name} (ID: {ab_test.id})")
+            return ab_test.id
+
+    def get_ab_test_by_id(self, test_id):
+        """Get AB test by ID with all statistics"""
+        with self.session_scope() as session:
+            from backend.database.models import ABTest
+            
+            test = session.query(ABTest).filter(ABTest.id == test_id).first()
+            
+            if not test:
+                return None
+            
+            return {
+                'id': test.id,
+                'test_name': test.test_name,
+                'campaign_id': test.campaign_id,
+                'lead_persona': test.lead_persona,
+                'status': test.status,
+                'winning_variant': test.winning_variant,
+                'variant_a': test.get_variant_stats('A'),
+                'variant_b': test.get_variant_stats('B'),
+                'variant_c': test.get_variant_stats('C'),
+                'min_sends_required': test.min_sends_required,
+                'confidence_threshold': test.confidence_threshold,
+                'created_at': test.created_at.isoformat() if test.created_at else None,
+                'completed_at': test.completed_at.isoformat() if test.completed_at else None
+            }
+
+    def get_all_ab_tests(self, status=None):
+        """Get all AB tests, optionally filtered by status"""
+        with self.session_scope() as session:
+            from backend.database.models import ABTest
+            
+            query = session.query(ABTest)
+            
+            if status:
+                query = query.filter(ABTest.status == status)
+            
+            tests = query.order_by(desc(ABTest.created_at)).all()
+            
+            tests_data = []
+            for test in tests:
+                total_sent = test.variant_a_sent + test.variant_b_sent + test.variant_c_sent
+                total_replies = test.variant_a_replies + test.variant_b_replies + test.variant_c_replies
+                
+                tests_data.append({
+                    'id': test.id,
+                    'test_name': test.test_name,
+                    'status': test.status,
+                    'winning_variant': test.winning_variant,
+                    'total_sent': total_sent,
+                    'total_replies': total_replies,
+                    'overall_reply_rate': (total_replies / total_sent * 100) if total_sent > 0 else 0,
+                    'created_at': test.created_at.isoformat() if test.created_at else None
+                })
+            
+            return tests_data
+
+    def get_active_ab_tests(self):
+        """Get all active AB tests"""
+        return self.get_all_ab_tests(status='active')
+
+    def get_next_variant_for_test(self, test_id):
+        """Get the next variant to assign using round-robin"""
+        with self.session_scope() as session:
+            from backend.database.models import ABTest
+            
+            test = session.query(ABTest).filter(ABTest.id == test_id).first()
+            
+            if not test:
+                return 'A'
+            
+            sends = {
+                'A': test.variant_a_sent,
+                'B': test.variant_b_sent,
+                'C': test.variant_c_sent
+            }
+            
+            return min(sends, key=sends.get)
+
+    def record_ab_test_message_sent(self, test_id, variant):
+        """Record that a message was sent for a specific variant"""
+        with self.session_scope() as session:
+            from backend.database.models import ABTest
+            
+            test = session.query(ABTest).filter(ABTest.id == test_id).first()
+            
+            if not test:
+                return False
+            
+            variant = variant.upper()
+            variant_lower = variant.lower()
+            
+            current_sent = getattr(test, f'variant_{variant_lower}_sent')
+            setattr(test, f'variant_{variant_lower}_sent', current_sent + 1)
+            
+            print(f"📧 Recorded send for Variant {variant} in test '{test.test_name}'")
+            return True
+
+    def record_ab_test_reply(self, test_id, variant, sentiment_score=0.5):
+        """Record a reply for a variant and recalculate metrics"""
+        with self.session_scope() as session:
+            from backend.database.models import ABTest
+            import statistics
+            
+            test = session.query(ABTest).filter(ABTest.id == test_id).first()
+            
+            if not test:
+                return False
+            
+            variant = variant.upper()
+            variant_lower = variant.lower()
+            
+            replies = getattr(test, f'variant_{variant_lower}_replies')
+            positive_replies = getattr(test, f'variant_{variant_lower}_positive_replies')
+            avg_sentiment = getattr(test, f'variant_{variant_lower}_avg_sentiment')
+            sent = getattr(test, f'variant_{variant_lower}_sent')
+            
+            new_replies = replies + 1
+            new_positive = positive_replies + (1 if sentiment_score > 0.6 else 0)
+            new_avg_sentiment = ((avg_sentiment * replies) + sentiment_score) / new_replies
+            new_reply_rate = (new_replies / sent * 100) if sent > 0 else 0
+            
+            setattr(test, f'variant_{variant_lower}_replies', new_replies)
+            setattr(test, f'variant_{variant_lower}_positive_replies', new_positive)
+            setattr(test, f'variant_{variant_lower}_avg_sentiment', new_avg_sentiment)
+            setattr(test, f'variant_{variant_lower}_reply_rate', new_reply_rate)
+            
+            print(f"💬 Recorded reply for Variant {variant}: {new_reply_rate:.1f}% reply rate")
+            
+            self._check_and_declare_winner(test)
+            
+            return True
+
+    def _check_and_declare_winner(self, test):
+        """Internal method to check if test has enough data to declare winner"""
+        import statistics
+        
+        if test.status == 'completed':
+            return None
+        
+        if (test.variant_a_sent < test.min_sends_required or 
+            test.variant_b_sent < test.min_sends_required or 
+            test.variant_c_sent < test.min_sends_required):
+            return None
+        
+        rates = {
+            'A': test.variant_a_reply_rate,
+            'B': test.variant_b_reply_rate,
+            'C': test.variant_c_reply_rate
+        }
+        
+        winner = max(rates, key=rates.get)
+        winner_rate = rates[winner]
+        
+        other_rates = [r for v, r in rates.items() if v != winner]
+        avg_other_rate = statistics.mean(other_rates) if other_rates else 0
+        
+        if winner_rate >= avg_other_rate + (test.confidence_threshold * 100):
+            test.winning_variant = winner
+            test.status = 'completed'
+            test.completed_at = datetime.utcnow()
+            
+            print(f"🏆 WINNER DECLARED: Variant {winner} ({winner_rate:.1f}% reply rate)")
+            print(f"   Test '{test.test_name}' completed!")
+            
+            return winner
+        
+        return None
+
+    def update_ab_test_status(self, test_id, status):
+        """Update AB test status"""
+        with self.session_scope() as session:
+            from backend.database.models import ABTest
+            
+            test = session.query(ABTest).filter(ABTest.id == test_id).first()
+            
+            if test:
+                test.status = status
+                if status == 'completed' and not test.completed_at:
+                    test.completed_at = datetime.utcnow()
+                return True
+            
+            return False
+
+    def get_ab_test_leaderboard(self):
+        """Get performance leaderboard of all completed tests"""
+        with self.session_scope() as session:
+            from backend.database.models import ABTest
+            
+            tests = session.query(ABTest).filter(
+                ABTest.status == 'completed'
+            ).order_by(desc(ABTest.completed_at)).all()
+            
+            leaderboard = []
+            for test in tests:
+                winner_stats = test.get_variant_stats(test.winning_variant) if test.winning_variant else None
+                
+                leaderboard.append({
+                    'test_name': test.test_name,
+                    'winning_variant': test.winning_variant,
+                    'winner_reply_rate': winner_stats['reply_rate'] if winner_stats else 0,
+                    'total_sent': (test.variant_a_sent + test.variant_b_sent + test.variant_c_sent),
+                    'completed_at': test.completed_at.isoformat() if test.completed_at else None
+                })
+            
+            return leaderboard
+
+    def create_message_with_ab_test(self, lead_id, test_id, message_type, content, 
+                                    campaign_id=None, prompt_used=None, status='draft'):
+        """Create a message and automatically assign variant from AB test"""
+        variant = self.get_next_variant_for_test(test_id)
+        
+        message_id = self.create_message(
+            lead_id=lead_id,
+            message_type=message_type,
+            content=content,
+            campaign_id=campaign_id,
+            variant=variant,
+            prompt_used=prompt_used,
+            status=status
+        )
+        
+        with self.session_scope() as session:
+            from backend.database.models import Message
+            
+            message = session.query(Message).filter(Message.id == message_id).first()
+            if message:
+                message.ab_test_id = test_id
+        
+        print(f"✅ Created message with Variant {variant} for test ID {test_id}")
+        
+        return message_id, variant
+
+    def get_ab_test_performance_comparison(self, test_id):
+        """Get detailed performance comparison for all variants"""
+        test_data = self.get_ab_test_by_id(test_id)
+        
+        if not test_data:
+            return None
+        
+        variants = ['A', 'B', 'C']
+        comparison = {
+            'test_name': test_data['test_name'],
+            'status': test_data['status'],
+            'winning_variant': test_data['winning_variant'],
+            'variants': []
+        }
+        
+        for variant in variants:
+            stats = test_data[f'variant_{variant.lower()}']
+            comparison['variants'].append({
+                'variant': variant,
+                'sent': stats['sent'],
+                'replies': stats['replies'],
+                'reply_rate': stats['reply_rate'],
+                'avg_sentiment': stats['avg_sentiment'],
+                'is_winner': variant == test_data['winning_variant']
+            })
+        
+        return comparison
 
 
 db_manager = DatabaseManager()

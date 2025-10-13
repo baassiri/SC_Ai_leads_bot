@@ -1,6 +1,7 @@
 """
 A/B/C Message Variant Generator
 Generates 3 different message variants for testing
+ENHANCED: Full A/B test integration with automatic variant assignment
 """
 
 import os
@@ -12,11 +13,10 @@ from openai import OpenAI
 sys.path.append(str(Path(__file__).parent.parent))
 
 from backend.database.db_manager import db_manager
-from backend.database.db_manager import db_manager
-from backend.automation.ab_test_manager import ABTestManager  # ADD THIS LINE
+
 
 class ABCMessageGenerator:
-    """Generate A/B/C message variants for leads"""
+    """Generate A/B/C message variants for leads with AB testing"""
     
     def __init__(self, api_key: str = None):
         """Initialize generator with OpenAI API key"""
@@ -25,7 +25,7 @@ class ABCMessageGenerator:
             raise ValueError("OpenAI API key required")
         
         self.client = OpenAI(api_key=self.api_key)
-        self.ab_manager = ABTestManager()  # ADD THIS LINE
+    
     def generate_variants(self, lead_data: Dict, persona_data: Dict) -> Dict[str, str]:
         """
         Generate 3 message variants (A, B, C) for a lead
@@ -165,12 +165,13 @@ VARIANT_C:
         
         return variants
     
-    def generate_for_lead(self, lead_id: int, save_to_db: bool = True) -> Dict:
+    def generate_for_lead(self, lead_id: int, test_id: int = None, save_to_db: bool = True) -> Dict:
         """
         Generate A/B/C variants for a specific lead and optionally save to database
         
         Args:
             lead_id: Lead ID from database
+            test_id: Optional AB test ID to link messages to
             save_to_db: Whether to save messages to database
             
         Returns:
@@ -189,11 +190,13 @@ VARIANT_C:
         
         if save_to_db:
             saved_ids = []
+            
             for variant_letter, content in [
                 ('A', variants['variant_a']),
                 ('B', variants['variant_b']),
                 ('C', variants['variant_c'])
             ]:
+                # Create message with AB test link
                 message_id = db_manager.create_message(
                     lead_id=lead_id,
                     message_type='connection_request',
@@ -202,16 +205,29 @@ VARIANT_C:
                     generated_by='gpt-4',
                     status='draft'
                 )
+                
+                # Link to AB test if provided
+                if test_id and message_id:
+                    with db_manager.session_scope() as session:
+                        from backend.database.models import Message
+                        message = session.query(Message).filter(Message.id == message_id).first()
+                        if message:
+                            message.ab_test_id = test_id
+                
                 saved_ids.append(message_id)
             
             print(f"✅ Saved 3 variants to database (IDs: {saved_ids})")
+            
+            if test_id:
+                print(f"🔗 Linked to AB Test ID: {test_id}")
             
             return {
                 'success': True,
                 'lead_id': lead_id,
                 'lead_name': lead.get('name'),
                 'variants': variants,
-                'message_ids': saved_ids
+                'message_ids': saved_ids,
+                'test_id': test_id
             }
         
         return {
@@ -222,27 +238,40 @@ VARIANT_C:
         }
     
     def batch_generate(self, lead_ids: List[int], max_leads: int = 20, 
-                    test_name: str = None, campaign_id: int = None) -> Dict:
+                      test_name: str = None, campaign_id: int = None,
+                      create_ab_test: bool = True) -> Dict:
         """
         Generate A/B/C message variants for multiple leads
         Automatically creates an A/B test and assigns variants
+        
+        Args:
+            lead_ids: List of lead IDs
+            max_leads: Maximum number of leads to process
+            test_name: Name for the AB test
+            campaign_id: Optional campaign ID
+            create_ab_test: Whether to create an AB test
+            
+        Returns:
+            Dict with results and AB test info
         """
         from datetime import datetime
         
-        if not test_name:
-            test_name = f"Campaign_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        
-        # Create A/B test
-        test_id = self.ab_manager.create_test(
-            test_name=test_name,
-            campaign_id=campaign_id,
-            min_sends=min(20, len(lead_ids))
-        )
-        
-        print(f"🧪 Created A/B Test: {test_name} (ID: {test_id})")
-        
         # Limit to max_leads
         lead_ids = lead_ids[:max_leads]
+        
+        test_id = None
+        if create_ab_test:
+            if not test_name:
+                test_name = f"Campaign_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            
+            # Create A/B test
+            test_id = db_manager.create_ab_test(
+                test_name=test_name,
+                campaign_id=campaign_id,
+                min_sends=min(20, len(lead_ids))
+            )
+            
+            print(f"🧪 Created A/B Test: {test_name} (ID: {test_id})")
         
         successful = 0
         failed = 0
@@ -277,6 +306,14 @@ VARIANT_C:
                         generated_by='gpt-4'
                     )
                     
+                    # Link to AB test
+                    if test_id and message_id:
+                        with db_manager.session_scope() as session:
+                            from backend.database.models import Message
+                            message = session.query(Message).filter(Message.id == message_id).first()
+                            if message:
+                                message.ab_test_id = test_id
+                    
                     if message_id:
                         messages_created += 1
                 
@@ -290,7 +327,7 @@ VARIANT_C:
         print(f"\n✅ Generated {messages_created} total messages")
         print(f"   Success: {successful} leads | Failed: {failed} leads")
         
-        return {
+        result = {
             'test_id': test_id,
             'test_name': test_name,
             'total_leads': len(lead_ids),
@@ -298,6 +335,13 @@ VARIANT_C:
             'failed': failed,
             'messages_created': messages_created
         }
+        
+        if test_id:
+            result['test_url'] = f'http://localhost:5000/api/ab-tests/{test_id}'
+        
+        return result
+
+
 if __name__ == '__main__':
     import argparse
     
@@ -305,6 +349,8 @@ if __name__ == '__main__':
     parser.add_argument('--lead-id', type=int, help='Generate for specific lead ID')
     parser.add_argument('--top', type=int, default=20, help='Generate for top N leads')
     parser.add_argument('--test', action='store_true', help='Test with first lead')
+    parser.add_argument('--test-name', type=str, help='AB test name')
+    parser.add_argument('--no-ab-test', action='store_true', help='Skip AB test creation')
     
     args = parser.parse_args()
     
@@ -318,16 +364,36 @@ if __name__ == '__main__':
     if args.test:
         leads = db_manager.get_all_leads(limit=1)
         if leads:
-            result = generator.generate_for_lead(leads[0]['id'], save_to_db=True)
+            # Create test AB test
+            test_id = db_manager.create_ab_test("CLI_Test") if not args.no_ab_test else None
+            
+            result = generator.generate_for_lead(
+                leads[0]['id'], 
+                test_id=test_id,
+                save_to_db=True
+            )
             print(f"\n✅ Generated variants for: {result['lead_name']}")
             print(f"\nVARIANT A:\n{result['variants']['variant_a']}\n")
             print(f"VARIANT B:\n{result['variants']['variant_b']}\n")
             print(f"VARIANT C:\n{result['variants']['variant_c']}\n")
+            
+            if test_id:
+                print(f"🧪 AB Test ID: {test_id}")
         else:
             print("❌ No leads found in database")
     
     elif args.lead_id:
-        result = generator.generate_for_lead(args.lead_id, save_to_db=True)
+        test_id = None
+        if not args.no_ab_test:
+            test_id = db_manager.create_ab_test(
+                args.test_name or f"Single_Lead_{args.lead_id}"
+            )
+        
+        result = generator.generate_for_lead(
+            args.lead_id, 
+            test_id=test_id,
+            save_to_db=True
+        )
         print(f"\n✅ Generated variants for: {result['lead_name']}")
     
     else:
@@ -339,9 +405,17 @@ if __name__ == '__main__':
             sys.exit(1)
         
         print(f"🚀 Generating A/B/C variants for top {len(lead_ids)} leads...")
-        results = generator.batch_generate(lead_ids)
+        results = generator.batch_generate(
+            lead_ids,
+            test_name=args.test_name,
+            create_ab_test=not args.no_ab_test
+        )
         
         print(f"\n📊 RESULTS:")
         print(f"  ✅ Successful: {results['successful']}")
         print(f"  ❌ Failed: {results['failed']}")
         print(f"  💬 Messages created: {results['messages_created']}")
+        
+        if results.get('test_id'):
+            print(f"  🧪 AB Test ID: {results['test_id']}")
+            print(f"  🔗 View results: {results['test_url']}")
