@@ -860,107 +860,27 @@ class DatabaseManager:
             })
         
         return comparison
-    """
-Additional Database Manager Methods for Message Management
-Add these methods to your db_manager.py file
-"""
-
-def get_messages_by_lead(self, lead_id: int):
-    """Get all messages for a specific lead"""
-    with self.session_scope() as session:
-        messages = session.query(Message).filter(
-            Message.lead_id == lead_id
-        ).order_by(Message.created_at.desc()).all()
-        
-        return [{
-            'id': msg.id,
-            'lead_id': msg.lead_id,
-            'message_type': msg.message_type,
-            'content': msg.content,
-            'variant': msg.variant,
-            'status': msg.status,
-            'sent_at': msg.sent_at.isoformat() if msg.sent_at else None,
-            'created_at': msg.created_at.isoformat() if msg.created_at else None
-        } for msg in messages]
+    
+    def get_message_by_id(self, message_id: int):
+            """Get a single message by ID with lead information"""
+            with self.session_scope() as session:
+                message = session.query(Message).filter(Message.id == message_id).first()
+                
+                if not message:
+                    return None
+                
+                return {
+                    'id': message.id,
+                    'lead_id': message.lead_id,
+                    'lead_name': message.lead.name if message.lead else None,
+                    'message_type': message.message_type,
+                    'content': message.content,
+                    'variant': message.variant,
+                    'status': message.status,
+                    'sent_at': message.sent_at.isoformat() if message.sent_at else None,
+                    'created_at': message.created_at.isoformat() if message.created_at else None
+                }
 
 
-def get_messages_by_status_with_lead_info(self, status=None, lead_id=None, limit=100):
-    """Get messages with lead information"""
-    with self.session_scope() as session:
-        query = session.query(Message).join(Lead)
-        
-        if status:
-            query = query.filter(Message.status == status)
-        
-        if lead_id:
-            query = query.filter(Message.lead_id == lead_id)
-        
-        messages = query.order_by(desc(Message.created_at)).limit(limit).all()
-        
-        messages_data = []
-        for msg in messages:
-            messages_data.append({
-                'id': msg.id,
-                'lead_id': msg.lead_id,
-                'lead_name': msg.lead.name if msg.lead else None,
-                'lead_title': msg.lead.title if msg.lead else None,
-                'lead_company': msg.lead.company if msg.lead else None,
-                'message_type': msg.message_type,
-                'content': msg.content,
-                'variant': msg.variant,
-                'status': msg.status,
-                'sent_at': msg.sent_at.isoformat() if msg.sent_at else None,
-                'created_at': msg.created_at.isoformat() if msg.created_at else None
-            })
-        
-        return messages_data
-
-
-def get_message_stats(self):
-    """Get message statistics by status"""
-    with self.session_scope() as session:
-        total = session.query(Message).count()
-        draft = session.query(Message).filter(Message.status == 'draft').count()
-        approved = session.query(Message).filter(Message.status == 'approved').count()
-        sent = session.query(Message).filter(Message.status == 'sent').count()
-        
-        return {
-            'total': total,
-            'draft': draft,
-            'approved': approved,
-            'sent': sent
-        }
-
-
-def update_message_status(self, message_id: int, new_status: str):
-    """Update message status"""
-    with self.session_scope() as session:
-        message = session.query(Message).filter(Message.id == message_id).first()
-        
-        if message:
-            message.status = new_status
-            message.updated_at = datetime.now()
-            
-            if new_status == 'sent':
-                message.sent_at = datetime.now()
-            
-            session.commit()
-            return True
-        
-        return False
-
-
-def delete_message(self, message_id: int):
-    """Delete a message"""
-    with self.session_scope() as session:
-        message = session.query(Message).filter(Message.id == message_id).first()
-        
-        if message:
-            session.delete(message)
-            session.commit()
-            return True
-        
-        return False
-
-
+# Singleton instance
 db_manager = DatabaseManager()

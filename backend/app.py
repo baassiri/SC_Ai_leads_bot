@@ -12,7 +12,8 @@ import time
 import random
 from pathlib import Path
 import sys
-
+from backend.ai_engine.message_generator_abc import ABCMessageGenerator
+from backend.automation.scheduler import scheduler as message_scheduler
 sys.path.append(str(Path(__file__).parent.parent))
 
 from backend.config import Config, get_config
@@ -65,7 +66,10 @@ def settings_page():
     """Render settings page"""
     return render_template('settings.html')
 
-
+@app.route('/ab-analytics')
+def ab_analytics_page():
+    """Render AB test analytics page"""
+    return render_template('ab_test_analytics.html')
 
 # ============================================================================
 # API ROUTES - AUTHENTICATION
@@ -486,182 +490,7 @@ def start_bot():
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
-# ADD THIS ROUTE TO YOUR app.py FILE
-# Place it after the /api/bot/start route
 
-@app.route('/api/scrape/start', methods=['POST'])
-def start_scraping():
-    """Start the LinkedIn scraping process with REAL profiles"""
-    try:
-        data = request.json
-        keywords = data.get('keywords', 'business professional')
-        max_pages = data.get('max_pages', 3)
-        
-        # Get credentials
-        linkedin_creds = credentials_manager.get_linkedin_credentials()
-        
-        if not linkedin_creds:
-            return jsonify({
-                'success': False,
-                'message': 'LinkedIn credentials not configured. Please save credentials first.'
-            }), 400
-        
-        # Check if personas exist
-        personas = db_manager.get_all_personas()
-        if not personas:
-            return jsonify({
-                'success': False,
-                'message': '⚠️ No personas found! Please upload Targets.docx first.'
-            }), 400
-        
-        # Start scraping in background thread
-        def scrape_task():
-            try:
-                # Import scraper
-                from backend.scrapers.linkedin_scraper import LinkedInScraper
-                
-                # Create scraper instance
-                scraper = LinkedInScraper(
-                    email=linkedin_creds['email'],
-                    password=linkedin_creds['password'],
-                    headless=False,  # Set to True for production
-                    sales_nav_preference=linkedin_creds.get('sales_nav_enabled', False)
-                )
-                
-                # Define search filters
-                filters = {
-                    'keywords': keywords
-                }
-                
-                print(f"\n🚀 Starting scrape with keywords: {keywords}")
-                
-                # Scrape leads
-                leads = scraper.scrape_leads(filters, max_pages=max_pages)
-                
-                if not leads:
-                    print("⚠️ No leads found!")
-                    db_manager.log_activity(
-                        activity_type='scrape',
-                        description=f'No leads found for keywords: {keywords}',
-                        status='warning'
-                    )
-                    return
-                
-                print(f"\n🤖 Starting AI scoring for {len(leads)} leads...")
-                
-                # Get API key for scoring
-                api_key = credentials_manager.get_openai_key()
-                
-                if not api_key:
-                    print("⚠️ No OpenAI API key, skipping AI scoring")
-                    db_manager.log_activity(
-                        activity_type='scrape',
-                        description=f'Scraped {len(leads)} leads (no AI scoring - missing API key)',
-                        status='warning'
-                    )
-                    return
-                
-                # Import AI scorer
-                from backend.ai_engine.lead_scorer import score_lead
-                
-                # Get personas for scoring
-                personas = db_manager.get_all_personas()
-                
-                # Score each lead
-                scored_count = 0
-                for lead_data in leads:
-                    try:
-                        # Find best matching persona
-                        best_persona = personas[0] if personas else None
-                        
-                        if best_persona:
-                            # Score the lead
-                            scoring_result = score_lead(
-                                lead_data=lead_data,
-                                persona_data=best_persona,
-                                api_key=api_key
-                            )
-                            
-                            ai_score = scoring_result['score']
-                            reasoning = scoring_result['reasoning']
-                            
-                            # Get lead ID from database (it was created during import)
-                            all_db_leads = db_manager.get_all_leads()
-                            matching_lead = next(
-                                (l for l in all_db_leads if l['name'] == lead_data['name'] and l['company'] == lead_data.get('company')),
-                                None
-                            )
-                            
-                            if matching_lead:
-                                # Update lead score
-                                db_manager.update_lead_score(
-                                    lead_id=matching_lead['id'],
-                                    score=ai_score,
-                                    persona_id=best_persona.get('id'),
-                                    score_reasoning=reasoning
-                                )
-                                
-                                print(f"  ✅ Scored: {lead_data['name']} = {ai_score}/100")
-                                scored_count += 1
-                                
-                                # Log activity
-                                db_manager.log_activity(
-                                    activity_type='score',
-                                    description=f"🎯 AI scored {lead_data['name']}: {ai_score}/100",
-                                    status='success',
-                                    lead_id=matching_lead['id']
-                                )
-                        
-                    except Exception as e:
-                        print(f"  ❌ Error scoring {lead_data.get('name')}: {str(e)}")
-                        continue
-                
-                print(f"\n✅ Scraping complete! Scraped {len(leads)} leads, scored {scored_count}")
-                
-                db_manager.log_activity(
-                    activity_type='scrape',
-                    description=f'🎉 Successfully scraped {len(leads)} leads and AI-scored {scored_count}',
-                    status='success'
-                )
-                
-            except Exception as e:
-                print(f"\n❌ Error in scrape task: {str(e)}")
-                import traceback
-                traceback.print_exc()
-                
-                db_manager.log_activity(
-                    activity_type='scrape',
-                    description=f'❌ Scraping failed: {str(e)}',
-                    status='failed',
-                    error_message=str(e)
-                )
-        
-        # Run in background
-        import threading
-        thread = threading.Thread(target=scrape_task)
-        thread.daemon = True
-        thread.start()
-        
-        db_manager.log_activity(
-            activity_type='scrape',
-            description=f'🚀 Started LinkedIn scraper with keywords: {keywords}',
-            status='success'
-        )
-        
-        return jsonify({
-            'success': True,
-            'message': f'Scraping started for: {keywords}'
-        })
-        
-    except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(f"Error starting scraper: {error_details}")
-        
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
 @app.route('/api/bot/stop', methods=['POST'])
 def stop_bot():
     global bot_status
@@ -716,96 +545,23 @@ def get_leads():
             'message': f'Error: {str(e)}'
         }), 500
 
-@app.route('/api/leads/top', methods=['GET'])
-def get_top_leads():
-    """Get top N leads by AI score"""
+@app.route('/api/leads/<int:lead_id>', methods=['GET'])
+def get_lead(lead_id):
+    """Get a single lead by ID"""
     try:
-        limit = request.args.get('limit', 20, type=int)
-        min_score = request.args.get('min_score', 70, type=int)
+        lead = db_manager.get_lead_by_id(lead_id)
         
-        all_leads = db_manager.get_all_leads()
-        qualified_leads = [lead for lead in all_leads if lead.get('ai_score', 0) >= min_score]
-        qualified_leads.sort(key=lambda x: x.get('ai_score', 0), reverse=True)
-        top_leads = qualified_leads[:limit]
+        if not lead:
+            return jsonify({
+                'success': False,
+                'message': 'Lead not found'
+            }), 404
         
         return jsonify({
             'success': True,
-            'count': len(top_leads),
-            'leads': top_leads,
-            'total_qualified': len(qualified_leads),
-            'message': f'Found {len(top_leads)} top leads (score >= {min_score})'
+            'lead': lead
         })
         
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-
-@app.route('/api/leads/auto-select', methods=['POST'])
-def auto_select_leads():
-    """Auto-select top leads and mark them for message generation"""
-    try:
-        data = request.json
-        limit = data.get('limit', 20)
-        min_score = data.get('min_score', 70)
-        
-        all_leads = db_manager.get_all_leads()
-        qualified_leads = [lead for lead in all_leads if lead.get('ai_score', 0) >= min_score]
-        qualified_leads.sort(key=lambda x: x.get('ai_score', 0), reverse=True)
-        top_leads = qualified_leads[:limit]
-        
-        selected_ids = []
-        for lead in top_leads:
-            try:
-                db_manager.update_lead_status(
-                    lead_id=lead['id'],
-                    status='selected_for_outreach'
-                )
-                selected_ids.append(lead['id'])
-            except Exception as e:
-                print(f"Error updating lead {lead['id']}: {str(e)}")
-                continue
-        
-        db_manager.log_activity(
-            activity_type='lead_selection',
-            description=f'🎯 Auto-selected top {len(selected_ids)} leads for outreach',
-            status='success'
-        )
-        
-        return jsonify({
-            'success': True,
-            'selected_count': len(selected_ids),
-            'selected_ids': selected_ids,
-            'message': f'✅ Selected {len(selected_ids)} top leads for outreach'
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-
-@app.route('/api/leads/<int:lead_id>/messages', methods=['GET'])
-def get_lead_messages(lead_id):
-    try:
-        messages = db_manager.get_messages_by_lead(lead_id)
-        
-        messages_data = []
-        for msg in messages:
-            messages_data.append({
-                'id': msg.id,
-                'message_type': msg.message_type,
-                'content': msg.content,
-                'variant': msg.variant,
-                'status': msg.status,
-                'created_at': msg.created_at.isoformat() if msg.created_at else None
-            })
-        
-        return jsonify({
-            'success': True,
-            'messages': messages_data
-        })
     except Exception as e:
         return jsonify({
             'success': False,
@@ -860,8 +616,6 @@ def generate_messages():
                 'success': False,
                 'message': 'OpenAI API key not configured'
             }), 400
-        
-        from backend.ai_engine.message_generator_abc import ABCMessageGenerator
         
         generator = ABCMessageGenerator(api_key=api_key)
         results = generator.batch_generate(lead_ids, max_leads=20)
@@ -928,7 +682,37 @@ def get_message_stats():
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
+# Add after line 680 (after the personas route)
 
+@app.route('/api/leads/top', methods=['GET'])
+def get_top_leads():
+    """Get top qualified leads"""
+    try:
+        limit = request.args.get('limit', 20, type=int)
+        min_score = request.args.get('min_score', 70, type=int)
+        
+        leads = db_manager.get_all_leads(
+            min_score=min_score,
+            limit=limit
+        )
+        
+        return jsonify({
+            'success': True,
+            'leads': leads,
+            'total': len(leads)
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/scrape/start', methods=['POST'])
+def start_scrape():
+    """Start scraping with smart keywords"""
+    # This is for the dashboard's "Smart Scraping" button
+    # For now, just redirect to bot/start
+    return start_bot()
 @app.route('/api/messages/<int:message_id>/approve', methods=['POST'])
 def approve_message(message_id):
     try:
@@ -957,166 +741,41 @@ def approve_message(message_id):
             'message': f'Error: {str(e)}'
         }), 500
 
-@app.route('/api/messages/<int:message_id>/unapprove', methods=['POST'])
-def unapprove_message(message_id):
-    """Unapprove a message (set back to draft)"""
+# ============================================================================
+# MESSAGE SCHEDULER API
+# ============================================================================
+
+@app.route('/api/scheduler/status', methods=['GET'])
+def get_scheduler_status():
+    """Get scheduler status"""
     try:
-        success = db_manager.update_message_status(message_id, 'draft')
-        
-        if success:
-            db_manager.log_activity(
-                activity_type='message_unapproved',
-                description=f'Message {message_id} set back to draft',
-                status='success'
-            )
-            
-            return jsonify({
-                'success': True,
-                'message': 'Message set back to draft'
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'message': 'Message not found'
-            }), 404
-            
+        status = message_scheduler.get_status()
+        return jsonify({'success': True, 'scheduler': status})
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-@app.route('/api/messages/<int:message_id>/send', methods=['POST'])
-def send_message_now(message_id):
-    """Send a message immediately via LinkedIn"""
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/scheduler/start', methods=['POST'])
+def start_scheduler():
+    """Start the message scheduler"""
     try:
-        # Get message details
-        with db_manager.session_scope() as session:
-            from backend.database.models import Message, Lead
-            message = session.query(Message).join(Lead).filter(Message.id == message_id).first()
-            
-            if not message:
-                return jsonify({
-                    'success': False,
-                    'message': 'Message not found'
-                }), 404
-            
-            if message.status != 'approved':
-                return jsonify({
-                    'success': False,
-                    'message': 'Message must be approved before sending'
-                }), 400
-            
-            # Get LinkedIn credentials
-            linkedin_creds = credentials_manager.get_linkedin_credentials()
-            if not linkedin_creds:
-                return jsonify({
-                    'success': False,
-                    'message': 'LinkedIn credentials not configured'
-                }), 400
-            
-            # Initialize LinkedIn sender
-            from backend.automation.linkedin_message_sender import LinkedInMessageSender
-            
-            sender = LinkedInMessageSender(
-                email=linkedin_creds['email'],
-                password=linkedin_creds['password'],
-                headless=False  # Keep visible for safety
-            )
-            
-            try:
-                # Start session
-                sender.start_session()
-                
-                # Send connection request
-                result = sender.send_connection_request(
-                    profile_url=message.lead.profile_url,
-                    message=message.content,
-                    lead_name=message.lead.name
-                )
-                
-                # Close session
-                sender.close_session()
-                
-                if result['success']:
-                    # Update message status
-                    message.status = 'sent'
-                    message.sent_at = datetime.utcnow()
-                    
-                    # Log activity
-                    db_manager.log_activity(
-                        activity_type='message_sent',
-                        description=f'Sent message {message_id} to {message.lead.name}',
-                        status='success',
-                        lead_id=message.lead_id
-                    )
-                    
-                    return jsonify({
-                        'success': True,
-                        'message': 'Message sent successfully!'
-                    })
-                else:
-                    return jsonify({
-                        'success': False,
-                        'message': result.get('error', 'Failed to send message')
-                    }), 500
-                    
-            except Exception as e:
-                sender.close_session()
-                raise e
-                
+        message_scheduler.start()
+        return jsonify({'success': True, 'message': 'Scheduler started'})
     except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(f"Error sending message: {error_details}")
-        
-        db_manager.log_activity(
-            activity_type='message_send_failed',
-            description=f'Failed to send message {message_id}: {str(e)}',
-            status='failed'
-        )
-        
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-@app.route('/api/messages/<int:message_id>', methods=['PUT'])
-def update_message(message_id):
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/scheduler/stop', methods=['POST'])
+def stop_scheduler():
+    """Stop the message scheduler"""
     try:
-        data = request.json
-        content = data.get('content')
-        
-        if not content:
-            return jsonify({
-                'success': False,
-                'message': 'Content is required'
-            }), 400
-        
-        with db_manager.session_scope() as session:
-            from backend.database.models import Message
-            message = session.query(Message).filter(Message.id == message_id).first()
-            
-            if message:
-                message.content = content
-                message.updated_at = datetime.utcnow()
-                
-                return jsonify({
-                    'success': True,
-                    'message': 'Message updated successfully'
-                })
-            else:
-                return jsonify({
-                    'success': False,
-                    'message': 'Message not found'
-                }), 404
-                
+        message_scheduler.stop()
+        return jsonify({'success': True, 'message': 'Scheduler stopped'})
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 # ============================================================================
-# API ROUTES - ANALYTICS
+# ANALYTICS
 # ============================================================================
 
 @app.route('/api/analytics/dashboard', methods=['GET'])
@@ -1138,7 +797,109 @@ def get_dashboard_stats():
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
+@app.route('/api/messages/<int:message_id>/send', methods=['POST'])
+def send_single_message(message_id):
+    """Queue a single message for immediate sending"""
+    try:
+        from backend.automation.scheduler import scheduler
+        
+        # Schedule message ASAP
+        schedule_id = scheduler.schedule_message(
+            message_id=message_id,
+            scheduled_time=None  # ASAP
+        )
+        
+        if schedule_id:
+            db_manager.log_activity(
+                activity_type='message_scheduled',
+                description=f'Message {message_id} queued for sending',
+                status='success'
+            )
+            
+            return jsonify({
+                'success': True,
+                'message': 'Message queued for sending',
+                'schedule_id': schedule_id
+            })
+        
+        return jsonify({
+            'success': False,
+            'message': 'Failed to schedule message'
+        }), 500
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
 
+@app.route('/api/messages/schedule-batch', methods=['POST'])
+def schedule_batch_messages():
+    """Schedule multiple messages with rate limiting"""
+    try:
+        from backend.automation.scheduler import scheduler
+        
+        data = request.json
+        message_ids = data.get('message_ids', [])
+        start_time = data.get('start_time')  # Optional
+        spread_hours = data.get('spread_hours', 4)
+        
+        if not message_ids:
+            return jsonify({
+                'success': False,
+                'message': 'No message IDs provided'
+            }), 400
+        
+        # Schedule the batch
+        schedule_ids = scheduler.schedule_batch(
+            message_ids=message_ids,
+            start_time=start_time,
+            spread_hours=spread_hours
+        )
+        
+        db_manager.log_activity(
+            activity_type='batch_scheduled',
+            description=f'Scheduled {len(schedule_ids)} messages over {spread_hours} hours',
+            status='success'
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': f'Scheduled {len(schedule_ids)} messages',
+            'schedule_ids': schedule_ids,
+            'count': len(schedule_ids)
+        })
+        
+    except Exception as e:
+        import traceback
+        print(f"Error scheduling batch: {traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/messages/<int:message_id>', methods=['DELETE'])
+def delete_message(message_id):
+    """Delete a draft message"""
+    try:
+        success = db_manager.delete_message(message_id)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'Message deleted successfully'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Message not found or cannot be deleted'
+            }), 404
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
 @app.route('/api/activity-logs', methods=['GET'])
 def get_activity_logs():
     try:
@@ -1157,501 +918,8 @@ def get_activity_logs():
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
-
 # ============================================================================
-# API ROUTES - A/B TESTING
-# ============================================================================
-
-@app.route('/api/ab-tests/create', methods=['POST'])
-def create_ab_test():
-    """Create a new A/B/C test"""
-    try:
-        data = request.json
-        test_name = data.get('test_name')
-        campaign_id = data.get('campaign_id')
-        lead_persona = data.get('lead_persona')
-        min_sends = data.get('min_sends', 20)
-        
-        if not test_name:
-            return jsonify({
-                'success': False,
-                'message': 'Test name is required'
-            }), 400
-        
-        test_id = db_manager.create_ab_test(
-            test_name=test_name,
-            campaign_id=campaign_id,
-            lead_persona=lead_persona,
-            min_sends=min_sends
-        )
-        
-        db_manager.log_activity(
-            activity_type='ab_test_created',
-            description=f'Created A/B test: {test_name}',
-            status='success'
-        )
-        
-        return jsonify({
-            'success': True,
-            'test_id': test_id,
-            'message': f'A/B test "{test_name}" created successfully'
-        }), 201
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-
-@app.route('/api/ab-tests', methods=['GET'])
-def get_ab_tests():
-    """Get all AB tests"""
-    try:
-        status = request.args.get('status')
-        tests = db_manager.get_all_ab_tests(status=status)
-        
-        return jsonify({
-            'success': True,
-            'count': len(tests),
-            'tests': tests
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-# ========================================
-# SCHEDULING API ENDPOINTS
-# ========================================
-
-@app.route('/api/schedule/message', methods=['POST'])
-def schedule_single_message():
-    """Schedule a single message"""
-    try:
-        from backend.automation.scheduler import MessageScheduler
-        from datetime import datetime
-        
-        data = request.json
-        message_id = data.get('message_id')
-        scheduled_time = data.get('scheduled_time')
-        ai_optimize = data.get('ai_optimize', False)
-        
-        if not message_id:
-            return jsonify({
-                'success': False,
-                'message': 'Message ID is required'
-            }), 400
-        
-        scheduler = MessageScheduler()
-        
-        send_time = None
-        if scheduled_time:
-            send_time = datetime.fromisoformat(scheduled_time.replace('Z', '+00:00'))
-        
-        schedule_id = scheduler.schedule_message(
-            message_id=message_id,
-            scheduled_time=send_time,
-            ai_optimize=ai_optimize
-        )
-        
-        db_manager.log_activity(
-            activity_type='message_scheduled',
-            description=f'Scheduled message {message_id}',
-            status='success'
-        )
-        
-        return jsonify({
-            'success': True,
-            'schedule_id': schedule_id,
-            'message': 'Message scheduled successfully'
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-
-@app.route('/api/schedule/batch', methods=['POST'])
-def schedule_batch_messages():
-    """Schedule multiple messages intelligently"""
-    try:
-        from backend.automation.scheduler import MessageScheduler
-        from datetime import datetime
-        
-        data = request.json
-        message_ids = data.get('message_ids', [])
-        start_time = data.get('start_time')
-        spread_hours = data.get('spread_hours', 8)
-        ai_optimize = data.get('ai_optimize', True)
-        
-        if not message_ids:
-            return jsonify({
-                'success': False,
-                'message': 'Message IDs are required'
-            }), 400
-        
-        scheduler = MessageScheduler()
-        
-        send_time = None
-        if start_time:
-            send_time = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
-        
-        schedule_ids = scheduler.schedule_batch(
-            message_ids=message_ids,
-            start_time=send_time,
-            spread_hours=spread_hours,
-            ai_optimize=ai_optimize
-        )
-        
-        db_manager.log_activity(
-            activity_type='batch_scheduled',
-            description=f'Scheduled {len(message_ids)} messages',
-            status='success'
-        )
-        
-        return jsonify({
-            'success': True,
-            'schedule_ids': schedule_ids,
-            'total_scheduled': len(schedule_ids),
-            'message': f'Scheduled {len(schedule_ids)} messages successfully'
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-
-@app.route('/api/schedule/stats', methods=['GET'])
-def get_schedule_stats():
-    """Get scheduling statistics"""
-    try:
-        from backend.automation.scheduler import MessageScheduler
-        
-        scheduler = MessageScheduler()
-        stats = scheduler.get_schedule_stats()
-        
-        return jsonify({
-            'success': True,
-            'stats': stats
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-
-@app.route('/api/schedule/pending', methods=['GET'])
-def get_pending_messages():
-    """Get pending scheduled messages"""
-    try:
-        from backend.automation.scheduler import MessageScheduler
-        
-        limit = request.args.get('limit', 50, type=int)
-        
-        scheduler = MessageScheduler()
-        messages = scheduler.get_pending_messages(limit=limit)
-        
-        return jsonify({
-            'success': True,
-            'messages': messages,
-            'total': len(messages)
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-
-@app.route('/api/schedule/cancel/<int:schedule_id>', methods=['DELETE'])
-def cancel_scheduled_message(schedule_id):
-    """Cancel a scheduled message"""
-    try:
-        import sqlite3
-        
-        conn = sqlite3.connect('data/database.db')
-        cursor = conn.cursor()
-        
-        cancel_time = datetime.utcnow()
-        
-        cursor.execute(
-            "UPDATE message_schedule SET status = 'cancelled', updated_at = ? WHERE id = ? AND status = 'scheduled'",
-            (cancel_time, schedule_id)
-        )
-        
-        if cursor.rowcount == 0:
-            conn.close()
-            return jsonify({
-                'success': False,
-                'message': 'Schedule not found or already processed'
-            }), 404
-        
-        conn.commit()
-        conn.close()
-        
-        db_manager.log_activity(
-            activity_type='schedule_cancelled',
-            description=f'Cancelled schedule {schedule_id}',
-            status='success'
-        )
-        
-        return jsonify({
-            'success': True,
-            'message': 'Schedule cancelled successfully'
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-@app.route('/api/ab-tests/active', methods=['GET'])
-def get_active_ab_tests():
-    """Get all active AB tests"""
-    try:
-        tests = db_manager.get_active_ab_tests()
-        
-        return jsonify({
-            'success': True,
-            'count': len(tests),
-            'tests': tests
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-
-@app.route('/api/ab-tests/<int:test_id>', methods=['GET'])
-def get_ab_test(test_id):
-    """Get specific AB test details"""
-    try:
-        test = db_manager.get_ab_test_by_id(test_id)
-        
-        if not test:
-            return jsonify({
-                'success': False,
-                'message': 'Test not found'
-            }), 404
-        
-        return jsonify({
-            'success': True,
-            'test': test
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-
-@app.route('/api/ab-tests/<int:test_id>/record-send', methods=['POST'])
-def record_ab_test_send(test_id):
-    """Record that a message was sent for a variant"""
-    try:
-        data = request.json
-        variant = data.get('variant', '').upper()
-        
-        if variant not in ['A', 'B', 'C']:
-            return jsonify({
-                'success': False,
-                'message': 'Invalid variant. Must be A, B, or C'
-            }), 400
-        
-        success = db_manager.record_ab_test_message_sent(test_id, variant)
-        
-        if not success:
-            return jsonify({
-                'success': False,
-                'message': 'Test not found'
-            }), 404
-        
-        return jsonify({
-            'success': True,
-            'message': f'Recorded send for variant {variant}'
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-
-@app.route('/api/ab-tests/<int:test_id>/record-reply', methods=['POST'])
-def record_ab_test_reply(test_id):
-    """Record a reply for a variant"""
-    try:
-        data = request.json
-        variant = data.get('variant', '').upper()
-        sentiment_score = data.get('sentiment_score', 0.5)
-        
-        if variant not in ['A', 'B', 'C']:
-            return jsonify({
-                'success': False,
-                'message': 'Invalid variant. Must be A, B, or C'
-            }), 400
-        
-        if not 0 <= sentiment_score <= 1:
-            return jsonify({
-                'success': False,
-                'message': 'sentiment_score must be between 0 and 1'
-            }), 400
-        
-        success = db_manager.record_ab_test_reply(test_id, variant, sentiment_score)
-        
-        if not success:
-            return jsonify({
-                'success': False,
-                'message': 'Test not found'
-            }), 404
-        
-        test = db_manager.get_ab_test_by_id(test_id)
-        winner_declared = test['status'] == 'completed' if test else False
-        
-        response = {
-            'success': True,
-            'message': f'Recorded reply for variant {variant}'
-        }
-        
-        if winner_declared:
-            response['winner_declared'] = True
-            response['winning_variant'] = test['winning_variant']
-            response['message'] += f' - 🏆 Winner: Variant {test["winning_variant"]}!'
-        
-        return jsonify(response)
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-
-@app.route('/api/ab-tests/<int:test_id>/comparison', methods=['GET'])
-def get_ab_test_comparison(test_id):
-    """Get performance comparison of all variants"""
-    try:
-        comparison = db_manager.get_ab_test_performance_comparison(test_id)
-        
-        if not comparison:
-            return jsonify({
-                'success': False,
-                'message': 'Test not found'
-            }), 404
-        
-        return jsonify({
-            'success': True,
-            'comparison': comparison
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-
-@app.route('/api/ab-tests/<int:test_id>/status', methods=['PUT'])
-def update_ab_test_status(test_id):
-    """Update AB test status"""
-    try:
-        data = request.json
-        status = data.get('status', '').lower()
-        
-        if status not in ['active', 'completed', 'paused']:
-            return jsonify({
-                'success': False,
-                'message': 'Invalid status. Must be active, completed, or paused'
-            }), 400
-        
-        success = db_manager.update_ab_test_status(test_id, status)
-        
-        if not success:
-            return jsonify({
-                'success': False,
-                'message': 'Test not found'
-            }), 404
-        
-        return jsonify({
-            'success': True,
-            'message': f'Test status updated to {status}'
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-
-@app.route('/api/ab-tests/leaderboard', methods=['GET'])
-def get_ab_test_leaderboard():
-    """Get performance leaderboard of completed tests"""
-    try:
-        leaderboard = db_manager.get_ab_test_leaderboard()
-        
-        return jsonify({
-            'success': True,
-            'count': len(leaderboard),
-            'leaderboard': leaderboard
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-
-@app.route('/api/ab-tests/<int:test_id>/next-variant', methods=['GET'])
-def get_next_ab_test_variant(test_id):
-    """Get next variant to assign (round-robin)"""
-    try:
-        variant = db_manager.get_next_variant_for_test(test_id)
-        
-        return jsonify({
-            'success': True,
-            'variant': variant
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-
-@app.route('/api/ab-tests/stats', methods=['GET'])
-def get_ab_test_stats():
-    """Get overall AB testing statistics"""
-    try:
-        all_tests = db_manager.get_all_ab_tests()
-        active_tests = db_manager.get_active_ab_tests()
-        
-        total_tests = len(all_tests)
-        completed_tests = sum(1 for t in all_tests if t.get('status') == 'completed')
-        total_messages_tested = sum(t.get('total_sent', 0) for t in all_tests)
-        
-        return jsonify({
-            'success': True,
-            'stats': {
-                'total_tests': total_tests,
-                'active_tests': len(active_tests),
-                'completed_tests': completed_tests,
-                'total_messages_tested': total_messages_tested,
-                'avg_messages_per_test': total_messages_tested / total_tests if total_tests > 0 else 0
-            }
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-# Add these routes to app.py after the existing AB test routes
-
-# ============================================================================
-# API ROUTES - A/B TEST WINNER DETECTION
+# API ROUTES - A/B TEST ANALYTICS (ADD THESE TO YOUR app.py)
 # ============================================================================
 
 @app.route('/api/ab-tests/<int:test_id>/analyze', methods=['GET'])
@@ -1685,7 +953,7 @@ def auto_analyze_tests():
         for result in results:
             db_manager.log_activity(
                 activity_type='ab_test_winner',
-                description=f"🏆 Variant {result['winning_variant']} won with {result['confidence']*100:.1f}% confidence",
+                description=f"🏆 Variant {result['winning_variant']} won with {result['confidence']:.1f}% confidence",
                 status='success'
             )
         
@@ -1741,24 +1009,17 @@ def get_all_winners():
             'message': f'Error: {str(e)}'
         }), 500
 
-# ============================================================================
-# API ROUTES - LEAD TIMELINE
-# ============================================================================
-
-@app.route('/api/leads/<int:lead_id>/timeline', methods=['GET'])
-def get_lead_timeline(lead_id):
-    """Get complete activity timeline for a lead"""
+@app.route('/api/ab-tests/<int:test_id>/comparison', methods=['GET'])
+def get_variant_comparison(test_id):
+    """Get detailed comparison of all variants"""
     try:
-        from backend.ai_engine.lead_timeline import timeline_manager
+        from backend.ai_engine.ab_test_analyzer import ab_analyzer
         
-        timeline = timeline_manager.get_timeline(lead_id)
-        summary = timeline_manager.get_summary(lead_id)
+        comparison = ab_analyzer.compare_variants(test_id)
         
         return jsonify({
             'success': True,
-            'lead_id': lead_id,
-            'timeline': timeline,
-            'summary': summary
+            'comparison': comparison
         })
         
     except Exception as e:
@@ -1766,467 +1027,6 @@ def get_lead_timeline(lead_id):
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
-
-@app.route('/api/leads/<int:lead_id>/summary', methods=['GET'])
-def get_lead_summary(lead_id):
-    """Get summary stats for a lead"""
-    try:
-        from backend.ai_engine.lead_timeline import timeline_manager
-        
-        # Get lead details
-        conn = sqlite3.connect('data/database.db')
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT 
-                l.*,
-                p.name as persona_name
-            FROM leads l
-            LEFT JOIN personas p ON l.persona_id = p.id
-            WHERE l.id = ?
-        """, (lead_id,))
-        
-        lead = cursor.fetchone()
-        conn.close()
-        
-        if not lead:
-            return jsonify({
-                'success': False,
-                'message': 'Lead not found'
-            }), 404
-        
-        # Get timeline summary
-        timeline_summary = timeline_manager.get_summary(lead_id)
-        
-        # Combine data
-        lead_data = dict(lead)
-        lead_data['timeline_summary'] = timeline_summary
-        
-        return jsonify({
-            'success': True,
-            'lead': lead_data
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-    # Add this endpoint to backend/app.py after the /api/leads route
-
-@app.route('/api/leads/<int:lead_id>', methods=['GET'])
-def get_lead(lead_id):
-    """Get a single lead by ID with timeline data"""
-    try:
-        import sqlite3
-        
-        conn = sqlite3.connect('data/database.db')
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        
-        # Get lead details
-        cursor.execute("""
-            SELECT 
-                l.*,
-                p.name as persona_name
-            FROM leads l
-            LEFT JOIN personas p ON l.persona_id = p.id
-            WHERE l.id = ?
-        """, (lead_id,))
-        
-        row = cursor.fetchone()
-        
-        if not row:
-            conn.close()
-            return jsonify({
-                'success': False,
-                'message': 'Lead not found'
-            }), 404
-        
-        lead = dict(row)
-        
-        # Get timeline/activity data for this lead
-        cursor.execute("""
-            SELECT 
-                'Message Sent' as action,
-                created_at as date,
-                'Sent ' || variant || ' variant message' as details
-            FROM messages
-            WHERE lead_id = ?
-            ORDER BY created_at DESC
-        """, (lead_id,))
-        
-        timeline = []
-        for row in cursor.fetchall():
-            timeline.append({
-                'action': row[0],
-                'date': row[1],
-                'details': row[2]
-            })
-        
-        # Add lead creation event
-        if lead.get('created_at'):
-            timeline.append({
-                'action': 'Lead Created',
-                'date': lead['created_at'],
-                'details': f'Added to database with AI score {lead.get("ai_score", 0)}/100'
-            })
-        
-        # Sort timeline by date descending
-        timeline.sort(key=lambda x: x['date'], reverse=True)
-        
-        lead['timeline'] = timeline
-        
-        conn.close()
-        
-        return jsonify({
-            'success': True,
-            'lead': lead
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-# ============================================================================
-# API ROUTES - SALES NAVIGATOR
-# ============================================================================
-
-@app.route('/api/sales-nav/config', methods=['GET'])
-def get_sales_nav_config():
-    """Get Sales Navigator configuration"""
-    try:
-        import sqlite3
-        
-        conn = sqlite3.connect('data/database.db')
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT * FROM sales_nav_config WHERE id = 1")
-        row = cursor.fetchone()
-        config = dict(row) if row else None
-        
-        conn.close()
-        
-        return jsonify({
-            'success': True,
-            'config': config
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': str(e)
-        }), 500
-
-@app.route('/api/sales-nav/intent-signals/<int:lead_id>', methods=['GET'])
-def get_intent_signals(lead_id):
-    """Get buyer intent signals for a lead"""
-    try:
-        import sqlite3
-        
-        conn = sqlite3.connect('data/database.db')
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT * FROM buyer_intent_signals
-            WHERE lead_id = ?
-            ORDER BY signal_date DESC
-            LIMIT 10
-        """, (lead_id,))
-        
-        signals = [dict(row) for row in cursor.fetchall()]
-        conn.close()
-        
-        return jsonify({
-            'success': True,
-            'signals': signals
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': str(e)
-        }), 500
-
-@app.route('/api/sales-nav/inmail/credits', methods=['GET'])
-def get_inmail_credits():
-    """Get InMail credits status"""
-    try:
-        import sqlite3
-        
-        conn = sqlite3.connect('data/database.db')
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT * FROM sales_nav_config WHERE id = 1")
-        row = cursor.fetchone()
-        config = dict(row) if row else None
-        
-        conn.close()
-        
-        if not config:
-            return jsonify({
-                'success': False,
-                'message': 'Sales Navigator not configured'
-            }), 404
-        
-        return jsonify({
-            'success': True,
-            'credits': {
-                'remaining': config['inmail_credits_remaining'],
-                'total': config['inmail_credits_total'],
-                'reset_date': config['credits_reset_date']
-            }
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': str(e)
-        }), 500
-
-@app.route('/api/sales-nav/saved-searches', methods=['GET'])
-def get_saved_searches():
-    """Get all saved searches"""
-    try:
-        import sqlite3
-        
-        conn = sqlite3.connect('data/database.db')
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT * FROM saved_searches
-            ORDER BY created_at DESC
-        """)
-        
-        searches = [dict(row) for row in cursor.fetchall()]
-        conn.close()
-        
-        return jsonify({
-            'success': True,
-            'searches': searches
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': str(e)
-        }), 500
-
-@app.route('/api/sales-nav/lead-lists', methods=['GET'])
-def get_lead_lists():
-    """Get all lead lists"""
-    try:
-        import sqlite3
-        
-        conn = sqlite3.connect('data/database.db')
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT * FROM lead_lists
-            ORDER BY created_at DESC
-        """)
-        
-        lists = [dict(row) for row in cursor.fetchall()]
-        conn.close()
-        
-        return jsonify({
-            'success': True,
-            'lists': lists
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': str(e)
-        }), 500
-@app.route('/api/stats/overview', methods=['GET'])
-def get_stats_overview():
-    """Get overview statistics - FIXED VERSION"""
-    try:
-        # Use db_manager methods which properly handle the database schema
-        stats = db_manager.get_dashboard_stats()
-        
-        # Calculate reply rate
-        if stats.get('messages_sent', 0) > 0:
-            stats['reply_rate'] = round(
-                (stats.get('replies_received', 0) / stats['messages_sent']) * 100, 
-                1
-            )
-        else:
-            stats['reply_rate'] = 0.0
-        
-        return jsonify({
-            'success': True,
-            'stats': {
-                'total_leads': stats.get('total_leads', 0),
-                'qualified_leads': stats.get('qualified_leads', 0),
-                'messages_sent': stats.get('messages_sent', 0),
-                'reply_rate': stats.get('reply_rate', 0.0)
-            }
-        })
-    except Exception as e:
-        import traceback
-        print(f"Error in get_stats_overview: {str(e)}")
-        print(traceback.format_exc())
-        return jsonify({
-            'success': False, 
-            'error': str(e)
-        }), 500
-@app.route('/api/settings', methods=['GET'])
-def get_settings():
-    """Get current settings (masked passwords)"""
-    try:
-        settings = credentials_manager.get_all_credentials()
-        
-        # Mask sensitive data
-        if settings.get('linkedin_password'):
-            settings['linkedin_password'] = '••••••••'
-        if settings.get('openai_api_key'):
-            settings['openai_api_key'] = '••••••••'
-        
-        # Add other settings from config
-        settings['max_leads'] = Config.MAX_LEADS_PER_SESSION
-        settings['scrape_delay'] = Config.SCRAPE_DELAY_MIN
-        settings['sales_nav_enabled'] = Config.SALES_NAVIGATOR_ENABLED
-        settings['headless_mode'] = False
-        settings['messages_per_hour'] = Config.MESSAGES_PER_HOUR
-        settings['connection_limit'] = Config.CONNECTION_REQUEST_LIMIT
-        
-        return jsonify(settings)
-        
-    except Exception as e:
-        return jsonify({
-            'error': str(e),
-            'message': 'Error loading settings'
-        }), 500
-
-
-@app.route('/api/settings/save', methods=['POST'])
-def save_settings():
-    """Save settings"""
-    try:
-        data = request.json
-        
-        # Extract credentials
-        linkedin_email = data.get('linkedin_email', '').strip()
-        linkedin_password = data.get('linkedin_password', '').strip()
-        openai_api_key = data.get('openai_api_key', '').strip()
-        
-        # Don't update if password is masked
-        if linkedin_password == '••••••••':
-            linkedin_password = None
-        if openai_api_key == '••••••••':
-            openai_api_key = None
-        
-        # Validate
-        if not linkedin_email:
-            return jsonify({
-                'success': False,
-                'message': 'LinkedIn email is required'
-            }), 400
-        
-        # Save credentials
-        credentials_manager.save_credentials(
-            linkedin_email=linkedin_email,
-            linkedin_password=linkedin_password if linkedin_password else None,
-            openai_api_key=openai_api_key if openai_api_key else None
-        )
-        
-        # TODO: Save other settings to config file or database
-        # For now, they're just validated
-        
-        db_manager.log_activity(
-            activity_type='settings_updated',
-            description='Settings saved successfully',
-            status='success'
-        )
-        
-        return jsonify({
-            'success': True,
-            'message': 'Settings saved successfully'
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error saving settings: {str(e)}'
-        }), 500
-
-
-@app.route('/api/settings/test', methods=['POST'])
-def test_settings():
-    """Test credentials"""
-    try:
-        results = {
-            'linkedin': False,
-            'openai': False,
-            'sales_nav': False
-        }
-        
-        # Test LinkedIn credentials
-        try:
-            from backend.scrapers.linkedin_scraper import LinkedInScraper
-            
-            creds = credentials_manager.get_all_credentials()
-            
-            if creds.get('linkedin_email') and creds.get('linkedin_password'):
-                # Just validate they exist for now
-                # Full test would require actually logging in
-                results['linkedin'] = True
-        except:
-            pass
-        
-        # Test OpenAI
-        try:
-            import openai
-            creds = credentials_manager.get_all_credentials()
-            
-            if creds.get('openai_api_key'):
-                openai.api_key = creds['openai_api_key']
-                # Test with a minimal request
-                response = openai.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[{"role": "user", "content": "test"}],
-                    max_tokens=5
-                )
-                results['openai'] = True
-        except Exception as e:
-            print(f"OpenAI test failed: {str(e)}")
-            results['openai'] = False
-        
-        # Check Sales Navigator (would need actual login)
-        results['sales_nav'] = Config.SALES_NAVIGATOR_ENABLED
-        
-        # Determine overall success
-        success = results['linkedin'] and results['openai']
-        
-        return jsonify({
-            'success': success,
-            'details': results,
-            'message': 'All credentials valid' if success else 'Some credentials invalid'
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error testing credentials: {str(e)}'
-        }), 500
-# ============================================================================
-# SETTINGS ROUTES - Add these to backend/app.py
-# ============================================================================
-
-"""
-INSTALLATION INSTRUCTIONS:
-1. Open backend/app.py
-2. Find where you have other @app.route definitions
-3. Add these routes after your existing routes
-4. Make sure credentials_manager is imported at the top:
-   from backend.credentials_manager import credentials_manager
-5. Save and restart Flask
-"""
-
 # ============================================================================
 # RUN APPLICATION
 # ============================================================================

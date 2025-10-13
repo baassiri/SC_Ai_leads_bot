@@ -426,6 +426,41 @@ class MessageScheduler:
         conn.close()
         
         return affected > 0
+    
+    # ===================================================================
+    # FLASK API COMPATIBILITY METHODS
+    # ===================================================================
+    
+    def start(self):
+        """Start scheduler - compatibility method for Flask API"""
+        print("✅ Advanced scheduler is always running (database-backed)")
+        return True
+    
+    def stop(self):
+        """Stop scheduler - compatibility method for Flask API"""
+        print("ℹ️ Advanced scheduler cannot be stopped (database-backed)")
+        return True
+    
+    def get_status(self) -> Dict:
+        """Get scheduler status for Flask API"""
+        stats = self.get_schedule_stats()
+        
+        return {
+            'running': True,  # Always running (DB-backed)
+            'scheduled': stats.get('scheduled', 0),
+            'sent_today': stats.get('sent_today', 0),
+            'max_per_hour': self.MAX_MESSAGES_PER_HOUR,
+            'max_per_day': self.MAX_MESSAGES_PER_DAY,
+            'next_scheduled': stats.get('next_scheduled'),
+            'total_sent': stats.get('sent', 0),
+            'total_failed': stats.get('failed', 0),
+            'in_business_hours': self._is_business_hours()
+        }
+    
+    def _is_business_hours(self) -> bool:
+        """Check if current time is in business hours"""
+        current_hour = datetime.utcnow().hour
+        return self.DEFAULT_START_HOUR <= current_hour < self.DEFAULT_END_HOUR
 
 
 # Singleton instance

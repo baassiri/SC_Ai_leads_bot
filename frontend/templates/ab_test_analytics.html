@@ -1,0 +1,353 @@
+{% extends 'base.html' %}
+
+{% block title %}AB Test Analytics - SC AI{% endblock %}
+{% block page_title %}AB Test Analytics{% endblock %}
+
+{% block extra_styles %}
+<style>
+.stat-card {
+    transition: transform 0.2s;
+}
+.stat-card:hover {
+    transform: translateY(-2px);
+}
+.winner-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    background: #27AE60;
+    color: white;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: bold;
+}
+.variant-card {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border: 2px solid transparent;
+}
+.variant-card.winner {
+    border-color: #27AE60;
+    background: #d4edda;
+}
+.test-item {
+    padding: 15px;
+    border-bottom: 1px solid #e5e7eb;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.test-item:hover {
+    background: #f8f9fa;
+}
+.test-status {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: bold;
+}
+.test-status.active {
+    background: rgba(52, 152, 219, 0.2);
+    color: #3498DB;
+}
+.test-status.completed {
+    background: rgba(39, 174, 96, 0.2);
+    color: #27AE60;
+}
+.insight-item {
+    padding: 12px;
+    background: #f8f9fa;
+    border-left: 4px solid #3498DB;
+    margin: 10px 0;
+    border-radius: 4px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Quick Actions Bar -->
+<div class="bg-white rounded-lg shadow p-4 mb-6">
+    <div class="flex flex-wrap gap-3">
+        <button onclick="autoAnalyzeTests()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md flex items-center">
+            <i data-feather="zap" class="w-4 h-4 mr-2"></i>
+            Auto-Analyze Active Tests
+        </button>
+        <button onclick="window.location.href='/analytics'" class="bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-md flex items-center">
+            <i data-feather="bar-chart-2" class="w-4 h-4 mr-2"></i>
+            View Main Analytics
+        </button>
+        <button onclick="window.location.href='/messages'" class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-md flex items-center">
+            <i data-feather="message-square" class="w-4 h-4 mr-2"></i>
+            View Messages
+        </button>
+    </div>
+</div>
+
+<!-- Stats Overview -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="stat-card bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-500 text-sm">Total Tests</p>
+                <h3 class="text-2xl font-bold mt-1" id="totalTests">-</h3>
+            </div>
+            <div class="bg-blue-100 p-3 rounded-full">
+                <i data-feather="activity" class="w-5 h-5 text-blue-600"></i>
+            </div>
+        </div>
+    </div>
+    
+    <div class="stat-card bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-500 text-sm">Active Tests</p>
+                <h3 class="text-2xl font-bold mt-1" id="activeTests">-</h3>
+            </div>
+            <div class="bg-yellow-100 p-3 rounded-full">
+                <i data-feather="clock" class="w-5 h-5 text-yellow-600"></i>
+            </div>
+        </div>
+    </div>
+    
+    <div class="stat-card bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-500 text-sm">Completed Tests</p>
+                <h3 class="text-2xl font-bold mt-1" id="completedTests">-</h3>
+            </div>
+            <div class="bg-green-100 p-3 rounded-full">
+                <i data-feather="check-circle" class="w-5 h-5 text-green-600"></i>
+            </div>
+        </div>
+    </div>
+    
+    <div class="stat-card bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-500 text-sm">Total Messages Tested</p>
+                <h3 class="text-2xl font-bold mt-1" id="totalMessages">-</h3>
+            </div>
+            <div class="bg-purple-100 p-3 rounded-full">
+                <i data-feather="message-circle" class="w-5 h-5 text-purple-600"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Best Practices Insights -->
+<div class="bg-white rounded-lg shadow p-6 mb-8" id="insightsSection" style="display: none;">
+    <h2 class="text-lg font-semibold text-gray-800 mb-4">💡 Best Practices & Insights</h2>
+    <div id="insightsContent"></div>
+    
+    <!-- Variant Performance Comparison -->
+    <div id="variantComparisonSection" style="display: none; margin-top: 20px;">
+        <h3 class="text-md font-semibold text-gray-800 mb-3">📊 Overall Variant Performance</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="variantComparison"></div>
+    </div>
+</div>
+
+<!-- Active Tests -->
+<div class="bg-white rounded-lg shadow mb-8">
+    <div class="px-6 py-4 border-b border-gray-200">
+        <h2 class="text-lg font-semibold text-gray-800">🔬 Active Tests</h2>
+    </div>
+    <div id="activeTestsList">
+        <div class="text-center py-8 text-gray-500">
+            <i data-feather="loader" class="w-8 h-8 mx-auto animate-spin mb-2"></i>
+            <p>Loading active tests...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Test Winners -->
+<div class="bg-white rounded-lg shadow">
+    <div class="px-6 py-4 border-b border-gray-200">
+        <h2 class="text-lg font-semibold text-gray-800">🏆 Test Winners</h2>
+    </div>
+    <div id="winnersList">
+        <div class="text-center py-8 text-gray-500">
+            <i data-feather="loader" class="w-8 h-8 mx-auto animate-spin mb-2"></i>
+            <p>Loading winners...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Help Section -->
+<div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+    <div class="flex items-start">
+        <i data-feather="info" class="w-5 h-5 text-blue-600 mr-3 mt-1"></i>
+        <div>
+            <h3 class="text-blue-900 font-semibold mb-1">How AB Testing Works</h3>
+            <ul class="text-sm text-blue-700 space-y-1">
+                <li>• Messages are automatically tested across 3 variants (A, B, C)</li>
+                <li>• System tracks reply rates and engagement for each variant</li>
+                <li>• Winners are declared when statistically significant (10%+ improvement)</li>
+                <li>• Use winning variants to improve future campaigns</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Load analytics data
+async function loadAnalytics() {
+    try {
+        // Load best practices
+        const practicesRes = await fetch('/api/ab-tests/best-practices');
+        const practicesData = await practicesRes.json();
+        
+        if (practicesData.success && practicesData.best_practices.total_completed_tests > 0) {
+            displayBestPractices(practicesData.best_practices);
+        }
+
+        // Load winners
+        const winnersRes = await fetch('/api/ab-tests/winners');
+        const winnersData = await winnersRes.json();
+        
+        if (winnersData.success) {
+            displayWinners(winnersData.winners);
+        }
+
+        // Load active tests (assuming this endpoint exists)
+        // const activeRes = await fetch('/api/ab-tests?status=active');
+        // const activeData = await activeRes.json();
+        // if (activeData.success) {
+        //     displayActiveTests(activeData.tests);
+        // }
+
+        // Update stats
+        updateStats(practicesData.best_practices, winnersData.winners);
+
+    } catch (error) {
+        console.error('Error loading analytics:', error);
+        document.getElementById('activeTestsList').innerHTML = '<p class="text-center py-4 text-red-500">Error loading data</p>';
+        document.getElementById('winnersList').innerHTML = '<p class="text-center py-4 text-red-500">Error loading data</p>';
+    }
+}
+
+function updateStats(practices, winners) {
+    const totalTests = (practices.total_completed_tests || 0);
+    document.getElementById('totalTests').textContent = totalTests;
+    document.getElementById('activeTests').textContent = '0'; // Update when you have active tests endpoint
+    document.getElementById('completedTests').textContent = practices.total_completed_tests || 0;
+    const totalMessages = (practices.total_completed_tests || 0) * 60;
+    document.getElementById('totalMessages').textContent = totalMessages;
+}
+
+function displayBestPractices(practices) {
+    const section = document.getElementById('insightsSection');
+    const content = document.getElementById('insightsContent');
+    
+    section.style.display = 'block';
+    
+    let html = '';
+    
+    // Patterns
+    if (practices.patterns && practices.patterns.length > 0) {
+        practices.patterns.forEach(pattern => {
+            html += `<div class="insight-item">📌 ${pattern}</div>`;
+        });
+    }
+    
+    // Variant performance
+    if (practices.variant_performance) {
+        const variantHTML = Object.entries(practices.variant_performance).map(([variant, data]) => {
+            return `
+                <div class="variant-card ${data.wins > 0 ? 'winner' : ''}">
+                    <h4 class="font-semibold text-lg mb-2">Variant ${variant}</h4>
+                    <div class="text-sm space-y-1">
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Wins:</span>
+                            <span class="font-bold">${data.wins}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Avg Reply Rate:</span>
+                            <span class="font-bold">${data.avg_reply_rate.toFixed(1)}%</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        const compSection = document.getElementById('variantComparisonSection');
+        compSection.style.display = 'block';
+        document.getElementById('variantComparison').innerHTML = variantHTML;
+    }
+    
+    content.innerHTML = html || '<p class="text-gray-500">No insights available yet</p>';
+}
+
+function displayWinners(winners) {
+    const container = document.getElementById('winnersList');
+    
+    if (!winners || winners.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-8 text-gray-500">
+                <div class="text-4xl mb-2">🏆</div>
+                <p>No winners declared yet</p>
+                <p class="text-sm mt-2">Start sending messages to see AB test results</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const html = winners.map(winner => {
+        return `
+            <div class="test-item border-b last:border-0">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="font-semibold text-gray-800">${winner.test_name}</span>
+                    <span class="winner-badge">Variant ${winner.winning_variant}</span>
+                </div>
+                <div class="flex gap-6 text-sm">
+                    <div>
+                        <span class="text-gray-600">Reply Rate:</span>
+                        <strong class="text-green-600 ml-1">${winner.reply_rate.toFixed(1)}%</strong>
+                    </div>
+                    <div>
+                        <span class="text-gray-600">Sent:</span>
+                        <strong class="ml-1">${winner.total_sent}</strong>
+                    </div>
+                    <div>
+                        <span class="text-gray-600">Replies:</span>
+                        <strong class="ml-1">${winner.total_replies}</strong>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = html;
+}
+
+async function autoAnalyzeTests() {
+    if (!confirm('Analyze all active tests and declare winners where statistically significant?')) return;
+    
+    try {
+        const response = await fetch('/api/ab-tests/auto-analyze', {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(`✅ ${data.message}`);
+            loadAnalytics(); // Reload data
+        } else {
+            alert('❌ ' + data.message);
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+// Load on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadAnalytics();
+    feather.replace();
+});
+
+// Refresh every 30 seconds
+setInterval(loadAnalytics, 30000);
+</script>
+{% endblock %}
