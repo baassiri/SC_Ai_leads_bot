@@ -1,10 +1,8 @@
 """
-A/B/C Message Variant Generator
-Generates 3 different message variants for testing
-ENHANCED: Full A/B test integration with automatic variant assignment
+SC AI Lead Generation System - A/B/C Message Generator
+Generates 3 message variants (A, B, C) for each lead for testing
 """
 
-import os
 import sys
 from pathlib import Path
 from typing import Dict, List
@@ -13,409 +11,290 @@ from openai import OpenAI
 sys.path.append(str(Path(__file__).parent.parent))
 
 from backend.database.db_manager import db_manager
+from backend.credentials_manager import credentials_manager
 
 
 class ABCMessageGenerator:
-    """Generate A/B/C message variants for leads with AB testing"""
+    """Generate A/B/C message variants for leads"""
     
     def __init__(self, api_key: str = None):
-        """Initialize generator with OpenAI API key"""
-        self.api_key = api_key or os.getenv('OPENAI_API_KEY')
+        self.api_key = api_key or credentials_manager.get_openai_key()
         if not self.api_key:
             raise ValueError("OpenAI API key required")
         
         self.client = OpenAI(api_key=self.api_key)
+        self.model = "gpt-4"
     
-    def generate_variants(self, lead_data: Dict, persona_data: Dict) -> Dict[str, str]:
+    def generate_variants(self, lead: Dict) -> Dict[str, str]:
         """
-        Generate 3 message variants (A, B, C) for a lead
+        Generate 3 message variants (A, B, C) for a single lead
         
         Args:
-            lead_data: Lead information (name, title, company, etc.)
-            persona_data: Target persona details
+            lead: Dict with lead information (name, title, company, persona)
             
         Returns:
-            Dict with variants: {'variant_a': str, 'variant_b': str, 'variant_c': str}
+            Dict with keys: variant_a, variant_b, variant_c
         """
         
-        prompt = self._build_prompt(lead_data, persona_data)
+        prompt = f"""You are an expert LinkedIn outreach specialist. Generate 3 DIFFERENT message variants for this lead:
+
+**Lead Information:**
+- Name: {lead.get('name', 'Professional')}
+- Title: {lead.get('title', 'Professional')}
+- Company: {lead.get('company', 'their company')}
+- Persona: {lead.get('persona_name', 'Business Professional')}
+- AI Score: {lead.get('ai_score', 'N/A')}/100
+
+**Generate 3 variants with different approaches:**
+
+**Variant A - Direct Value:**
+- Lead with specific value proposition
+- Mention their role/company directly
+- Clear call-to-action
+- Professional but warm
+- 250-300 characters max
+
+**Variant B - Curiosity/Question:**
+- Start with engaging question
+- Reference their industry/challenges
+- Create curiosity gap
+- More conversational tone
+- 250-300 characters max
+
+**Variant C - Social Proof:**
+- Reference similar clients/results
+- Use credibility indicators
+- Show expertise
+- Confidence-building
+- 250-300 characters max
+
+**CRITICAL REQUIREMENTS:**
+1. Each variant MUST be genuinely different (not just word swaps)
+2. All under 300 characters (LinkedIn connection request limit)
+3. Personalized to their role and company
+4. No generic templates
+5. Professional but human
+6. No emojis unless absolutely natural
+
+**Format your response EXACTLY like this:**
+
+VARIANT A:
+[Your variant A message here]
+
+VARIANT B:
+[Your variant B message here]
+
+VARIANT C:
+[Your variant C message here]
+"""
         
         try:
             response = self.client.chat.completions.create(
-                model="gpt-4",
+                model=self.model,
                 messages=[
-                    {"role": "system", "content": "You are an expert LinkedIn outreach specialist who creates personalized connection requests that get responses."},
+                    {"role": "system", "content": "You are an expert B2B LinkedIn outreach specialist."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.8,
-                max_tokens=500
+                temperature=0.8,  # Higher for more variety
+                max_tokens=800
             )
             
             content = response.choices[0].message.content.strip()
             variants = self._parse_variants(content)
             
+            # Validate all variants exist
+            required_keys = ['variant_a', 'variant_b', 'variant_c']
+            for key in required_keys:
+                if key not in variants or not variants[key]:
+                    print(f"⚠️ Missing {key}, using fallback")
+                    variants = self._get_fallback_variants(lead)
+                    break
+            
             return variants
             
         except Exception as e:
-            print(f"Error generating variants: {str(e)}")
-            return self._generate_fallback_variants(lead_data, persona_data)
-    
-    def _build_prompt(self, lead_data: Dict, persona_data: Dict) -> str:
-        """Build GPT-4 prompt for generating variants"""
-        
-        lead_name = lead_data.get('name', 'there')
-        lead_title = lead_data.get('title', 'Professional')
-        lead_company = lead_data.get('company', 'your company')
-        
-        persona_name = persona_data.get('name', 'Professional')
-        persona_goals = persona_data.get('goals', '')
-        persona_pain_points = persona_data.get('pain_points', '')
-        
-        prompt = f"""Generate 3 LinkedIn connection request message variants for this lead:
-
-LEAD INFO:
-- Name: {lead_name}
-- Title: {lead_title}
-- Company: {lead_company}
-
-TARGET PERSONA: {persona_name}
-- Goals: {persona_goals[:200]}
-- Pain Points: {persona_pain_points[:200]}
-
-REQUIREMENTS:
-1. Each message must be under 300 characters (LinkedIn limit)
-2. Personalized to {lead_name} and their role at {lead_company}
-3. Address their likely pain points or goals
-4. Include a clear call-to-action
-
-Generate 3 DIFFERENT variants:
-
-VARIANT A: Direct and value-focused
-- Lead with a specific benefit or insight
-- Professional but confident tone
-- Clear value proposition
-
-VARIANT B: Curiosity-driven and question-based
-- Start with an intriguing question
-- More casual and conversational tone
-- Make them curious to learn more
-
-VARIANT C: Social proof and authority
-- Mention relevant credibility or results
-- More formal and authoritative tone
-- Establish expertise
-
-FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
-
-VARIANT_A:
-[Your message here]
-
-VARIANT_B:
-[Your message here]
-
-VARIANT_C:
-[Your message here]"""
-
-        return prompt
+            print(f"❌ Error generating variants: {str(e)}")
+            return self._get_fallback_variants(lead)
     
     def _parse_variants(self, content: str) -> Dict[str, str]:
-        """Parse GPT-4 response into A/B/C variants"""
+        """Parse GPT-4 response into variant dictionary"""
         
-        variants = {
-            'variant_a': '',
-            'variant_b': '',
-            'variant_c': ''
-        }
+        variants = {}
+        lines = content.split('\n')
+        current_variant = None
+        current_message = []
         
-        try:
-            parts = content.split('VARIANT_')
+        for line in lines:
+            line = line.strip()
             
-            for part in parts:
-                if part.startswith('A:'):
-                    variants['variant_a'] = part.replace('A:', '').strip()
-                elif part.startswith('B:'):
-                    variants['variant_b'] = part.replace('B:', '').strip()
-                elif part.startswith('C:'):
-                    variants['variant_c'] = part.replace('C:', '').strip()
+            if line.startswith('VARIANT A'):
+                if current_variant and current_message:
+                    variants[current_variant] = ' '.join(current_message).strip()
+                current_variant = 'variant_a'
+                current_message = []
+                # Check if message is on same line
+                if ':' in line:
+                    message_part = line.split(':', 1)[1].strip()
+                    if message_part:
+                        current_message.append(message_part)
             
-            if not all(variants.values()):
-                raise ValueError("Missing variants in response")
+            elif line.startswith('VARIANT B'):
+                if current_variant and current_message:
+                    variants[current_variant] = ' '.join(current_message).strip()
+                current_variant = 'variant_b'
+                current_message = []
+                if ':' in line:
+                    message_part = line.split(':', 1)[1].strip()
+                    if message_part:
+                        current_message.append(message_part)
             
-            return variants
+            elif line.startswith('VARIANT C'):
+                if current_variant and current_message:
+                    variants[current_variant] = ' '.join(current_message).strip()
+                current_variant = 'variant_c'
+                current_message = []
+                if ':' in line:
+                    message_part = line.split(':', 1)[1].strip()
+                    if message_part:
+                        current_message.append(message_part)
             
-        except Exception as e:
-            print(f"Error parsing variants: {str(e)}")
-            print(f"Raw content: {content}")
-            raise
-    
-    def _generate_fallback_variants(self, lead_data: Dict, persona_data: Dict) -> Dict[str, str]:
-        """Generate simple template-based variants as fallback"""
+            elif current_variant and line:
+                # Skip lines that are just formatting
+                if not line.startswith('**') and not line.startswith('---'):
+                    current_message.append(line)
         
-        name = lead_data.get('name', 'there').split()[0]
-        title = lead_data.get('title', 'professional')
-        company = lead_data.get('company', 'your company')
+        # Add last variant
+        if current_variant and current_message:
+            variants[current_variant] = ' '.join(current_message).strip()
         
-        variants = {
-            'variant_a': f"Hi {name}, I help {title}s at companies like {company} achieve their goals. Would love to connect and share insights that could help you.",
-            
-            'variant_b': f"Hi {name}, quick question - what's your biggest challenge as a {title} at {company} right now? I might have some helpful insights to share.",
-            
-            'variant_c': f"Hi {name}, I specialize in helping {title}s like you at {company}. I've helped similar professionals achieve great results. Let's connect!"
-        }
+        # Clean up variants (remove extra quotes, trim)
+        for key in variants:
+            variants[key] = variants[key].strip('"\'').strip()
+            # Enforce character limit
+            if len(variants[key]) > 300:
+                variants[key] = variants[key][:297] + "..."
         
         return variants
     
-    def generate_for_lead(self, lead_id: int, test_id: int = None, save_to_db: bool = True) -> Dict:
-        """
-        Generate A/B/C variants for a specific lead and optionally save to database
+    def _get_fallback_variants(self, lead: Dict) -> Dict[str, str]:
+        """Fallback variants if API fails"""
         
-        Args:
-            lead_id: Lead ID from database
-            test_id: Optional AB test ID to link messages to
-            save_to_db: Whether to save messages to database
-            
-        Returns:
-            Dict with variants and metadata
-        """
-        
-        lead = db_manager.get_lead_by_id(lead_id)
-        if not lead:
-            raise ValueError(f"Lead {lead_id} not found")
-        
-        persona_id = lead.get('persona_id')
-        persona = db_manager.get_persona_by_id(persona_id) if persona_id else {}
-        
-        print(f"Generating A/B/C variants for: {lead.get('name')}")
-        variants = self.generate_variants(lead, persona)
-        
-        if save_to_db:
-            saved_ids = []
-            
-            for variant_letter, content in [
-                ('A', variants['variant_a']),
-                ('B', variants['variant_b']),
-                ('C', variants['variant_c'])
-            ]:
-                # Create message with AB test link
-                message_id = db_manager.create_message(
-                    lead_id=lead_id,
-                    message_type='connection_request',
-                    content=content,
-                    variant=variant_letter,
-                    generated_by='gpt-4',
-                    status='draft'
-                )
-                
-                # Link to AB test if provided
-                if test_id and message_id:
-                    with db_manager.session_scope() as session:
-                        from backend.database.models import Message
-                        message = session.query(Message).filter(Message.id == message_id).first()
-                        if message:
-                            message.ab_test_id = test_id
-                
-                saved_ids.append(message_id)
-            
-            print(f"✅ Saved 3 variants to database (IDs: {saved_ids})")
-            
-            if test_id:
-                print(f"🔗 Linked to AB Test ID: {test_id}")
-            
-            return {
-                'success': True,
-                'lead_id': lead_id,
-                'lead_name': lead.get('name'),
-                'variants': variants,
-                'message_ids': saved_ids,
-                'test_id': test_id
-            }
+        name = lead.get('name', 'there')
+        title = lead.get('title', 'your role')
+        company = lead.get('company', 'your company')
         
         return {
-            'success': True,
-            'lead_id': lead_id,
-            'lead_name': lead.get('name'),
-            'variants': variants
+            'variant_a': f"Hi {name}, I help {title}s at companies like {company} streamline their lead generation. Would love to connect and share some insights that could be valuable.",
+            'variant_b': f"Hi {name}, curious - how are you currently handling lead generation at {company}? I work with {title}s to automate their outreach and would love to exchange ideas.",
+            'variant_c': f"Hi {name}, we've helped several {title}s increase their qualified leads by 300%+. Given your work at {company}, thought you might find our approach interesting. Connect?"
         }
     
-    def batch_generate(self, lead_ids: List[int], max_leads: int = 20, 
-                      test_name: str = None, campaign_id: int = None,
-                      create_ab_test: bool = True) -> Dict:
+    def batch_generate(self, lead_ids: List[int], max_leads: int = 20) -> Dict:
         """
-        Generate A/B/C message variants for multiple leads
-        Automatically creates an A/B test and assigns variants
+        Generate A/B/C variants for multiple leads
         
         Args:
-            lead_ids: List of lead IDs
+            lead_ids: List of lead IDs to generate messages for
             max_leads: Maximum number of leads to process
-            test_name: Name for the AB test
-            campaign_id: Optional campaign ID
-            create_ab_test: Whether to create an AB test
             
         Returns:
-            Dict with results and AB test info
+            Dict with results summary
         """
-        from datetime import datetime
+        
+        results = {
+            'successful': 0,
+            'failed': 0,
+            'messages_created': 0,
+            'lead_ids_processed': []
+        }
         
         # Limit to max_leads
         lead_ids = lead_ids[:max_leads]
         
-        test_id = None
-        if create_ab_test:
-            if not test_name:
-                test_name = f"Campaign_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            
-            # Create A/B test
-            test_id = db_manager.create_ab_test(
-                test_name=test_name,
-                campaign_id=campaign_id,
-                min_sends=min(20, len(lead_ids))
-            )
-            
-            print(f"🧪 Created A/B Test: {test_name} (ID: {test_id})")
+        print(f"\n🎨 Generating A/B/C messages for {len(lead_ids)} leads...")
         
-        successful = 0
-        failed = 0
-        messages_created = 0
-        
-        for lead_id in lead_ids:
+        for i, lead_id in enumerate(lead_ids, 1):
             try:
+                # Get lead data
                 lead = db_manager.get_lead_by_id(lead_id)
+                
                 if not lead:
-                    print(f"⚠️ Lead {lead_id} not found")
-                    failed += 1
+                    print(f"❌ [{i}/{len(lead_ids)}] Lead {lead_id} not found")
+                    results['failed'] += 1
                     continue
                 
-                persona = None
-                if lead.get('persona_id'):
-                    persona = db_manager.get_persona_by_id(lead['persona_id'])
+                print(f"\n📝 [{i}/{len(lead_ids)}] {lead['name']} ({lead['company']})")
                 
-                # Generate 3 variants
-                variants = self.generate_variants(lead, persona)
+                # Check if messages already exist
+                existing = db_manager.get_messages_by_lead(lead_id)
+                if existing:
+                    print(f"   ⚠️ Messages already exist, skipping...")
+                    results['failed'] += 1
+                    continue
                 
-                # Save all 3 variants with A/B test assignment
-                for variant_letter in ['A', 'B', 'C']:
-                    variant_key = f'variant_{variant_letter.lower()}'
+                # Generate variants
+                variants = self.generate_variants(lead)
+                
+                # Save to database
+                for variant_key, content in variants.items():
+                    variant_letter = variant_key.split('_')[1].upper()  # 'variant_a' -> 'A'
                     
                     message_id = db_manager.create_message(
                         lead_id=lead_id,
                         message_type='connection_request',
-                        content=variants[variant_key],
-                        campaign_id=campaign_id,
+                        content=content,
                         variant=variant_letter,
-                        status='draft',
-                        generated_by='gpt-4'
+                        generated_by='gpt-4',
+                        prompt_used=f"ABC variant {variant_letter}",
+                        status='draft'
                     )
                     
-                    # Link to AB test
-                    if test_id and message_id:
-                        with db_manager.session_scope() as session:
-                            from backend.database.models import Message
-                            message = session.query(Message).filter(Message.id == message_id).first()
-                            if message:
-                                message.ab_test_id = test_id
-                    
                     if message_id:
-                        messages_created += 1
+                        results['messages_created'] += 1
+                        print(f"   ✅ Variant {variant_letter}: {content[:60]}...")
                 
-                successful += 1
-                print(f"  ✅ Generated 3 variants for {lead['name']}")
+                results['successful'] += 1
+                results['lead_ids_processed'].append(lead_id)
                 
             except Exception as e:
-                print(f"  ❌ Failed for lead {lead_id}: {str(e)}")
-                failed += 1
+                print(f"❌ Error processing lead {lead_id}: {str(e)}")
+                results['failed'] += 1
         
-        print(f"\n✅ Generated {messages_created} total messages")
-        print(f"   Success: {successful} leads | Failed: {failed} leads")
+        print(f"\n✅ Complete: {results['successful']} leads, {results['messages_created']} messages created")
         
-        result = {
-            'test_id': test_id,
-            'test_name': test_name,
-            'total_leads': len(lead_ids),
-            'successful': successful,
-            'failed': failed,
-            'messages_created': messages_created
-        }
-        
-        if test_id:
-            result['test_url'] = f'http://localhost:5000/api/ab-tests/{test_id}'
-        
-        return result
+        return results
 
 
-if __name__ == '__main__':
-    import argparse
+# Quick test function
+def test_generator():
+    """Test the ABC message generator"""
     
-    parser = argparse.ArgumentParser(description='Generate A/B/C Message Variants')
-    parser.add_argument('--lead-id', type=int, help='Generate for specific lead ID')
-    parser.add_argument('--top', type=int, default=20, help='Generate for top N leads')
-    parser.add_argument('--test', action='store_true', help='Test with first lead')
-    parser.add_argument('--test-name', type=str, help='AB test name')
-    parser.add_argument('--no-ab-test', action='store_true', help='Skip AB test creation')
+    print("\n" + "="*60)
+    print("🧪 ABC MESSAGE GENERATOR TEST")
+    print("="*60)
     
-    args = parser.parse_args()
+    # Get a sample lead
+    leads = db_manager.get_all_leads(min_score=70, limit=1)
     
-    api_key = os.getenv('OPENAI_API_KEY')
-    if not api_key:
-        print("❌ Error: OPENAI_API_KEY not set")
-        sys.exit(1)
+    if not leads:
+        print("❌ No leads found to test with")
+        return
     
-    generator = ABCMessageGenerator(api_key=api_key)
+    lead = leads[0]
     
-    if args.test:
-        leads = db_manager.get_all_leads(limit=1)
-        if leads:
-            # Create test AB test
-            test_id = db_manager.create_ab_test("CLI_Test") if not args.no_ab_test else None
-            
-            result = generator.generate_for_lead(
-                leads[0]['id'], 
-                test_id=test_id,
-                save_to_db=True
-            )
-            print(f"\n✅ Generated variants for: {result['lead_name']}")
-            print(f"\nVARIANT A:\n{result['variants']['variant_a']}\n")
-            print(f"VARIANT B:\n{result['variants']['variant_b']}\n")
-            print(f"VARIANT C:\n{result['variants']['variant_c']}\n")
-            
-            if test_id:
-                print(f"🧪 AB Test ID: {test_id}")
-        else:
-            print("❌ No leads found in database")
+    print(f"\nTest Lead: {lead['name']}")
+    print(f"Title: {lead['title']}")
+    print(f"Company: {lead['company']}")
     
-    elif args.lead_id:
-        test_id = None
-        if not args.no_ab_test:
-            test_id = db_manager.create_ab_test(
-                args.test_name or f"Single_Lead_{args.lead_id}"
-            )
-        
-        result = generator.generate_for_lead(
-            args.lead_id, 
-            test_id=test_id,
-            save_to_db=True
-        )
-        print(f"\n✅ Generated variants for: {result['lead_name']}")
+    generator = ABCMessageGenerator()
+    variants = generator.generate_variants(lead)
     
-    else:
-        leads = db_manager.get_all_leads(min_score=70, limit=args.top)
-        lead_ids = [lead['id'] for lead in leads]
-        
-        if not lead_ids:
-            print("❌ No qualified leads found (score >= 70)")
-            sys.exit(1)
-        
-        print(f"🚀 Generating A/B/C variants for top {len(lead_ids)} leads...")
-        results = generator.batch_generate(
-            lead_ids,
-            test_name=args.test_name,
-            create_ab_test=not args.no_ab_test
-        )
-        
-        print(f"\n📊 RESULTS:")
-        print(f"  ✅ Successful: {results['successful']}")
-        print(f"  ❌ Failed: {results['failed']}")
-        print(f"  💬 Messages created: {results['messages_created']}")
-        
-        if results.get('test_id'):
-            print(f"  🧪 AB Test ID: {results['test_id']}")
-            print(f"  🔗 View results: {results['test_url']}")
+    print("\n📝 Generated Variants:")
+    for key, message in variants.items():
+        print(f"\n{key.upper().replace('_', ' ')}:")
+        print(f"  {message}")
+        print(f"  ({len(message)} chars)")
+
+
+if __name__ == "__main__":
+    test_generator()
