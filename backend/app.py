@@ -1404,6 +1404,271 @@ def get_ab_test_stats():
         }), 500
 
 # ============================================================================
+# API ROUTES - SALES NAVIGATOR
+# ============================================================================
+
+@app.route('/api/sales-nav/config', methods=['GET'])
+def get_sales_nav_config():
+    """Get Sales Navigator configuration"""
+    try:
+        import sqlite3
+        
+        conn = sqlite3.connect('data/database.db')
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT * FROM sales_nav_config WHERE id = 1")
+        row = cursor.fetchone()
+        config = dict(row) if row else None
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'config': config
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+@app.route('/api/sales-nav/config', methods=['POST'])
+def update_sales_nav_config():
+    """Update Sales Navigator configuration"""
+    try:
+        import sqlite3
+        
+        data = request.json
+        
+        conn = sqlite3.connect('data/database.db')
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            UPDATE sales_nav_config
+            SET enabled = ?,
+                plan_type = ?,
+                updated_at = ?
+            WHERE id = 1
+        """, (
+            data.get('enabled', False),
+            data.get('plan_type', 'core'),
+            datetime.utcnow()
+        ))
+        
+        conn.commit()
+        conn.close()
+        
+        db_manager.log_activity(
+            activity_type='sales_nav_updated',
+            description=f'Sales Navigator {"enabled" if data.get("enabled") else "disabled"}',
+            status='success'
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': 'Sales Navigator configuration updated'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+@app.route('/api/sales-nav/intent-signals/<int:lead_id>', methods=['GET'])
+def get_intent_signals(lead_id):
+    """Get buyer intent signals for a lead"""
+    try:
+        import sqlite3
+        
+        conn = sqlite3.connect('data/database.db')
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT * FROM buyer_intent_signals
+            WHERE lead_id = ?
+            ORDER BY signal_date DESC
+            LIMIT 10
+        """, (lead_id,))
+        
+        signals = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'signals': signals
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+@app.route('/api/sales-nav/inmail/credits', methods=['GET'])
+def get_inmail_credits():
+    """Get InMail credits status"""
+    try:
+        import sqlite3
+        
+        conn = sqlite3.connect('data/database.db')
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT * FROM sales_nav_config WHERE id = 1")
+        row = cursor.fetchone()
+        config = dict(row) if row else None
+        
+        conn.close()
+        
+        if not config:
+            return jsonify({
+                'success': False,
+                'message': 'Sales Navigator not configured'
+            }), 404
+        
+        return jsonify({
+            'success': True,
+            'credits': {
+                'remaining': config['inmail_credits_remaining'],
+                'total': config['inmail_credits_total'],
+                'reset_date': config['credits_reset_date']
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+@app.route('/api/sales-nav/saved-searches', methods=['GET'])
+def get_saved_searches():
+    """Get all saved searches"""
+    try:
+        import sqlite3
+        
+        conn = sqlite3.connect('data/database.db')
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT * FROM saved_searches
+            ORDER BY created_at DESC
+        """)
+        
+        searches = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'searches': searches
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+@app.route('/api/sales-nav/saved-searches', methods=['POST'])
+def create_saved_search():
+    """Create a new saved search"""
+    try:
+        import sqlite3
+        import json
+        
+        data = request.json
+        
+        conn = sqlite3.connect('data/database.db')
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            INSERT INTO saved_searches (name, filters, alert_enabled, alert_frequency)
+            VALUES (?, ?, ?, ?)
+        """, (
+            data.get('name'),
+            json.dumps(data.get('filters', {})),
+            data.get('alert_enabled', True),
+            data.get('alert_frequency', 'daily')
+        ))
+        
+        search_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'search_id': search_id,
+            'message': 'Saved search created'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+@app.route('/api/sales-nav/lead-lists', methods=['GET'])
+def get_lead_lists():
+    """Get all lead lists"""
+    try:
+        import sqlite3
+        
+        conn = sqlite3.connect('data/database.db')
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT * FROM lead_lists
+            ORDER BY created_at DESC
+        """)
+        
+        lists = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'lists': lists
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+@app.route('/api/sales-nav/lead-lists', methods=['POST'])
+def create_lead_list():
+    """Create a new lead list"""
+    try:
+        import sqlite3
+        
+        data = request.json
+        
+        conn = sqlite3.connect('data/database.db')
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            INSERT INTO lead_lists (name, description)
+            VALUES (?, ?)
+        """, (
+            data.get('name'),
+            data.get('description', '')
+        ))
+        
+        list_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'list_id': list_id,
+            'message': 'Lead list created'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+# ============================================================================
 # RUN APPLICATION
 # ============================================================================
 
