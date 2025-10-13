@@ -443,8 +443,31 @@ async function deleteMessage(messageId) {
  * Send a message (placeholder - requires LinkedIn automation)
  */
 async function sendMessage(messageId) {
-    showNotification('LinkedIn message sending coming soon!', 'info');
-    // TODO: Implement actual LinkedIn sending
+    // Confirm before sending
+    if (!confirm('This will open LinkedIn and send this message. Continue?')) {
+        return;
+    }
+    
+    try {
+        showNotification('Opening LinkedIn...', 'info');
+        
+        const response = await fetch(`/api/messages/${messageId}/send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('✅ Message sent successfully!', 'success');
+            loadMessages(currentFilter);
+        } else {
+            showNotification(`❌ ${data.message}`, 'error');
+        }
+    } catch (error) {
+        console.error('Error sending message:', error);
+        showNotification('Error sending message', 'error');
+    }
 }
 
 /**

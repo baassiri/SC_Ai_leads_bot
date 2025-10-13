@@ -1,6 +1,7 @@
 """
 SC AI Lead Generation System - LinkedIn Sales Navigator Scraper
 Selenium-based automation for scraping leads from LinkedIn
+FIXED VERSION - Complete implementation
 """
 
 import time
@@ -29,7 +30,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 # Now import backend modules
 try:
     from backend.config import Config
-    from SC_Ai_leads_bot.backend.utils.csv_handler import csv_handler
+    from backend.utils.csv_handler import csv_handler
     from backend.database.db_manager import db_manager
     USE_DATABASE = True
 except ImportError:
@@ -72,7 +73,7 @@ except ImportError:
 class LinkedInScraper:
     """LinkedIn Sales Navigator scraper using Selenium"""
     
-    def __init__(self, email: str, password: str, headless: bool = False, sales_nav_preference: bool = False):  # ← ADD PARAMETER
+    def __init__(self, email: str, password: str, headless: bool = False, sales_nav_preference: bool = False):
         """
         Initialize LinkedIn scraper
         
@@ -80,12 +81,12 @@ class LinkedInScraper:
             email: LinkedIn email/username
             password: LinkedIn password
             headless: Run browser in headless mode (invisible)
-            sales_nav_preference: User's preference for using Sales Navigator  # ← ADD THIS
+            sales_nav_preference: User's preference for using Sales Navigator
         """
         self.email = email
         self.password = password
         self.headless = headless
-        self.sales_nav_preference = sales_nav_preference  # ← ADD THIS LINE
+        self.sales_nav_preference = sales_nav_preference
         self.driver = None
         self.wait = None
         
@@ -95,7 +96,7 @@ class LinkedInScraper:
             'errors': 0,
             'start_time': None,
             'end_time': None,
-            'using_sales_nav': False  # ← ADD THIS LINE
+            'using_sales_nav': False
         }
         
     def setup_driver(self):
@@ -125,7 +126,6 @@ class LinkedInScraper:
         except Exception as e:
             print(f"❌ Error setting up Chrome driver: {str(e)}")
             print("\n💡 Trying alternative setup...")
-            # Try without service (older selenium versions)
             self.driver = webdriver.Chrome(options=chrome_options)
         
         self.wait = WebDriverWait(self.driver, 20)
@@ -209,176 +209,141 @@ class LinkedInScraper:
                 )
             return False
     
-    def navigate_to_sales_navigator(self) -> bool:
+    def search_with_keywords(self, keywords: str, use_sales_nav: bool = True) -> bool:
         """
-        Navigate to LinkedIn Sales Navigator (respects user preference)
+        Search LinkedIn for REAL people using keywords
+        
+        Args:
+            keywords: Search terms (e.g., "plastic surgeon dermatologist")
+            use_sales_nav: Try Sales Navigator first, fallback to regular LinkedIn
         
         Returns:
-            bool: True if navigation successful
+            bool: Success status
         """
         try:
-            # ← ADD THIS CHECK
-            # Check user preference first
-            if not self.sales_nav_preference:
-                print("\n📋 User preference: Regular LinkedIn search")
-                print("   ℹ️  Sales Navigator is disabled in settings")
-                self.stats['using_sales_nav'] = False
-                return False
-            # ← END OF NEW CHECK
+            # Try Sales Navigator first if enabled
+            if use_sales_nav and self.sales_nav_preference:
+                print("\n🔍 Attempting Sales Navigator search...")
+                
+                # Build Sales Nav URL with keywords
+                sales_nav_url = f"https://www.linkedin.com/sales/search/people?keywords={keywords}"
+                self.driver.get(sales_nav_url)
+                self.human_delay(3, 5)
+                
+                # Check if we're on Sales Navigator
+                if 'sales' in self.driver.current_url:
+                    print("✅ Using Sales Navigator!")
+                    self.stats['using_sales_nav'] = True
+                    return True
+                else:
+                    print("⚠️ Sales Navigator not available, falling back...")
             
-            print("\n🧭 Attempting to use Sales Navigator (user has it enabled)...")  # ← CHANGE MESSAGE
+            # Fallback to regular LinkedIn search
+            print("\n🔍 Using regular LinkedIn People Search...")
             
-            # Go to Sales Navigator
-            self.driver.get('https://www.linkedin.com/sales/home')
+            # Build regular LinkedIn people search URL
+            regular_url = f"https://www.linkedin.com/search/results/people/?keywords={keywords}"
+            self.driver.get(regular_url)
             self.human_delay(3, 5)
             
-            if 'sales' in self.driver.current_url:
-                print("✅ Successfully navigated to Sales Navigator!")
-                self.stats['using_sales_nav'] = True  # ← ADD THIS LINE
-                if USE_DATABASE:  # ← ADD THIS BLOCK
-                    db_manager.log_activity(
-                        activity_type='navigation',
-                        description='Using LinkedIn Sales Navigator for search',
-                        status='success'
-                    )
+            # Verify we're on search results
+            if 'search/results/people' in self.driver.current_url:
+                print("✅ Regular LinkedIn search loaded!")
+                self.stats['using_sales_nav'] = False
                 return True
             else:
-                print("⚠️ Sales Navigator not accessible")
-                print("   → Falling back to regular LinkedIn search...")
-                self.stats['using_sales_nav'] = False  # ← ADD THIS LINE
-                if USE_DATABASE:  # ← ADD THIS BLOCK
-                    db_manager.log_activity(
-                        activity_type='navigation',
-                        description='Sales Navigator unavailable, using regular LinkedIn',
-                        status='warning'
-                    )
+                print("❌ Search failed!")
                 return False
                 
         except Exception as e:
-            print(f"⚠️ Error accessing Sales Navigator: {str(e)}")
-            print("   → Will use regular LinkedIn search...")
-            self.stats['using_sales_nav'] = False  # ← ADD THIS LINE
+            print(f"❌ Error during search: {str(e)}")
             return False
-    
-    def search_regular_linkedin(self, keywords: str):
-        """Use regular LinkedIn search as fallback"""
-        try:
-            print("\n🔍 Using regular LinkedIn search...")
-            
-            # Navigate to people search
-            search_url = f'https://www.linkedin.com/search/results/people/?keywords={keywords}'
-            self.driver.get(search_url)
-            self.human_delay(3, 5)
-            
-            print(f"  ✅ Searching for: {keywords}")
-            
-            if USE_DATABASE:
-                db_manager.log_activity(
-                    activity_type='search',
-                    description=f'Applied search filters: {keywords}',
-                    status='success'
-                )
-            
-        except Exception as e:
-            print(f"⚠️ Error in regular search: {str(e)}")
-    
-    def apply_search_filters(self, filters: Dict[str, any]):
-        """
-        Apply search filters in Sales Navigator or LinkedIn
-        
-        Args:
-            filters: Dictionary of search filters
-        """
-        print("\n🔍 Applying search filters...")
-        
-        try:
-            keywords = filters.get('keywords', '')
-            
-            # Try Sales Navigator first
-            if 'sales' in self.driver.current_url:
-                # Sales Navigator search
-                search_url = f'https://www.linkedin.com/sales/search/people?keywords={keywords}'
-                self.driver.get(search_url)
-                self.human_delay(3, 5)
-            else:
-                # Regular LinkedIn search
-                self.search_regular_linkedin(keywords)
-            
-            print(f"  ✅ Applied search: {keywords}")
-            
-        except Exception as e:
-            print(f"⚠️ Error applying filters: {str(e)}")
-    
+
     def scrape_lead_from_card(self, card_element) -> Optional[Dict]:
-        """Extract lead data from a LinkedIn search result card"""
+        """
+        Extract lead data from LinkedIn search result card
+        Works for both Sales Navigator and regular LinkedIn
+        """
         try:
             lead_data = {}
             
-            # Extract name
+            # METHOD 1: Try Sales Navigator selectors
             try:
-                name_element = card_element.find_element(By.CSS_SELECTOR, 'span[aria-hidden="true"]')
-                lead_data['name'] = name_element.text.strip()
-            except:
-                # Try alternative selector
-                try:
-                    name_element = card_element.find_element(By.CSS_SELECTOR, '.entity-result__title-text a span span:first-child')
-                    lead_data['name'] = name_element.text.strip()
-                except:
-                    return None  # Skip if no name found
-            
-            # Extract profile URL
-            try:
-                link_element = card_element.find_element(By.CSS_SELECTOR, 'a.app-aware-link')
-                profile_url = link_element.get_attribute('href')
-                # Clean URL (remove query parameters)
-                if '?' in profile_url:
-                    profile_url = profile_url.split('?')[0]
-                lead_data['profile_url'] = profile_url
-            except:
-                lead_data['profile_url'] = None
-            
-            # Extract title and company
-            try:
-                subtitle_element = card_element.find_element(By.CSS_SELECTOR, '.entity-result__primary-subtitle')
-                subtitle_text = subtitle_element.text.strip()
+                # Sales Nav has different HTML structure
+                name_elem = card_element.find_element(By.CSS_SELECTOR, '.artdeco-entity-lockup__title')
+                lead_data['name'] = name_elem.text.strip()
                 
-                # Parse "Title at Company" format
-                if ' at ' in subtitle_text:
-                    parts = subtitle_text.split(' at ', 1)
-                    lead_data['title'] = parts[0].strip()
-                    lead_data['company'] = parts[1].strip()
-                else:
-                    lead_data['title'] = subtitle_text
-                    lead_data['company'] = None
+                subtitle_elem = card_element.find_element(By.CSS_SELECTOR, '.artdeco-entity-lockup__subtitle')
+                lead_data['title'] = subtitle_elem.text.strip()
+                
+                caption_elem = card_element.find_element(By.CSS_SELECTOR, '.artdeco-entity-lockup__caption')
+                lead_data['company'] = caption_elem.text.strip()
+                
+                link_elem = card_element.find_element(By.CSS_SELECTOR, 'a.artdeco-entity-lockup__title-link')
+                profile_url = link_elem.get_attribute('href')
+                lead_data['profile_url'] = profile_url.split('?')[0]  # Clean URL
+                
+                print(f"  → Extracted (Sales Nav): {lead_data['name']}")
+                
             except:
-                lead_data['title'] = None
-                lead_data['company'] = None
+                # METHOD 2: Try regular LinkedIn selectors
+                try:
+                    # Regular LinkedIn structure
+                    name_elem = card_element.find_element(By.CSS_SELECTOR, 'span.entity-result__title-text span[aria-hidden="true"]')
+                    lead_data['name'] = name_elem.text.strip()
+                    
+                    subtitle_elem = card_element.find_element(By.CSS_SELECTOR, '.entity-result__primary-subtitle')
+                    subtitle_text = subtitle_elem.text.strip()
+                    
+                    # Parse "Title at Company"
+                    if ' at ' in subtitle_text:
+                        parts = subtitle_text.split(' at ', 1)
+                        lead_data['title'] = parts[0].strip()
+                        lead_data['company'] = parts[1].strip()
+                    else:
+                        lead_data['title'] = subtitle_text
+                        lead_data['company'] = None
+                    
+                    link_elem = card_element.find_element(By.CSS_SELECTOR, 'a.app-aware-link')
+                    profile_url = link_elem.get_attribute('href')
+                    lead_data['profile_url'] = profile_url.split('?')[0]
+                    
+                    print(f"  → Extracted (Regular): {lead_data['name']}")
+                    
+                except Exception as inner_e:
+                    print(f"  ⚠️ Could not extract lead data: {str(inner_e)}")
+                    return None
             
-            # Extract location
+            # Extract location (optional)
             try:
-                location_element = card_element.find_element(By.CSS_SELECTOR, '.entity-result__secondary-subtitle')
-                lead_data['location'] = location_element.text.strip()
+                location_elem = card_element.find_element(By.CSS_SELECTOR, '.entity-result__secondary-subtitle')
+                lead_data['location'] = location_elem.text.strip()
             except:
                 lead_data['location'] = None
             
-            # Extract headline (summary)
+            # Extract headline (optional)
             try:
-                headline_element = card_element.find_element(By.CSS_SELECTOR, '.entity-result__summary')
-                lead_data['headline'] = headline_element.text.strip()
+                headline_elem = card_element.find_element(By.CSS_SELECTOR, '.entity-result__summary')
+                lead_data['headline'] = headline_elem.text.strip()
             except:
                 lead_data['headline'] = None
             
-            # Set default values
-            lead_data['industry'] = 'Medical Practice'  # Default for aesthetics
+            # Set defaults
+            lead_data['industry'] = None
             lead_data['company_size'] = None
             lead_data['summary'] = None
             lead_data['ai_score'] = 0
             lead_data['status'] = 'new'
             
+            # Validate we have minimum required fields
+            if not lead_data.get('name') or not lead_data.get('profile_url'):
+                print("  ⚠️ Missing required fields (name or URL)")
+                return None
+            
             return lead_data
             
         except Exception as e:
-            print(f"  ⚠️ Error extracting lead data: {str(e)}")
+            print(f"  ❌ Error extracting lead: {str(e)}")
             return None
     
     def scrape_current_page(self) -> List[Dict]:
@@ -392,10 +357,11 @@ class LinkedInScraper:
             self.human_delay(2, 4)
             
             # Find all lead cards
-            lead_cards = self.driver.find_elements(By.CSS_SELECTOR, '.entity-result')
-            
-            if not lead_cards:
-                # Try alternative selector for regular LinkedIn
+            if self.stats['using_sales_nav']:
+                # Sales Navigator uses different selectors
+                lead_cards = self.driver.find_elements(By.CSS_SELECTOR, 'li.artdeco-list__item')
+            else:
+                # Regular LinkedIn
                 lead_cards = self.driver.find_elements(By.CSS_SELECTOR, 'li.reusable-search__result-container')
             
             if not lead_cards:
@@ -432,7 +398,16 @@ class LinkedInScraper:
         return leads
     
     def scrape_leads(self, filters: Dict[str, any], max_pages: int = 3) -> List[Dict]:
-        """Main scraping function - scrapes leads based on filters"""
+        """
+        Main scraping function - scrapes REAL leads from LinkedIn
+        
+        Args:
+            filters: Dictionary with 'keywords' key
+            max_pages: Number of search result pages to scrape
+        
+        Returns:
+            List of lead dictionaries
+        """
         all_leads = []
         self.stats['start_time'] = datetime.now()
         
@@ -441,19 +416,22 @@ class LinkedInScraper:
             print("🚀 Starting LinkedIn Lead Scraping")
             print("="*60)
             
-            # Setup driver
+            # Setup browser
             self.setup_driver()
             
-            # Login
+            # Login to LinkedIn
             if not self.login():
                 print("❌ Cannot proceed without login")
                 return all_leads
             
-            # Try Sales Navigator first, fall back to regular search
-            has_sales_nav = self.navigate_to_sales_navigator()
+            # Get search keywords
+            keywords = filters.get('keywords', 'business professional')
+            print(f"\n🔍 Searching for: {keywords}")
             
-            # Apply search filters
-            self.apply_search_filters(filters)
+            # Perform search (Sales Nav or regular LinkedIn)
+            if not self.search_with_keywords(keywords, use_sales_nav=True):
+                print("❌ Search failed!")
+                return all_leads
             
             # Scrape multiple pages
             for page_num in range(1, max_pages + 1):
@@ -463,10 +441,10 @@ class LinkedInScraper:
                 page_leads = self.scrape_current_page()
                 all_leads.extend(page_leads)
                 
-                # Try to go to next page
+                # Go to next page
                 if page_num < max_pages:
                     try:
-                        # Look for "Next" button
+                        # Look for pagination button
                         next_button = self.driver.find_element(By.CSS_SELECTOR, 'button[aria-label="Next"]')
                         
                         if next_button.is_enabled():
@@ -474,47 +452,37 @@ class LinkedInScraper:
                             next_button.click()
                             self.human_delay(3, 5)
                         else:
-                            print("  → No more pages available")
+                            print("  → No more pages")
                             break
                             
-                    except NoSuchElementException:
-                        print("  → No next page button found")
+                    except:
+                        print("  → Cannot find next page button")
                         break
             
             # Save results
             if all_leads:
                 print(f"\n💾 Saving {len(all_leads)} leads...")
                 
-                # Save to CSV backup
+                # Save CSV backup
                 csv_path = csv_handler.save_scrape_backup(all_leads, source='linkedin')
-                print(f"  ✅ CSV backup saved: {csv_path}")
+                print(f"  ✅ CSV saved: {csv_path}")
                 
-                # Import to database if available
+                # Import to database
                 if USE_DATABASE:
                     self.import_to_database(all_leads)
-                    
-                    # Log success
-                    db_manager.log_activity(
-                        activity_type='scrape',
-                        description=f'Successfully scraped {len(all_leads)} leads from LinkedIn',
-                        status='success'
-                    )
+            
+            self.stats['end_time'] = datetime.now()
+            self.print_stats()
             
         except Exception as e:
-            print(f"\n❌ Scraping error: {str(e)}")
-            if USE_DATABASE:
-                db_manager.log_activity(
-                    activity_type='scrape',
-                    description='Error during LinkedIn scraping',
-                    status='failed',
-                    error_message=str(e)
-                )
+            print(f"\n❌ Fatal error: {str(e)}")
+            import traceback
+            traceback.print_exc()
         
         finally:
-            # Cleanup
-            self.stats['end_time'] = datetime.now()
-            self.close()
-            self.print_stats()
+            if self.driver:
+                print("\n🔒 Closing browser...")
+                self.driver.quit()
         
         return all_leads
     
@@ -569,11 +537,9 @@ class LinkedInScraper:
         print(f"✅ Leads Scraped: {self.stats['leads_scraped']}")
         print(f"❌ Errors: {self.stats['errors']}")
         
-        # ← ADD THESE LINES
         # Show which mode was used
         mode = "Sales Navigator" if self.stats['using_sales_nav'] else "Regular LinkedIn"
         print(f"🔍 Search Mode: {mode}")
-        # ← END OF NEW LINES
         
         print("="*60)
 
@@ -595,15 +561,13 @@ if __name__ == '__main__':
     scraper = LinkedInScraper(
         email=args.email,
         password=args.password,
-        headless=args.headless
+        headless=args.headless,
+        sales_nav_preference=True
     )
     
     # Define search filters
     filters = {
-        'keywords': args.keywords,
-        'job_titles': ['Plastic Surgeon', 'Dermatologist', 'Med Spa Owner', 'Aesthetic Nurse'],
-        'locations': ['United States'],
-        'industries': ['Medical Practice', 'Health, Wellness and Fitness']
+        'keywords': args.keywords
     }
     
     # Run scraper

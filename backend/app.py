@@ -479,7 +479,182 @@ def start_bot():
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
+# ADD THIS ROUTE TO YOUR app.py FILE
+# Place it after the /api/bot/start route
 
+@app.route('/api/scrape/start', methods=['POST'])
+def start_scraping():
+    """Start the LinkedIn scraping process with REAL profiles"""
+    try:
+        data = request.json
+        keywords = data.get('keywords', 'business professional')
+        max_pages = data.get('max_pages', 3)
+        
+        # Get credentials
+        linkedin_creds = credentials_manager.get_linkedin_credentials()
+        
+        if not linkedin_creds:
+            return jsonify({
+                'success': False,
+                'message': 'LinkedIn credentials not configured. Please save credentials first.'
+            }), 400
+        
+        # Check if personas exist
+        personas = db_manager.get_all_personas()
+        if not personas:
+            return jsonify({
+                'success': False,
+                'message': '⚠️ No personas found! Please upload Targets.docx first.'
+            }), 400
+        
+        # Start scraping in background thread
+        def scrape_task():
+            try:
+                # Import scraper
+                from backend.scrapers.linkedin_scraper import LinkedInScraper
+                
+                # Create scraper instance
+                scraper = LinkedInScraper(
+                    email=linkedin_creds['email'],
+                    password=linkedin_creds['password'],
+                    headless=False,  # Set to True for production
+                    sales_nav_preference=linkedin_creds.get('sales_nav_enabled', False)
+                )
+                
+                # Define search filters
+                filters = {
+                    'keywords': keywords
+                }
+                
+                print(f"\n🚀 Starting scrape with keywords: {keywords}")
+                
+                # Scrape leads
+                leads = scraper.scrape_leads(filters, max_pages=max_pages)
+                
+                if not leads:
+                    print("⚠️ No leads found!")
+                    db_manager.log_activity(
+                        activity_type='scrape',
+                        description=f'No leads found for keywords: {keywords}',
+                        status='warning'
+                    )
+                    return
+                
+                print(f"\n🤖 Starting AI scoring for {len(leads)} leads...")
+                
+                # Get API key for scoring
+                api_key = credentials_manager.get_openai_key()
+                
+                if not api_key:
+                    print("⚠️ No OpenAI API key, skipping AI scoring")
+                    db_manager.log_activity(
+                        activity_type='scrape',
+                        description=f'Scraped {len(leads)} leads (no AI scoring - missing API key)',
+                        status='warning'
+                    )
+                    return
+                
+                # Import AI scorer
+                from backend.ai_engine.lead_scorer import score_lead
+                
+                # Get personas for scoring
+                personas = db_manager.get_all_personas()
+                
+                # Score each lead
+                scored_count = 0
+                for lead_data in leads:
+                    try:
+                        # Find best matching persona
+                        best_persona = personas[0] if personas else None
+                        
+                        if best_persona:
+                            # Score the lead
+                            scoring_result = score_lead(
+                                lead_data=lead_data,
+                                persona_data=best_persona,
+                                api_key=api_key
+                            )
+                            
+                            ai_score = scoring_result['score']
+                            reasoning = scoring_result['reasoning']
+                            
+                            # Get lead ID from database (it was created during import)
+                            all_db_leads = db_manager.get_all_leads()
+                            matching_lead = next(
+                                (l for l in all_db_leads if l['name'] == lead_data['name'] and l['company'] == lead_data.get('company')),
+                                None
+                            )
+                            
+                            if matching_lead:
+                                # Update lead score
+                                db_manager.update_lead_score(
+                                    lead_id=matching_lead['id'],
+                                    score=ai_score,
+                                    persona_id=best_persona.get('id'),
+                                    score_reasoning=reasoning
+                                )
+                                
+                                print(f"  ✅ Scored: {lead_data['name']} = {ai_score}/100")
+                                scored_count += 1
+                                
+                                # Log activity
+                                db_manager.log_activity(
+                                    activity_type='score',
+                                    description=f"🎯 AI scored {lead_data['name']}: {ai_score}/100",
+                                    status='success',
+                                    lead_id=matching_lead['id']
+                                )
+                        
+                    except Exception as e:
+                        print(f"  ❌ Error scoring {lead_data.get('name')}: {str(e)}")
+                        continue
+                
+                print(f"\n✅ Scraping complete! Scraped {len(leads)} leads, scored {scored_count}")
+                
+                db_manager.log_activity(
+                    activity_type='scrape',
+                    description=f'🎉 Successfully scraped {len(leads)} leads and AI-scored {scored_count}',
+                    status='success'
+                )
+                
+            except Exception as e:
+                print(f"\n❌ Error in scrape task: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                
+                db_manager.log_activity(
+                    activity_type='scrape',
+                    description=f'❌ Scraping failed: {str(e)}',
+                    status='failed',
+                    error_message=str(e)
+                )
+        
+        # Run in background
+        import threading
+        thread = threading.Thread(target=scrape_task)
+        thread.daemon = True
+        thread.start()
+        
+        db_manager.log_activity(
+            activity_type='scrape',
+            description=f'🚀 Started LinkedIn scraper with keywords: {keywords}',
+            status='success'
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': f'Scraping started for: {keywords}'
+        })
+        
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Error starting scraper: {error_details}")
+        
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
 @app.route('/api/bot/stop', methods=['POST'])
 def stop_bot():
     global bot_status
@@ -803,7 +978,100 @@ def unapprove_message(message_id):
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
-
+@app.route('/api/messages/<int:message_id>/send', methods=['POST'])
+def send_message_now(message_id):
+    """Send a message immediately via LinkedIn"""
+    try:
+        # Get message details
+        with db_manager.session_scope() as session:
+            from backend.database.models import Message, Lead
+            message = session.query(Message).join(Lead).filter(Message.id == message_id).first()
+            
+            if not message:
+                return jsonify({
+                    'success': False,
+                    'message': 'Message not found'
+                }), 404
+            
+            if message.status != 'approved':
+                return jsonify({
+                    'success': False,
+                    'message': 'Message must be approved before sending'
+                }), 400
+            
+            # Get LinkedIn credentials
+            linkedin_creds = credentials_manager.get_linkedin_credentials()
+            if not linkedin_creds:
+                return jsonify({
+                    'success': False,
+                    'message': 'LinkedIn credentials not configured'
+                }), 400
+            
+            # Initialize LinkedIn sender
+            from backend.automation.linkedin_message_sender import LinkedInMessageSender
+            
+            sender = LinkedInMessageSender(
+                email=linkedin_creds['email'],
+                password=linkedin_creds['password'],
+                headless=False  # Keep visible for safety
+            )
+            
+            try:
+                # Start session
+                sender.start_session()
+                
+                # Send connection request
+                result = sender.send_connection_request(
+                    profile_url=message.lead.profile_url,
+                    message=message.content,
+                    lead_name=message.lead.name
+                )
+                
+                # Close session
+                sender.close_session()
+                
+                if result['success']:
+                    # Update message status
+                    message.status = 'sent'
+                    message.sent_at = datetime.utcnow()
+                    
+                    # Log activity
+                    db_manager.log_activity(
+                        activity_type='message_sent',
+                        description=f'Sent message {message_id} to {message.lead.name}',
+                        status='success',
+                        lead_id=message.lead_id
+                    )
+                    
+                    return jsonify({
+                        'success': True,
+                        'message': 'Message sent successfully!'
+                    })
+                else:
+                    return jsonify({
+                        'success': False,
+                        'message': result.get('error', 'Failed to send message')
+                    }), 500
+                    
+            except Exception as e:
+                sender.close_session()
+                raise e
+                
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Error sending message: {error_details}")
+        
+        db_manager.log_activity(
+            activity_type='message_send_failed',
+            description=f'Failed to send message {message_id}: {str(e)}',
+            status='failed'
+        )
+        
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
 @app.route('/api/messages/<int:message_id>', methods=['PUT'])
 def update_message(message_id):
     try:
