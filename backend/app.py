@@ -62,7 +62,7 @@ def analytics_page():
 
 @app.route('/settings')
 def settings_page():
-    """Settings page"""
+    """Render settings page"""
     return render_template('settings.html')
 
 
@@ -1115,35 +1115,6 @@ def update_message(message_id):
             'message': f'Error: {str(e)}'
         }), 500
 
-@app.route('/api/messages/<int:message_id>', methods=['DELETE'])
-def delete_message(message_id):
-    """Delete a message"""
-    try:
-        success = db_manager.delete_message(message_id)
-        
-        if success:
-            db_manager.log_activity(
-                activity_type='message_deleted',
-                description=f'Message {message_id} deleted',
-                status='success'
-            )
-            
-            return jsonify({
-                'success': True,
-                'message': 'Message deleted successfully'
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'message': 'Message not found'
-            }), 404
-            
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-
 # ============================================================================
 # API ROUTES - ANALYTICS
 # ============================================================================
@@ -1949,48 +1920,6 @@ def get_sales_nav_config():
             'message': str(e)
         }), 500
 
-@app.route('/api/sales-nav/config', methods=['POST'])
-def update_sales_nav_config():
-    """Update Sales Navigator configuration"""
-    try:
-        import sqlite3
-        
-        data = request.json
-        
-        conn = sqlite3.connect('data/database.db')
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            UPDATE sales_nav_config
-            SET enabled = ?,
-                plan_type = ?,
-                updated_at = ?
-            WHERE id = 1
-        """, (
-            data.get('enabled', False),
-            data.get('plan_type', 'core'),
-            datetime.utcnow()
-        ))
-        
-        conn.commit()
-        conn.close()
-        
-        db_manager.log_activity(
-            activity_type='sales_nav_updated',
-            description=f'Sales Navigator {"enabled" if data.get("enabled") else "disabled"}',
-            status='success'
-        )
-        
-        return jsonify({
-            'success': True,
-            'message': 'Sales Navigator configuration updated'
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': str(e)
-        }), 500
-
 @app.route('/api/sales-nav/intent-signals/<int:lead_id>', methods=['GET'])
 def get_intent_signals(lead_id):
     """Get buyer intent signals for a lead"""
@@ -2085,43 +2014,6 @@ def get_saved_searches():
             'message': str(e)
         }), 500
 
-@app.route('/api/sales-nav/saved-searches', methods=['POST'])
-def create_saved_search():
-    """Create a new saved search"""
-    try:
-        import sqlite3
-        import json
-        
-        data = request.json
-        
-        conn = sqlite3.connect('data/database.db')
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            INSERT INTO saved_searches (name, filters, alert_enabled, alert_frequency)
-            VALUES (?, ?, ?, ?)
-        """, (
-            data.get('name'),
-            json.dumps(data.get('filters', {})),
-            data.get('alert_enabled', True),
-            data.get('alert_frequency', 'daily')
-        ))
-        
-        search_id = cursor.lastrowid
-        conn.commit()
-        conn.close()
-        
-        return jsonify({
-            'success': True,
-            'search_id': search_id,
-            'message': 'Saved search created'
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': str(e)
-        }), 500
-
 @app.route('/api/sales-nav/lead-lists', methods=['GET'])
 def get_lead_lists():
     """Get all lead lists"""
@@ -2182,40 +2074,6 @@ def get_stats_overview():
             'success': False, 
             'error': str(e)
         }), 500
-@app.route('/api/sales-nav/lead-lists', methods=['POST'])
-def create_lead_list():
-    """Create a new lead list"""
-    try:
-        import sqlite3
-        
-        data = request.json
-        
-        conn = sqlite3.connect('data/database.db')
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            INSERT INTO lead_lists (name, description)
-            VALUES (?, ?)
-        """, (
-            data.get('name'),
-            data.get('description', '')
-        ))
-        
-        list_id = cursor.lastrowid
-        conn.commit()
-        conn.close()
-        
-        return jsonify({
-            'success': True,
-            'list_id': list_id,
-            'message': 'Lead list created'
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': str(e)
-        }), 500
-
 @app.route('/api/settings', methods=['GET'])
 def get_settings():
     """Get current settings (masked passwords)"""
@@ -2356,20 +2214,34 @@ def test_settings():
             'message': f'Error testing credentials: {str(e)}'
         }), 500
 # ============================================================================
+# SETTINGS ROUTES - Add these to backend/app.py
+# ============================================================================
+
+"""
+INSTALLATION INSTRUCTIONS:
+1. Open backend/app.py
+2. Find where you have other @app.route definitions
+3. Add these routes after your existing routes
+4. Make sure credentials_manager is imported at the top:
+   from backend.credentials_manager import credentials_manager
+5. Save and restart Flask
+"""
+
+# ============================================================================
 # RUN APPLICATION
 # ============================================================================
 
 if __name__ == '__main__':
     print("=" * 60)
-    print("🚀 SC AI Lead Generation System - Clean Dynamic Version")
+    print("🚀 SC AI Lead Generation System - FIXED VERSION")
     print("=" * 60)
-    print("\n✅ NO hardcoded personas - everything from YOUR uploads!")
-    print("\n📋 Steps:")
-    print("1. Visit: http://localhost:5000")
-    print("2. Save credentials")
-    print("3. Upload your document")
-    print("4. AI extracts personas")
-    print("5. Start bot to generate leads")
+    print("\n✅ All duplicate routes removed!")
+    print("\n📋 Quick Start:")
+    print("1. Visit: http://localhost:5000/settings")
+    print("2. Save LinkedIn + OpenAI credentials")
+    print("3. Test connection")
+    print("4. Upload target document")
+    print("5. Start scraping!")
     print("\n" + "=" * 60)
     
     app.run(
