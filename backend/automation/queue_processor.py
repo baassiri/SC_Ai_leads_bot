@@ -1,31 +1,32 @@
 """
-Message Queue Processor
-Processes scheduled messages and sends them at the right time
+SC AI Lead Generation System - Queue Processor
+Automatically sends scheduled messages at the right time
 """
 
 import time
-from datetime import datetime, timedelta
-from typing import Dict, List
-import sys
+import sqlite3
+from datetime import datetime
+from typing import Dict
 from pathlib import Path
+import sys
 
-sys.path.append(str(Path(__file__).parent.parent))
+sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from backend.automation.scheduler import MessageScheduler
-from backend.automation.linkedin_message_sender import LinkedInMessageSender
+from backend.automation.scheduler import scheduler
 from backend.database.db_manager import db_manager
-from backend.credentials_manager import credentials_manager
+from backend.automation.linkedin_message_sender import LinkedInMessageSender
+
 
 class QueueProcessor:
     """
-    Processes the message queue and sends scheduled messages
+    Process message queue and send scheduled messages
     
     Features:
-    - Checks queue every 60 seconds
-    - Sends messages that are due
-    - Updates message status
+    - Runs continuously in background
+    - Checks for pending messages every minute
+    - Sends messages at scheduled time
     - Handles errors and retries
-    - Respects rate limits
+    - Logs all activity
     """
     
     def __init__(self, check_interval: int = 60):
@@ -35,58 +36,40 @@ class QueueProcessor:
         Args:
             check_interval: Seconds between queue checks (default: 60)
         """
-        self.scheduler = MessageScheduler()
-        self.sender = None
         self.check_interval = check_interval
         self.running = False
+        self.sender = None
         
+        # Stats
         self.stats = {
             'messages_sent': 0,
             'messages_failed': 0,
-            'last_check': None,
-            'started_at': None
+            'started_at': None,
+            'last_check': None
         }
     
     def start(self, headless: bool = True):
-        """Start processing the queue"""
+        """
+        Start the queue processor
+        
+        Args:
+            headless: Run browser in headless mode
+        """
+        print("\n" + "="*60)
+        print("🚀 STARTING QUEUE PROCESSOR")
         print("="*60)
-        print("🚀 MESSAGE QUEUE PROCESSOR STARTING")
-        print("="*60)
-        
-        # Get LinkedIn credentials
-        creds = credentials_manager.get_linkedin_credentials()
-        
-        if not creds:
-            print("❌ LinkedIn credentials not configured!")
-            print("   Please configure in the dashboard")
-            return False
-        
-        email = creds.get('email')
-        password = creds.get('password')
-        
-        if not email or not password:
-            print("❌ LinkedIn credentials not configured!")
-            print("   Please configure in the dashboard")
-            return False
-        
-        # Initialize sender
-        self.sender = LinkedInMessageSender(
-            email=email,
-            password=password,
-            headless=headless
-        )
-        
-        # Setup browser and login
-        self.sender.setup_driver()
-        
-        if not self.sender.login():
-            print("❌ Failed to login to LinkedIn")
-            return False
-        
-        print("✅ LinkedIn login successful")
-        print(f"⏰ Checking queue every {self.check_interval} seconds")
-        print(f"📋 Press Ctrl+C to stop")
+        print(f"Check interval: {self.check_interval} seconds")
+        print(f"Headless mode: {headless}")
+        print(f"Press Ctrl+C to stop")
         print("="*60 + "\n")
+        
+        # Initialize LinkedIn sender
+        try:
+            self.sender = LinkedInMessageSender(headless=headless)
+            print("✅ LinkedIn sender initialized")
+        except Exception as e:
+            print(f"❌ Failed to initialize sender: {str(e)}")
+            return
         
         self.running = True
         self.stats['started_at'] = datetime.utcnow()
@@ -100,18 +83,23 @@ class QueueProcessor:
                 time.sleep(self.check_interval)
                 
         except KeyboardInterrupt:
-            print("\n\n⚠️ Stopping queue processor...")
+            print("\n\n⏹️  Stopping queue processor...")
             self.stop()
-        
-        return True
+        except Exception as e:
+            print(f"\n❌ Error in queue processor: {str(e)}")
+            self.stop()
     
     def stop(self):
-        """Stop processing the queue"""
+        """Stop the queue processor"""
         self.running = False
         
         if self.sender:
             self.sender.close()
         
+        self._print_summary()
+    
+    def _print_summary(self):
+        """Print final statistics"""
         print("\n" + "="*60)
         print("📊 QUEUE PROCESSOR SUMMARY")
         print("="*60)
@@ -122,17 +110,18 @@ class QueueProcessor:
             duration = datetime.utcnow() - self.stats['started_at']
             hours = duration.seconds // 3600
             minutes = (duration.seconds % 3600) // 60
-            print(f"⏱️ Running time: {hours}h {minutes}m")
+            print(f"⏱️  Running time: {hours}h {minutes}m")
         
         print("="*60)
     
     def _process_queue(self):
         """Process pending messages in the queue"""
         # Get pending messages
-        pending = self.scheduler.get_pending_messages(limit=10)
+        pending = scheduler.get_pending_messages(limit=10)
         
         if not pending:
             # No messages to send
+            print(f"⏰ [{datetime.utcnow().strftime('%H:%M:%S')}] No messages ready to send...")
             return
         
         print(f"\n📬 Found {len(pending)} message(s) ready to send")
@@ -174,7 +163,7 @@ class QueueProcessor:
             
             if result['success']:
                 # Mark as sent in schedule
-                self.scheduler.mark_as_sent(schedule_id)
+                scheduler.mark_as_sent(schedule_id)
                 
                 # Update message status in messages table
                 db_manager.update_message_status(
@@ -192,74 +181,65 @@ class QueueProcessor:
                 
                 self.stats['messages_sent'] += 1
                 print(f"   ✅ Message sent successfully!")
-                
                 return True
             else:
                 # Mark as failed
-                error_msg = result.get('message', 'Unknown error')
-                self.scheduler.mark_as_failed(schedule_id, error_msg)
+                error_msg = result.get('error', 'Unknown error')
+                scheduler.mark_as_failed(schedule_id, error_msg)
                 
                 # Log failure
                 db_manager.log_activity(
-                    activity_type='message_sent',
-                    description=f"Failed to send to {lead_name}",
-                    status='failed',
-                    error_message=error_msg
+                    activity_type='message_failed',
+                    description=f"Failed to send to {lead_name}: {error_msg}",
+                    status='failed'
                 )
                 
                 self.stats['messages_failed'] += 1
                 print(f"   ❌ Failed: {error_msg}")
-                
                 return False
                 
         except Exception as e:
-            error_msg = str(e)
-            print(f"   ❌ Exception: {error_msg}")
-            
             # Mark as failed
-            self.scheduler.mark_as_failed(schedule_id, error_msg)
+            error_msg = str(e)
+            scheduler.mark_as_failed(schedule_id, error_msg)
             
-            # Log failure
+            # Log error
             db_manager.log_activity(
-                activity_type='message_sent',
-                description=f"Exception sending to {lead_name}",
-                status='failed',
-                error_message=error_msg
+                activity_type='message_error',
+                description=f"Error sending to {lead_name}: {error_msg}",
+                status='failed'
             )
             
             self.stats['messages_failed'] += 1
-            
+            print(f"   ❌ Error: {error_msg}")
             return False
     
-    def get_stats(self) -> Dict:
-        """Get processor statistics"""
-        queue_stats = self.scheduler.get_schedule_stats()
-        
-        return {
-            'processor': self.stats,
-            'queue': queue_stats
-        }
+    def process_once(self):
+        """Process queue once (for testing)"""
+        print("\n🧪 Processing queue once...")
+        self._process_queue()
+        self._print_summary()
 
 
-# CLI for running the processor
+# CLI for running queue processor
 if __name__ == '__main__':
     import argparse
     
     parser = argparse.ArgumentParser(description='Message Queue Processor')
-    parser.add_argument(
-        '--interval', 
-        type=int, 
-        default=60,
-        help='Check interval in seconds (default: 60)'
-    )
-    parser.add_argument(
-        '--headless',
-        action='store_true',
-        help='Run browser in headless mode'
-    )
+    parser.add_argument('--interval', type=int, default=60, 
+                       help='Check interval in seconds (default: 60)')
+    parser.add_argument('--headless', action='store_true',
+                       help='Run browser in headless mode')
+    parser.add_argument('--test', action='store_true',
+                       help='Process queue once and exit (testing mode)')
     
     args = parser.parse_args()
     
-    # Create and start processor
     processor = QueueProcessor(check_interval=args.interval)
-    processor.start(headless=args.headless)
+    
+    if args.test:
+        # Test mode - process once
+        processor.process_once()
+    else:
+        # Normal mode - run continuously
+        processor.start(headless=args.headless)

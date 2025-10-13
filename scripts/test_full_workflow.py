@@ -1,5 +1,5 @@
 """
-SC AI Lead Generation System - Enhanced Full Workflow Test
+SC AI Lead Generation System - Enhanced Full Workflow Test (FIXED)
 Tests the complete pipeline with detailed diagnostics and recommendations
 """
 
@@ -175,14 +175,13 @@ class WorkflowTester:
     def test_environment(self):
         """Test environment setup"""
         try:
-            # Check critical imports
+            # Check critical imports - FIXED: Use correct import names
             critical_imports = {
                 'flask': 'Flask web framework',
                 'sqlalchemy': 'Database ORM',
                 'openai': 'OpenAI API client (optional)',
                 'selenium': 'Web scraping (optional)',
-                'docx': 'Document parsing',
-                'python-docx': 'Document parsing (alternative name)'
+                'docx': 'Document parsing (python-docx package)',  # FIXED: Changed from 'python-docx'
             }
             
             installed = []
@@ -190,7 +189,8 @@ class WorkflowTester:
             
             for module_name, description in critical_imports.items():
                 try:
-                    __import__(module_name.replace('-', '_'))
+                    # Test the actual import
+                    __import__(module_name)
                     print_success(f"✓ {module_name}: {description}")
                     installed.append(module_name)
                     self.results['passed'].append(f"Import {module_name}")
@@ -204,9 +204,16 @@ class WorkflowTester:
                         self.results['failed'].append(f"Import {module_name}")
             
             if missing:
+                # Map back to package names for installation
+                package_map = {
+                    'docx': 'python-docx'
+                }
+                
+                install_packages = [package_map.get(m, m) for m in missing]
+                
                 print_info(f"\nTo install missing packages:")
-                print_info(f"pip install {' '.join(missing)}")
-                self.results['recommendations'].append(f"Install missing packages: {', '.join(missing)}")
+                print_info(f"pip install {' '.join(install_packages)}")
+                self.results['recommendations'].append(f"Install missing packages: {', '.join(install_packages)}")
             
             # Check config
             try:
@@ -599,9 +606,34 @@ class WorkflowTester:
             self.results['failed'].append("Lead scoring")
     
     def test_csv_operations(self):
-        """Test CSV export and import"""
+        """Test CSV export and import - FIXED: Use correct import paths"""
         try:
-            from backend.scrapers.csv_handler import csv_handler
+            # FIXED: Try multiple possible locations for csv_handler
+            csv_handler = None
+            
+            # Try backend.utils.csv_handler first
+            try:
+                from backend.utils.csv_handler import csv_handler as ch
+                csv_handler = ch
+                print_info("Using csv_handler from backend.utils")
+            except ImportError:
+                pass
+            
+            # Try backend.scrapers.csv_handler as fallback
+            if csv_handler is None:
+                try:
+                    from backend.scrapers.csv_handler import csv_handler as ch
+                    csv_handler = ch
+                    print_info("Using csv_handler from backend.scrapers")
+                except ImportError:
+                    pass
+            
+            if csv_handler is None:
+                print_error("Could not import csv_handler from any location")
+                self.results['failed'].append("CSV operations - import failed")
+                self.results['recommendations'].append("Check csv_handler.py location (should be in backend/utils or backend/scrapers)")
+                return
+            
             from backend.database.db_manager import db_manager
             
             # Get leads
@@ -648,6 +680,8 @@ class WorkflowTester:
         
         except Exception as e:
             print_error(f"CSV operations test failed: {str(e)}")
+            import traceback
+            print_error(traceback.format_exc())
             self.results['failed'].append("CSV operations")
     
     def test_api_endpoints(self):
@@ -827,7 +861,7 @@ class WorkflowTester:
 
 def main():
     """Main test function"""
-    print(f"{Colors.BOLD}SC AI Lead Generation System - Workflow Tester{Colors.ENDC}")
+    print(f"{Colors.BOLD}SC AI Lead Generation System - Workflow Tester (FIXED){Colors.ENDC}")
     print(f"Python {sys.version}")
     print(f"Working directory: {os.getcwd()}\n")
     

@@ -1,6 +1,6 @@
 {
-  "timestamp": "2025-10-13T00:52:31.752903",
-  "duration_seconds": 13,
+  "timestamp": "2025-10-13T11:30:35.167621",
+  "duration_seconds": 12,
   "results": {
     "passed": [
       "Python version",
@@ -30,35 +30,31 @@
       "Persona analyzer",
       "Lead generation",
       "Lead scoring",
+      "CSV operations",
       "API endpoints"
     ],
-    "failed": [
-      "Import python-docx",
-      "CSV operations"
-    ],
+    "failed": [],
     "warnings": [],
-    "recommendations": [
-      "Install missing packages: python-docx"
-    ]
+    "recommendations": []
   },
   "details": {
     "system": {
       "os": "Windows",
       "python_version": "3.13.7",
-      "free_space_gb": 145.28318405151367
+      "free_space_gb": 146.4740867614746
     },
     "database": {
       "connected": true,
-      "activity_log_count": 0
+      "activity_log_count": 29
     },
     "tables": {
       "users": 0,
-      "personas": 0,
-      "leads": 0,
-      "messages": 0,
+      "personas": 3,
+      "leads": 15,
+      "messages": 33,
       "campaigns": 0,
       "responses": 0,
-      "activity_logs": 0
+      "activity_logs": 29
     },
     "credentials": {
       "linkedin_configured": true,
@@ -89,14 +85,19 @@
       "saved": 1
     },
     "lead_generation": {
-      "created": 3,
-      "personas_used": 1
+      "created": 6,
+      "personas_used": 2
     },
     "lead_scoring": {
-      "scored": 3,
-      "average_score": 61.0,
+      "scored": 5,
+      "average_score": 71.6,
       "min_score": 61,
-      "max_score": 61
+      "max_score": 75
+    },
+    "csv": {
+      "exported": 5,
+      "imported": 5,
+      "file_size": 1081
     },
     "api": {
       "working": 5,
@@ -104,11 +105,11 @@
     }
   },
   "statistics": {
-    "total_tests": 30,
-    "passed": 28,
-    "failed": 2,
+    "total_tests": 29,
+    "passed": 29,
+    "failed": 0,
     "warnings": 0,
     "personas_created": 1,
-    "leads_created": 3
+    "leads_created": 6
   }
 }

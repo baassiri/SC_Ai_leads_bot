@@ -29,7 +29,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 # Now import backend modules
 try:
     from backend.config import Config
-    from backend.scrapers.csv_handler import csv_handler
+    from SC_Ai_leads_bot.backend.utils.csv_handler import csv_handler
     from backend.database.db_manager import db_manager
     USE_DATABASE = True
 except ImportError:

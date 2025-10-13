@@ -1,5 +1,5 @@
 """
-SC AI Lead Generation System - CSV Handler
+SC AI Lead Generation System - CSV Handler (FIXED)
 Import and export lead data to/from CSV files
 """
 
@@ -47,13 +47,15 @@ class CSVHandler:
             'persona', 'status', 'connection_status', 'scraped_at'
         ]
         
+        # FIXED: Added extrasaction='ignore' to handle extra fields
         with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=headers)
+            writer = csv.DictWriter(csvfile, fieldnames=headers, extrasaction='ignore')
             writer.writeheader()
             
             for lead in leads:
                 # Handle both ORM objects and dictionaries
                 if hasattr(lead, '__dict__'):
+                    # ORM object - extract fields manually
                     lead_data = {
                         'id': lead.id,
                         'name': lead.name,
@@ -71,7 +73,16 @@ class CSVHandler:
                         'scraped_at': lead.scraped_at.isoformat() if lead.scraped_at else ''
                     }
                 else:
-                    lead_data = lead
+                    # FIXED: Dictionary - only include fields that are in headers
+                    lead_data = {}
+                    for key in headers:
+                        if key == 'persona':
+                            # Handle persona specially - might be 'persona_name' in dict
+                            lead_data['persona'] = lead.get('persona_name', lead.get('persona', ''))
+                        elif key in lead:
+                            lead_data[key] = lead[key] if lead[key] is not None else ''
+                        else:
+                            lead_data[key] = ''
                 
                 writer.writerow(lead_data)
         
