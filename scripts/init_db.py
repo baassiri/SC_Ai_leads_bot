@@ -1,5 +1,6 @@
 """
 Initialize the database with tables and sample data
+FIXED VERSION - Properly imports engine from DatabaseManager
 """
 
 import sys
@@ -9,42 +10,48 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-# Now import after path is set
-from backend.database.models import Base, engine
-from backend.database.db_manager import db_manager
+# Import Base and DatabaseManager
+from backend.database.models import Base
+from backend.database.db_manager import DatabaseManager
 
 def init_database():
     """Initialize database with all tables"""
     print("🗄️  Initializing database...")
     
     try:
-        # Create all tables
-        Base.metadata.create_all(engine)
+        # Create database manager instance
+        db_manager = DatabaseManager()
+        
+        # Create all tables using the engine from db_manager
+        Base.metadata.create_all(db_manager.engine)
         print("✅ Database tables created successfully!")
         
         # Check if database has any data
-        stats = {
-            'users': db_manager.session.query(db_manager.models.User).count(),
-            'personas': db_manager.session.query(db_manager.models.Persona).count(),
-            'leads': db_manager.session.query(db_manager.models.Lead).count(),
-            'messages': db_manager.session.query(db_manager.models.Message).count(),
-            'campaigns': db_manager.session.query(db_manager.models.Campaign).count(),
-            'activity_logs': db_manager.session.query(db_manager.models.ActivityLog).count()
-        }
+        from backend.database.models import User, Persona, Lead, Message, Campaign, ActivityLog
         
-        print("\n📊 Current database status:")
-        for table, count in stats.items():
-            print(f"   {table}: {count} records")
-        
-        # Add sample activity log if database is empty
-        if stats['activity_logs'] == 0:
-            print("\n📝 Adding sample activity log...")
-            db_manager.log_activity(
-                activity_type='database_initialized',
-                description='Database initialized successfully',
-                status='success'
-            )
-            print("✅ Sample activity log added")
+        with db_manager.session_scope() as session:
+            stats = {
+                'users': session.query(User).count(),
+                'personas': session.query(Persona).count(),
+                'leads': session.query(Lead).count(),
+                'messages': session.query(Message).count(),
+                'campaigns': session.query(Campaign).count(),
+                'activity_logs': session.query(ActivityLog).count()
+            }
+            
+            print("\n📊 Current database status:")
+            for table, count in stats.items():
+                print(f"   {table}: {count} records")
+            
+            # Add sample activity log if database is empty
+            if stats['activity_logs'] == 0:
+                print("\n📝 Adding sample activity log...")
+                db_manager.log_activity(
+                    activity_type='database_initialized',
+                    description='Database initialized successfully',
+                    status='success'
+                )
+                print("✅ Sample activity log added")
         
         print("\n✨ Database initialization complete!")
         print("\n💡 Next steps:")
@@ -61,4 +68,5 @@ def init_database():
         return False
 
 if __name__ == "__main__":
-    init_database()
+    success = init_database()
+    sys.exit(0 if success else 1)

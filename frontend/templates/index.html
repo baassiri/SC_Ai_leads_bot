@@ -1,283 +1,241 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Settings | Aesthetic LinkWizard Pro</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '#2C3E50',
-                        secondary: '#3498DB',
-                        success: '#27AE60',
-                        warning: '#F39C12',
-                        danger: '#E74C3C',
-                    }
-                }
-            }
-        }
-    </script>
-    <style>
-        .input-field {
-            transition: all 0.3s ease;
-        }
-        .input-field:focus {
-            border-color: #3498DB;
-            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
-        }
-    </style>
-</head>
-<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
-        <!-- Header -->
-        <div class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-gray-800 mb-2">Aesthetic LinkWizard Pro</h1>
-            <p class="text-gray-600">AI-powered LinkedIn lead generation for aesthetic professionals</p>
+{% extends "base.html" %}
+
+{% block page_title %}Welcome{% endblock %}
+
+{% block extra_head %}
+<style>
+    .welcome-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: calc(100vh - 80px);
+        padding: 2rem;
+    }
+    
+    .welcome-card {
+        max-width: 600px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        padding: 3rem;
+        text-align: center;
+    }
+    
+    .welcome-icon {
+        width: 80px;
+        height: 80px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 2rem;
+    }
+    
+    .welcome-icon svg {
+        width: 40px;
+        height: 40px;
+        color: white;
+    }
+    
+    .welcome-title {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #1a202c;
+        margin-bottom: 1rem;
+    }
+    
+    .welcome-subtitle {
+        font-size: 1.1rem;
+        color: #718096;
+        margin-bottom: 2rem;
+        line-height: 1.6;
+    }
+    
+    .setup-steps {
+        text-align: left;
+        background: #f7fafc;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin: 2rem 0;
+    }
+    
+    .setup-steps h3 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #2d3748;
+        margin-bottom: 1rem;
+    }
+    
+    .setup-steps ol {
+        list-style: none;
+        counter-reset: step-counter;
+        padding: 0;
+    }
+    
+    .setup-steps li {
+        counter-increment: step-counter;
+        position: relative;
+        padding-left: 2.5rem;
+        margin-bottom: 1rem;
+        color: #4a5568;
+    }
+    
+    .setup-steps li:before {
+        content: counter(step-counter);
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 1.8rem;
+        height: 1.8rem;
+        background: #667eea;
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+    
+    .action-buttons {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        margin-top: 2rem;
+    }
+    
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 0.75rem 2rem;
+        border-radius: 8px;
+        font-weight: 600;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: transform 0.2s;
+    }
+    
+    .btn-primary:hover {
+        transform: translateY(-2px);
+    }
+    
+    .btn-secondary {
+        background: white;
+        color: #667eea;
+        padding: 0.75rem 2rem;
+        border: 2px solid #667eea;
+        border-radius: 8px;
+        font-weight: 600;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+    }
+    
+    .btn-secondary:hover {
+        background: #f7fafc;
+    }
+    
+    .status-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: #fed7d7;
+        color: #c53030;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .status-indicator.configured {
+        background: #c6f6d5;
+        color: #22543d;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="welcome-container">
+    <div class="welcome-card">
+        <div class="welcome-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
         </div>
-
-        <!-- Settings Form -->
-        <form id="settings-form" class="space-y-6">
-            <!-- LinkedIn Email -->
-            <div>
-                <label for="linkedin-email" class="block text-sm font-medium text-gray-700 mb-2">
-                    LinkedIn Email
-                </label>
-                <input 
-                    type="email" 
-                    id="linkedin-email" 
-                    name="linkedin_email"
-                    class="input-field w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none"
-                    placeholder="your-email@example.com"
-                    required
-                >
-            </div>
-
-            <!-- LinkedIn Password -->
-            <div>
-                <label for="linkedin-password" class="block text-sm font-medium text-gray-700 mb-2">
-                    LinkedIn Password
-                </label>
-                <input 
-                    type="password" 
-                    id="linkedin-password" 
-                    name="linkedin_password"
-                    class="input-field w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none"
-                    placeholder="••••••••••••"
-                    required
-                >
-            </div>
-
-            <!-- OpenAI API Key -->
-            <div>
-                <label for="openai-key" class="block text-sm font-medium text-gray-700 mb-2">
-                    OpenAI API Key
-                </label>
-                <input 
-                    type="password" 
-                    id="openai-key" 
-                    name="openai_api_key"
-                    class="input-field w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none"
-                    placeholder="sk-..."
-                    required
-                >
-                <p class="text-xs text-gray-500 mt-1">Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" class="text-secondary hover:underline">platform.openai.com</a></p>
-            </div>
-
-            <!-- LinkedIn Account Type - NEW SECTION -->
-            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <label class="flex items-start cursor-pointer">
-                    <input 
-                        type="checkbox" 
-                        id="sales-nav-enabled" 
-                        name="sales_nav_enabled"
-                        class="mt-1 w-5 h-5 text-secondary rounded focus:ring-2 focus:ring-secondary"
-                    >
-                    <div class="ml-3">
-                        <span class="text-sm font-medium text-gray-700">I have LinkedIn Sales Navigator</span>
-                        <p class="text-xs text-gray-600 mt-1">
-                            <strong class="text-success">✓ Sales Navigator:</strong> Advanced filters, unlimited searches, better lead quality<br>
-                            <strong class="text-gray-700">✓ Regular LinkedIn:</strong> Basic search (still works great!)
-                        </p>
-                        <p class="text-xs text-warning mt-2">
-                            💡 Don't have Sales Nav? No problem! The bot will use regular LinkedIn search.
-                        </p>
-                    </div>
-                </label>
-            </div>
-
-            <!-- Test Buttons -->
-            <div class="grid grid-cols-2 gap-3">
-                <button 
-                    type="button" 
-                    id="test-linkedin-btn"
-                    class="flex items-center justify-center px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                >
-                    <i data-feather="link" class="w-4 h-4 mr-2"></i>
-                    Test LinkedIn
-                </button>
-                <button 
-                    type="button" 
-                    id="test-openai-btn"
-                    class="flex items-center justify-center px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                >
-                    <i data-feather="cpu" class="w-4 h-4 mr-2"></i>
-                    Test OpenAI
-                </button>
-            </div>
-
-            <!-- Save Button -->
-            <button 
-                type="submit"
-                class="w-full bg-secondary hover:bg-blue-500 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center"
-            >
-                <i data-feather="save" class="w-5 h-5 mr-2"></i>
-                Save Credentials
-            </button>
-
-            <!-- Skip to Dashboard -->
-            <div class="text-center">
-                <a href="/dashboard" class="text-secondary hover:text-blue-500 text-sm">
-                    Skip to Dashboard →
-                </a>
-            </div>
-        </form>
+        
+        <h1 class="welcome-title">Welcome to Aesthetic LinkWizard</h1>
+        <p class="welcome-subtitle">
+            AI-powered LinkedIn lead generation for aesthetic professionals
+        </p>
+        
+        <div id="status-message" class="status-indicator">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <circle cx="8" cy="8" r="8"/>
+            </svg>
+            <span>Setup required</span>
+        </div>
+        
+        <div class="setup-steps">
+            <h3>🚀 Quick Setup Guide</h3>
+            <ol>
+                <li>Configure your LinkedIn and OpenAI credentials in Settings</li>
+                <li>Upload your target persona document</li>
+                <li>Start the bot to scrape qualified leads</li>
+                <li>Review and approve AI-generated messages</li>
+                <li>Track your campaign performance</li>
+            </ol>
+        </div>
+        
+        <div class="action-buttons">
+            <a href="/settings" class="btn-primary">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M12 1v6m0 6v6M23 12h-6m-6 0H5"/>
+                </svg>
+                Configure Settings
+            </a>
+            <a href="/dashboard" class="btn-secondary">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="7" height="7"/>
+                    <rect x="14" y="3" width="7" height="7"/>
+                    <rect x="14" y="14" width="7" height="7"/>
+                    <rect x="3" y="14" width="7" height="7"/>
+                </svg>
+                Go to Dashboard
+            </a>
+        </div>
     </div>
+</div>
 
-    <!-- Notification Container -->
-    <div id="notification-container" class="fixed top-4 right-4 z-50"></div>
-
-    <script>
-        // Initialize Feather Icons
-        feather.replace();
-
-        // Notification Function
-        function showNotification(message, type = 'info') {
-            const container = document.getElementById('notification-container');
-            const notification = document.createElement('div');
-            
-            const bgColors = {
-                success: 'bg-green-500',
-                error: 'bg-red-500',
-                info: 'bg-blue-500'
-            };
-            
-            notification.className = `${bgColors[type]} text-white px-6 py-3 rounded-lg shadow-lg mb-2 transform transition-all duration-300`;
-            notification.textContent = message;
-            
-            container.appendChild(notification);
-            
-            setTimeout(() => {
-                notification.style.opacity = '0';
-                setTimeout(() => notification.remove(), 300);
-            }, 3000);
+<script>
+// Check if credentials are configured
+async function checkCredentials() {
+    try {
+        const response = await fetch('/api/auth/check-credentials');
+        const data = await response.json();
+        
+        const statusEl = document.getElementById('status-message');
+        
+        if (data.configured) {
+            statusEl.className = 'status-indicator configured';
+            statusEl.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/>
+                </svg>
+                <span>Credentials configured ✓</span>
+            `;
         }
+    } catch (error) {
+        console.error('Error checking credentials:', error);
+    }
+}
 
-        // Form Submission - UPDATED TO INCLUDE SALES NAV SETTING
-        document.getElementById('settings-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const formData = {
-                linkedin_email: document.getElementById('linkedin-email').value,
-                linkedin_password: document.getElementById('linkedin-password').value,
-                openai_api_key: document.getElementById('openai-key').value,
-                sales_nav_enabled: document.getElementById('sales-nav-enabled').checked
-            };
-            
-            try {
-                const response = await fetch('/api/auth/save-credentials', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(formData)
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    showNotification('Credentials saved successfully!', 'success');
-                    setTimeout(() => {
-                        window.location.href = '/dashboard';
-                    }, 1500);
-                } else {
-                    showNotification(data.message || 'Failed to save credentials', 'error');
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                showNotification('Error saving credentials', 'error');
-            }
-        });
-
-        // Test LinkedIn
-        document.getElementById('test-linkedin-btn').addEventListener('click', async () => {
-            const email = document.getElementById('linkedin-email').value;
-            const password = document.getElementById('linkedin-password').value;
-            
-            if (!email || !password) {
-                showNotification('Please enter LinkedIn credentials first', 'error');
-                return;
-            }
-            
-            showNotification('Testing LinkedIn connection...', 'info');
-            
-            try {
-                const response = await fetch('/api/auth/test-connection', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ service: 'linkedin' })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    showNotification('LinkedIn connection successful!', 'success');
-                } else {
-                    showNotification('LinkedIn connection failed', 'error');
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                showNotification('Error testing LinkedIn connection', 'error');
-            }
-        });
-
-        // Test OpenAI
-        document.getElementById('test-openai-btn').addEventListener('click', async () => {
-            const apiKey = document.getElementById('openai-key').value;
-            
-            if (!apiKey) {
-                showNotification('Please enter OpenAI API key first', 'error');
-                return;
-            }
-            
-            showNotification('Testing OpenAI connection...', 'info');
-            
-            try {
-                const response = await fetch('/api/auth/test-connection', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ service: 'openai' })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    showNotification('OpenAI connection successful!', 'success');
-                } else {
-                    showNotification('OpenAI connection failed', 'error');
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                showNotification('Error testing OpenAI connection', 'error');
-            }
-        });
-    </script>
-</body>
-</html>
+// Check on page load
+checkCredentials();
+</script>
+{% endblock %}

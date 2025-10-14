@@ -175,6 +175,28 @@ def test_connection():
             'message': f'Error: {str(e)}'
         }), 500
 
+@app.route('/api/auth/check-credentials', methods=['GET'])
+def check_credentials():
+    """Check if credentials are configured"""
+    try:
+        linkedin_creds = credentials_manager.get_linkedin_credentials()
+        openai_key = credentials_manager.get_openai_key()
+        
+        configured = bool(linkedin_creds and openai_key)
+        
+        return jsonify({
+            'success': True,
+            'configured': configured,
+            'linkedin': bool(linkedin_creds),
+            'openai': bool(openai_key)
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'configured': False,
+            'message': f'Error: {str(e)}'
+        }), 500
 # ============================================================================
 # API ROUTES - FILE UPLOAD
 # ============================================================================
@@ -710,7 +732,7 @@ def get_top_leads():
             min_score=min_score,
             limit=limit
         )
-        leads.html
+        
         return jsonify({
             'success': True,
             'leads': leads,
