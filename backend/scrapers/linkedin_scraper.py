@@ -1,6 +1,6 @@
 """
 SC AI Lead Generation System - LinkedIn Scraper
-IMPROVED VERSION - Better Sales Nav integration + API compatibility
+FIXED VERSION - Login flow corrected
 October 2025
 """
 
@@ -44,6 +44,7 @@ except ImportError:
         SCRAPE_DELAY_MAX = 5
         MAX_LEADS_PER_SESSION = 100
         EXPORT_DIR = Path(__file__).parent / 'exports'
+        DATA_DIR = Path(__file__).parent / 'data'
     
     class CSVHandler:
         def __init__(self):
@@ -239,8 +240,34 @@ class LinkedInScraper:
                 print("❌ Driver recovery failed")
                 return False
     
+    def is_logged_in(self) -> bool:
+        """Check if currently logged into LinkedIn"""
+        try:
+            current_url = self.driver.current_url
+            
+            # Check URL indicators
+            if any(indicator in current_url for indicator in ['feed', 'mynetwork', 'sales/homepage', 'messaging']):
+                return True
+            
+            # Check for LinkedIn nav bar (only visible when logged in)
+            try:
+                self.driver.find_element(By.CSS_SELECTOR, 'nav.global-nav')
+                return True
+            except:
+                pass
+            
+            # Check for login/checkpoint indicators
+            if any(indicator in current_url for indicator in ['login', 'checkpoint', 'challenge', 'uas/login']):
+                return False
+            
+            return False
+            
+        except Exception as e:
+            print(f"⚠️ Could not check login status: {str(e)}")
+            return False
+    
     def load_cookies(self):
-        """Load session cookies from file - FIXED VERSION WITH SESSION RECOVERY"""
+        """Load session cookies from file - FIXED VERSION"""
         try:
             if not self.cookie_file.exists():
                 print("🔍 No saved session found - will do fresh login")
@@ -258,46 +285,14 @@ class LinkedInScraper:
             print(f"🔄 Found saved session ({age_days:.1f} days old)")
             print("   Loading cookies...")
             
-            # ✅ CRITICAL FIX: Check if driver is alive, if not, recreate it
-            if not self.driver:
-                print("⚠️ Driver not initialized - initializing now")
-                if not self.setup_driver():
-                    return False
-            
-            driver_alive = False
-            try:
-                # Test if driver is still alive
-                _ = self.driver.current_url
-                driver_alive = True
-                print("✅ Driver session is alive")
-            except Exception as e:
-                print(f"⚠️ Driver session died: {str(e)}")
-                print("   🔄 Recreating driver...")
-                
-                # Close dead driver properly
-                try:
-                    self.driver.quit()
-                except:
-                    pass
-                
-                # Recreate the driver
-                self.driver = None
-                self.wait = None
-                
-                if not self.setup_driver():
-                    print("❌ Could not recreate driver")
-                    return False
-                
-                print("✅ Driver recreated successfully")
-                driver_alive = True
-            
-            if not driver_alive:
+            # Ensure driver is alive
+            if not self.ensure_driver_alive():
                 return False
             
-            # Now proceed with cookie loading
+            # Navigate to LinkedIn
             print("   📍 Navigating to LinkedIn...")
             self.driver.get('https://www.linkedin.com')
-            time.sleep(3)  # Increased wait time
+            time.sleep(3)
             
             # Load cookies
             print("   🍪 Loading cookies...")
@@ -306,7 +301,6 @@ class LinkedInScraper:
             
             cookies_loaded = 0
             for cookie in cookies:
-                # Remove domain to avoid issues
                 cookie_copy = cookie.copy()
                 if 'domain' in cookie_copy:
                     del cookie_copy['domain']
@@ -320,37 +314,26 @@ class LinkedInScraper:
             
             print(f"   ✅ Loaded {cookies_loaded} cookies")
             
-            # Refresh to apply cookies - CRITICAL STEP
+            # Refresh to apply cookies
             print("   🔄 Refreshing page to apply cookies...")
             self.driver.refresh()
-            time.sleep(4)  # Increased wait time for page to fully load
+            time.sleep(5)
             
-            # Wait a bit more and check multiple times
-            for attempt in range(3):
+            # FIXED: Check if logged in using dedicated method
+            if self.is_logged_in():
                 current_url = self.driver.current_url
-                print(f"   📍 Attempt {attempt + 1}: Current URL = {current_url[:60]}...")
-                
-                # Check if we're logged in (more comprehensive check)
-                if 'feed' in current_url or 'mynetwork' in current_url or 'sales' in current_url:
-                    print("✅ Successfully resumed session!")
-                    print("   🎉 NO LOGIN NEEDED - NO CAPTCHA!")
-                    self.stats['used_saved_session'] = True
-                    return True
-                
-                # If not logged in yet, wait a bit more
-                if attempt < 2:
-                    print(f"   ⏳ Waiting for LinkedIn to fully load...")
-                    time.sleep(2)
-            
-            # After 3 attempts, if still not on a logged-in page, cookies are invalid
-            print("⚠️ Saved session invalid - will do fresh login")
-            print(f"   Final URL was: {current_url}")
-            self.cookie_file.unlink()
-            return False
+                print(f"✅ Successfully resumed session!")
+                print(f"   Current page: {current_url[:60]}...")
+                print("   🎉 NO LOGIN NEEDED - NO CAPTCHA!")
+                self.stats['used_saved_session'] = True
+                return True
+            else:
+                print("⚠️ Saved session invalid - cookies didn't work")
+                self.cookie_file.unlink()
+                return False
                 
         except Exception as e:
             print(f"⚠️ Could not load session: {str(e)}")
-            print(f"   Error type: {type(e).__name__}")
             traceback.print_exc()
             
             if self.cookie_file.exists():
@@ -365,38 +348,48 @@ class LinkedInScraper:
         try:
             print("\n🔐 Logging into LinkedIn...")
             
-            # ✅ CRITICAL FIX: Check if we're ALREADY logged in!
-            try:
-                current_url = self.driver.current_url
-                print(f"   📍 Current page: {current_url[:60]}...")
-                if 'feed' in current_url or 'mynetwork' in current_url or 'sales' in current_url:
-                    print("✅ Already logged in! Skipping login.")
-                    return True
-            except:
-                pass
+            # FIXED: Check if already logged in first
+            if self.is_logged_in():
+                print("✅ Already logged in! Skipping login.")
+                return True
             
-            # Try to use saved session first!
+            # Try to use saved session
             if self.load_cookies():
                 return True
             
+            # FIXED: Only do fresh login if not logged in
+            if self.is_logged_in():
+                print("✅ Logged in after cookie load!")
+                return True
             
             # Fresh login required
             print("🆕 Starting fresh login...")
             self.driver.get('https://www.linkedin.com/login')
             
-            # ✅ CRITICAL FIX: Wait longer for page to fully load
             print("   ⏳ Waiting for login page to load...")
             self.human_delay(4, 6)
             
-            # ✅ CRITICAL FIX: Verify we're on the login page
+            # Verify we're on the login page
             current_url = self.driver.current_url
+            
+            # FIXED: If already logged in after navigation, return success
+            if self.is_logged_in():
+                print("✅ Already logged in (redirected from login page)!")
+                return True
+            
             if 'login' not in current_url:
                 print(f"   ⚠️ Not on login page! Current URL: {current_url}")
+                
+                # If we're on a logged-in page, that's actually success
+                if self.is_logged_in():
+                    print("✅ Already logged in!")
+                    return True
+                
                 print("   📍 Navigating to login page again...")
                 self.driver.get('https://www.linkedin.com/login')
                 self.human_delay(4, 6)
             
-            # ✅ CRITICAL FIX: Wait for email field to be visible and clickable
+            # Wait for email field
             print("   🔍 Looking for email field...")
             try:
                 email_field = WebDriverWait(self.driver, 15).until(
@@ -405,6 +398,12 @@ class LinkedInScraper:
                 print("   ✅ Email field found!")
             except TimeoutException:
                 print("   ❌ Email field not found after 15 seconds")
+                
+                # Maybe we're already logged in?
+                if self.is_logged_in():
+                    print("✅ Already logged in!")
+                    return True
+                
                 print(f"   📍 Current URL: {self.driver.current_url}")
                 return False
             
@@ -469,11 +468,10 @@ class LinkedInScraper:
                     time.sleep(check_interval)
                     
                     try:
-                        current_url = self.driver.current_url
                         elapsed = int(time.time() - start_time)
                         
                         # Check if we're logged in
-                        if 'feed' in current_url or 'mynetwork' in current_url or 'sales' in current_url:
+                        if self.is_logged_in():
                             print(f"\n✅ Verification completed successfully after {elapsed} seconds!")
                             print("✅ You're now logged in!")
                             
@@ -489,6 +487,7 @@ class LinkedInScraper:
                             return True
                         
                         # Still on checkpoint page
+                        current_url = self.driver.current_url
                         if 'checkpoint' in current_url or 'challenge' in current_url:
                             remaining = max_wait - elapsed
                             print(f"  ⏳ Still waiting for verification... ({elapsed}s elapsed, {remaining}s remaining)")
@@ -503,7 +502,7 @@ class LinkedInScraper:
                 return False
             
             # No CAPTCHA - check if we're logged in
-            elif 'feed' in current_url or 'sales' in current_url or 'mynetwork' in current_url:
+            elif self.is_logged_in():
                 print("✅ Successfully logged in! (No CAPTCHA required)")
                 
                 # Save cookies for next time!
@@ -558,32 +557,22 @@ class LinkedInScraper:
             return False
     
     def search_leads(self, keywords: str) -> bool:
-        """
-        Search for leads using keywords - FIXED WITH DRIVER HEALTH CHECK
-        """
+        """Search for leads using keywords - FIXED WITH DRIVER HEALTH CHECK"""
         try:
-            # ✅ CRITICAL: Verify driver is alive before searching
+            # Verify driver is alive before searching
             if not self.ensure_driver_alive():
                 print("❌ Driver died before search")
                 return False
             
-            # FIRST: Verify we're actually logged in
+            # Verify we're actually logged in
             print("\n🔐 Verifying login status...")
-            current_url = self.driver.current_url
             
-            # If we're not on a LinkedIn page, something went wrong
-            if 'linkedin.com' not in current_url:
-                print("❌ Not on LinkedIn! Attempting to navigate to feed...")
-                self.driver.get('https://www.linkedin.com/feed/')
-                self.human_delay(3, 5)
-                current_url = self.driver.current_url
+            if not self.is_logged_in():
+                print("❌ Not logged in! Attempting to login...")
+                if not self.login():
+                    return False
             
-            # Check if we're actually logged in
-            if 'login' in current_url or 'uas/login' in current_url:
-                print("❌ Still on login page - login must have failed!")
-                return False
-            
-            print(f"✅ Logged in - current page: {current_url[:60]}...")
+            print(f"✅ Logged in - current page: {self.driver.current_url[:60]}...")
             
             # Clean and prepare keywords
             clean_keywords = keywords.strip()
@@ -647,7 +636,7 @@ class LinkedInScraper:
                 print(f"❌ Search failed! Current URL: {final_url}")
                 
                 # Check if we got logged out
-                if 'login' in final_url or 'checkpoint' in final_url:
+                if not self.is_logged_in():
                     print("❌ Got logged out or hit security checkpoint!")
                 
                 return False
@@ -857,7 +846,7 @@ class LinkedInScraper:
             print("\n📊 Scraping current page...")
             self.human_delay(3, 5)
             
-            # ✅ TRY MULTIPLE SELECTORS (LinkedIn changes these frequently)
+            # TRY MULTIPLE SELECTORS (LinkedIn changes these frequently)
             if self.stats['using_sales_nav']:
                 selectors_to_try = [
                     'li.artdeco-list__item',
@@ -974,25 +963,16 @@ class LinkedInScraper:
             return False
     
     def scrape_leads(self, filters: Dict, max_pages: int = 3) -> List[Dict]:
-        """
-        Main scraping function - FIXED WITH DRIVER HEALTH MONITORING
-        
-        Args:
-            filters: Dict with 'keywords' key
-            max_pages: Number of pages to scrape
-        
-        Returns:
-            List of lead dictionaries
-        """
+        """Main scraping function - FIXED WITH DRIVER HEALTH MONITORING"""
         all_leads = []
         self.stats['start_time'] = datetime.now()
         
         try:
             print("\n" + "="*70)
-            print("🚀 LINKEDIN LEAD SCRAPER - STARTING (IMPROVED VERSION)")
+            print("🚀 LINKEDIN LEAD SCRAPER - STARTING (FIXED VERSION)")
             print("="*70)
             
-            # ✅ CRITICAL: Ensure driver is alive at the start
+            # Ensure driver is alive at the start
             if not self.ensure_driver_alive():
                 print("❌ Cannot start scraping - driver setup failed")
                 if USE_DATABASE:
@@ -1009,9 +989,8 @@ class LinkedInScraper:
                 return all_leads
             
             # Login
-            print("\n📝 Checking login status...")
+            print("\n🔐 Checking login status...")
             
-            # ✅ CRITICAL: Verify driver before login
             if not self.ensure_driver_alive():
                 print("❌ Driver died before login")
                 return all_leads
@@ -1027,8 +1006,8 @@ class LinkedInScraper:
                     )
                 return all_leads
             
-            # ✅ CRITICAL: Verify driver after login, before search
-            print("\n🔍 Verifying driver status before search...")
+            # Verify driver after login, before search
+            print("\n🔐 Verifying driver status before search...")
             if not self.ensure_driver_alive():
                 print("❌ Driver died after login, before search")
                 if USE_DATABASE:
@@ -1199,7 +1178,7 @@ class LinkedInScraper:
 if __name__ == '__main__':
     import argparse
     
-    parser = argparse.ArgumentParser(description='LinkedIn Lead Scraper - IMPROVED')
+    parser = argparse.ArgumentParser(description='LinkedIn Lead Scraper - FIXED')
     parser.add_argument('--email', required=True, help='LinkedIn email')
     parser.add_argument('--password', required=True, help='LinkedIn password')
     parser.add_argument('--keywords', default='CEO founder', help='Search keywords')
