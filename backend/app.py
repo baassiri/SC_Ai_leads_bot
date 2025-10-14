@@ -695,7 +695,7 @@ def get_top_leads():
             min_score=min_score,
             limit=limit
         )
-        
+        leads.html
         return jsonify({
             'success': True,
             'leads': leads,
