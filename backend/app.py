@@ -15,10 +15,10 @@ import sys
 from backend.ai_engine.message_generator_abc import ABCMessageGenerator
 from backend.automation.scheduler import scheduler as message_scheduler
 sys.path.append(str(Path(__file__).parent.parent))
-
 from backend.config import Config, get_config
 from backend.database.db_manager import db_manager
 from backend.credentials_manager import credentials_manager
+from backend.scraping_cooldown_manager import get_cooldown_manager  # ← ADD THIS LINE
 
 app = Flask(__name__,
            template_folder='../frontend/templates',
@@ -340,9 +340,13 @@ def generate_lead_from_persona(persona):
         'company_size': random.choice(['1-10', '11-50', '51-200', '201-500']) + ' employees',
         'score': random.randint(70, 98)
     }
+# ============================================================================
+# REPLACE YOUR start_bot() FUNCTION WITH THIS (around line 356)
+# ============================================================================
+
 @app.route('/api/bot/start', methods=['POST'])
 def start_bot():
-    """Start the REAL lead scraping bot"""
+    """Start the REAL lead scraping bot with cooldown enforcement"""
     global bot_status, scraper_thread
     
     try:
@@ -351,6 +355,19 @@ def start_bot():
                 'success': False,
                 'message': 'Bot is already running'
             }), 400
+        
+        # ✅ CHECK SCRAPING COOLDOWN (NEW!)
+        cooldown_manager = get_cooldown_manager()
+        can_scrape, cooldown_message, details = cooldown_manager.check_can_scrape()
+        
+        if not can_scrape:
+            # Scraping not allowed due to cooldown
+            return jsonify({
+                'success': False,
+                'message': cooldown_message,
+                'cooldown_active': True,
+                'details': details
+            }), 429  # HTTP 429 = Too Many Requests
         
         personas = db_manager.get_all_personas()
         
@@ -380,7 +397,7 @@ def start_bot():
         )
         
         def scrape_leads_background():
-            """REAL LINKEDIN SCRAPING"""
+            """REAL LINKEDIN SCRAPING with cooldown recording"""
             global bot_status
             
             try:
@@ -486,6 +503,10 @@ def start_bot():
                 if scraper.driver:
                     scraper.driver.quit()
                 
+                # ✅ RECORD THE SCRAPE (NEW!)
+                cooldown_manager = get_cooldown_manager()
+                cooldown_manager.record_scrape(user_id=1, leads_scraped=successfully_imported)
+                
                 bot_status['current_activity'] = f'✅ Complete! {successfully_imported} real leads scraped'
                 bot_status['progress'] = 100
                 
@@ -518,8 +539,9 @@ def start_bot():
         
         return jsonify({
             'success': True,
-            'message': 'Bot started! Scraping REAL leads...',
-            'status': bot_status
+            'message': f'Bot started! {details["scrapes_remaining"]} scrapes remaining this week.',
+            'status': bot_status,
+            'cooldown_details': details
         })
         
     except Exception as e:
@@ -1006,7 +1028,58 @@ def auto_analyze_tests():
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
+# ============================================================================
+# ADD THESE TWO NEW ENDPOINTS TO YOUR app.py
+# Add them after the A/B test analytics routes (around line 1040)
+# ============================================================================
 
+@app.route('/api/scraping/cooldown-status', methods=['GET'])
+def get_cooldown_status():
+    """Get current scraping cooldown status"""
+    try:
+        cooldown_manager = get_cooldown_manager()
+        can_scrape, message, details = cooldown_manager.check_can_scrape()
+        stats = cooldown_manager.get_scraping_stats()
+        
+        return jsonify({
+            'success': True,
+            'can_scrape': can_scrape,
+            'message': message,
+            'details': details,
+            'stats': stats
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+
+@app.route('/api/scraping/update-limit', methods=['POST'])
+def update_scraping_limit():
+    """Update weekly scraping limit"""
+    try:
+        data = request.json
+        new_limit = data.get('weekly_limit', 1)
+        
+        cooldown_manager = get_cooldown_manager()
+        success = cooldown_manager.update_weekly_limit(new_limit)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': f'Weekly limit updated to {new_limit} scrapes/week'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Invalid limit (must be 0-7)'
+            }), 400
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
 @app.route('/api/ab-tests/best-practices', methods=['GET'])
 def get_best_practices():
     """Get best practices from all completed tests"""
