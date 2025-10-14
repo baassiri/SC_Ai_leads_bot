@@ -122,7 +122,14 @@ def save_credentials():
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
-
+@app.route('/api/settings/save', methods=['POST'])
+def save_settings_alias():
+    """Alias route for settings page compatibility"""
+    return save_credentials()
+@app.route('/api/settings/test', methods=['POST'])
+def test_settings_alias():
+    """Alias for test connection"""
+    return test_connection()
 @app.route('/api/auth/test-connection', methods=['POST'])
 def test_connection():
     try:
@@ -311,11 +318,10 @@ def generate_lead_from_persona(persona):
         'company_size': random.choice(['1-10', '11-50', '51-200', '201-500']) + ' employees',
         'score': random.randint(70, 98)
     }
-
 @app.route('/api/bot/start', methods=['POST'])
 def start_bot():
-    """Start the lead scraping bot"""
-    global bot_status, scraper_thread, current_personas
+    """Start the REAL lead scraping bot"""
+    global bot_status, scraper_thread
     
     try:
         if bot_status['running']:
@@ -347,117 +353,123 @@ def start_bot():
         
         db_manager.log_activity(
             activity_type='bot_started',
-            description='🚀 Lead scraping bot started',
+            description='🚀 REAL LinkedIn scraping started',
             status='success'
         )
         
         def scrape_leads_background():
-            global bot_status, current_personas
+            """REAL LINKEDIN SCRAPING"""
+            global bot_status
             
             try:
+                from backend.scrapers.linkedin_scraper import LinkedInScraper
                 from backend.ai_engine.lead_scorer import score_lead
                 
+                linkedin_creds = credentials_manager.get_linkedin_credentials()
                 api_key = credentials_manager.get_openai_key()
-                
                 personas = db_manager.get_all_personas()
                 
-                bot_status['current_activity'] = f'Searching for leads matching {len(personas)} personas...'
+                bot_status['current_activity'] = 'Connecting to LinkedIn...'
+                bot_status['progress'] = 10
+                
+                # Initialize REAL scraper
+                scraper = LinkedInScraper(
+                    email=linkedin_creds['email'],
+                    password=linkedin_creds['password'],
+                    headless=False,
+                    sales_nav_preference=linkedin_creds.get('sales_nav_enabled', False)
+                )
+                
+                bot_status['current_activity'] = 'Setting up Chrome...'
                 bot_status['progress'] = 20
-                time.sleep(2)
                 
-                num_leads_per_persona = 5
-                total_leads = []
+                if not scraper.setup_driver():
+                    raise Exception("Failed to setup Chrome")
                 
-                for persona in personas:
+                bot_status['current_activity'] = 'Logging into LinkedIn...'
+                bot_status['progress'] = 30
+                
+                if not scraper.login():
+                    raise Exception("Login failed")
+                
+                bot_status['current_activity'] = 'Login successful!'
+                bot_status['progress'] = 40
+                
+                # Build search from personas
+                search_keyword = personas[0].get('name', 'business professional')
+                
+                bot_status['current_activity'] = f'Searching: {search_keyword}'
+                bot_status['progress'] = 50
+                
+                # REAL SCRAPING
+                scraped_leads = scraper.scrape_leads(
+                    filters={'keywords': search_keyword},
+                    max_pages=2
+                )
+                
+                if not scraped_leads:
+                    raise Exception("No leads found")
+                
+                bot_status['current_activity'] = f'Found {len(scraped_leads)} leads!'
+                bot_status['progress'] = 70
+                
+                # Process each lead
+                successfully_imported = 0
+                
+                for i, lead_data in enumerate(scraped_leads, 1):
                     if not bot_status['running']:
                         break
                     
-                    persona_name = persona.get('name', 'Unknown')
+                    bot_status['current_activity'] = f'Processing {i}/{len(scraped_leads)}: {lead_data["name"]}'
                     
-                    for i in range(num_leads_per_persona):
-                        if not bot_status['running']:
-                            break
-                        
-                        lead_data = generate_lead_from_persona(persona)
-                        
-                        bot_status['current_activity'] = f'Scraping: {lead_data["name"]}, {lead_data["title"]} at {lead_data["company"]}'
-                        
-                        lead_id = db_manager.create_lead(
-                            name=lead_data['name'],
-                            profile_url=lead_data['profile_url'],
-                            title=lead_data['title'],
-                            company=lead_data['company'],
-                            industry=lead_data['industry'],
-                            location=lead_data['location'],
-                            headline=lead_data['headline'],
-                            company_size=lead_data['company_size']
-                        )
-                        
-                        if lead_id:
-                            bot_status['current_activity'] = f'🤖 AI scoring: {lead_data["name"]}...'
+                    lead_id = db_manager.create_lead(
+                        name=lead_data['name'],
+                        profile_url=lead_data['profile_url'],
+                        title=lead_data.get('title'),
+                        company=lead_data.get('company'),
+                        industry=lead_data.get('industry'),
+                        location=lead_data.get('location'),
+                        headline=lead_data.get('headline'),
+                        company_size=lead_data.get('company_size')
+                    )
+                    
+                    if lead_id:
+                        try:
+                            best_persona = personas[0]
+                            scoring_result = score_lead(
+                                lead_data=lead_data,
+                                persona_data=best_persona,
+                                api_key=api_key
+                            )
                             
-                            try:
-                                scoring_result = score_lead(
-                                    lead_data=lead_data,
-                                    persona_data=persona,
-                                    api_key=api_key
-                                )
-                                
-                                ai_score = scoring_result['score']
-                                reasoning = scoring_result['reasoning']
-                                
-                                db_manager.update_lead_score(
-                                    lead_id,
-                                    ai_score,
-                                    persona_id=persona.get('id'),
-                                    score_reasoning=reasoning
-                                )
-                                
-                                db_manager.log_activity(
-                                    activity_type='scrape',
-                                    description=f"✅ Scraped: {lead_data['name']}, {lead_data['title']} (AI Score: {ai_score}/100)",
-                                    status='success',
-                                    lead_id=lead_id
-                                )
-                                
-                                db_manager.log_activity(
-                                    activity_type='score',
-                                    description=f"🎯 AI scored {lead_data['name']}: {ai_score}/100 - {reasoning}",
-                                    status='success',
-                                    lead_id=lead_id
-                                )
-                                
-                                total_leads.append(lead_data['name'])
-                                
-                            except Exception as e:
-                                print(f"⚠️ AI scoring failed for {lead_data['name']}: {str(e)}")
-                                fallback_score = lead_data.get('score', random.randint(70, 90))
-                                
-                                db_manager.update_lead_score(
-                                    lead_id,
-                                    fallback_score,
-                                    persona_id=persona.get('id'),
-                                    score_reasoning=f"Match for {persona_name} persona (fallback scoring)"
-                                )
-                                
-                                db_manager.log_activity(
-                                    activity_type='scrape',
-                                    description=f"✅ Scraped: {lead_data['name']}, {lead_data['title']} (Score: {fallback_score}/100 - fallback)",
-                                    status='success',
-                                    lead_id=lead_id
-                                )
-                                
-                                total_leads.append(lead_data['name'])
-                        
-                        time.sleep(0.5)
+                            db_manager.update_lead_score(
+                                lead_id,
+                                scoring_result['score'],
+                                persona_id=best_persona.get('id'),
+                                score_reasoning=scoring_result['reasoning']
+                            )
+                            
+                            successfully_imported += 1
+                            bot_status['leads_scraped'] = successfully_imported
+                            
+                        except Exception as e:
+                            print(f"AI scoring failed: {str(e)}")
+                            db_manager.update_lead_score(lead_id, 75, persona_id=best_persona.get('id'))
+                            successfully_imported += 1
+                    
+                    bot_status['progress'] = 70 + int((i / len(scraped_leads)) * 25)
+                    time.sleep(0.5)
                 
-                bot_status['leads_scraped'] = len(total_leads)
-                bot_status['current_activity'] = f'✅ Complete! {len(total_leads)} leads scraped and AI-scored'
+                # Close browser
+                if scraper.driver:
+                    scraper.driver.quit()
+                
+                bot_status['current_activity'] = f'✅ Complete! {successfully_imported} real leads scraped'
                 bot_status['progress'] = 100
                 
                 db_manager.log_activity(
                     activity_type='scrape',
-                    description=f'🎉 Successfully scraped and AI-scored {len(total_leads)} leads from {len(personas)} personas',
+                    description=f'🎉 Scraped {successfully_imported} REAL leads',
                     status='success'
                 )
                 
@@ -470,17 +482,21 @@ def start_bot():
                 
                 db_manager.log_activity(
                     activity_type='scrape',
-                    description=f'❌ Error during scraping: {str(e)}',
+                    description=f'❌ Error: {str(e)}',
                     status='failed',
                     error_message=str(e)
                 )
+                
+                print(f"SCRAPING ERROR: {str(e)}")
+                import traceback
+                traceback.print_exc()
         
         scraper_thread = threading.Thread(target=scrape_leads_background, daemon=True)
         scraper_thread.start()
         
         return jsonify({
             'success': True,
-            'message': 'Bot started! Generating leads with AI scoring...',
+            'message': 'Bot started! Scraping REAL leads...',
             'status': bot_status
         })
         
@@ -490,7 +506,6 @@ def start_bot():
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
-
 @app.route('/api/bot/stop', methods=['POST'])
 def stop_bot():
     global bot_status
