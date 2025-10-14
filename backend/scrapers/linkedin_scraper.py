@@ -8,6 +8,7 @@ import time
 import random
 import sys
 import os
+import pickle
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Optional
@@ -70,7 +71,10 @@ except ImportError:
 
 
 class LinkedInScraper:
-    """LinkedIn scraper with Sales Navigator support - IMPROVED"""
+    """LinkedIn scraper with SESSION PERSISTENCE - solve CAPTCHA once per week!"""
+    
+    # Cookie storage location
+    COOKIES_DIR = Config.DATA_DIR / 'cookies'
     
     # FIXED selectors for October 2025
     SELECTORS = {
@@ -96,7 +100,7 @@ class LinkedInScraper:
     
     def __init__(self, email: str, password: str, headless: bool = False, sales_nav_preference: bool = True):
         """
-        Initialize scraper
+        Initialize scraper with session persistence
         
         Args:
             email: LinkedIn login email
@@ -111,13 +115,22 @@ class LinkedInScraper:
         self.driver = None
         self.wait = None
         
+        # Create cookies directory
+        self.COOKIES_DIR.mkdir(parents=True, exist_ok=True)
+        
+        # Cookie file specific to this email
+        import hashlib
+        email_hash = int(hashlib.md5(email.encode()).hexdigest()[:8], 16)
+        self.cookie_file = self.COOKIES_DIR / f'linkedin_session_{email_hash}.pkl'
+        
         self.stats = {
             'leads_scraped': 0,
             'errors': 0,
             'start_time': None,
             'end_time': None,
             'using_sales_nav': False,
-            'pages_scraped': 0
+            'pages_scraped': 0,
+            'used_saved_session': False
         }
     
     def setup_driver(self):
@@ -181,11 +194,87 @@ class LinkedInScraper:
         except TimeoutException:
             return None
     
+    def save_cookies(self):
+        """Save session cookies to file"""
+        try:
+            cookies = self.driver.get_cookies()
+            with open(self.cookie_file, 'wb') as f:
+                pickle.dump(cookies, f)
+            print(f"💾 Session saved! (valid for ~7 days)")
+            print(f"   Next run will skip login & CAPTCHA!")
+            return True
+        except Exception as e:
+            print(f"⚠️ Could not save session: {str(e)}")
+            return False
+    
+    def load_cookies(self):
+        """Load session cookies from file"""
+        try:
+            if not self.cookie_file.exists():
+                print("📝 No saved session found - will do fresh login")
+                return False
+            
+            # Check cookie age
+            age_days = (datetime.now().timestamp() - self.cookie_file.stat().st_mtime) / 86400
+            
+            if age_days > 7:
+                print(f"⚠️ Saved session expired ({age_days:.1f} days old)")
+                print("   Will do fresh login")
+                self.cookie_file.unlink()  # Delete old cookies
+                return False
+            
+            print(f"🔄 Found saved session ({age_days:.1f} days old)")
+            print("   Loading cookies...")
+            
+            # Go to LinkedIn to set domain
+            self.driver.get('https://www.linkedin.com')
+            time.sleep(2)
+            
+            # Load cookies
+            with open(self.cookie_file, 'rb') as f:
+                cookies = pickle.load(f)
+            
+            for cookie in cookies:
+                if 'domain' in cookie:
+                    del cookie['domain']
+                try:
+                    self.driver.add_cookie(cookie)
+                except:
+                    continue
+            
+            # Refresh to apply cookies
+            self.driver.refresh()
+            time.sleep(3)
+            
+            # Check if logged in
+            current_url = self.driver.current_url
+            if 'feed' in current_url or 'mynetwork' in current_url or 'sales' in current_url:
+                print("✅ Successfully resumed session!")
+                print("   🎉 NO LOGIN NEEDED - NO CAPTCHA!")
+                self.stats['used_saved_session'] = True
+                return True
+            else:
+                print("⚠️ Saved session invalid - will do fresh login")
+                self.cookie_file.unlink()
+                return False
+                
+        except Exception as e:
+            print(f"⚠️ Could not load session: {str(e)}")
+            if self.cookie_file.exists():
+                self.cookie_file.unlink()
+            return False
+    
     def login(self) -> bool:
-        """Login to LinkedIn"""
+        """Login to LinkedIn with extended CAPTCHA handling"""
         try:
             print("\n🔐 Logging into LinkedIn...")
             
+            # Try to use saved session first!
+            if self.load_cookies():
+                return True
+            
+            # Fresh login required
+            print("🆕 Starting fresh login...")
             self.driver.get('https://www.linkedin.com/login')
             self.human_delay(2, 4)
             
@@ -218,18 +307,74 @@ class LinkedInScraper:
             print("  → Waiting for login...")
             self.human_delay(4, 6)
             
-            # Check success
+            # Check current page
             current_url = self.driver.current_url
             
-            if 'feed' in current_url or 'sales' in current_url:
-                print("✅ Successfully logged in!")
+            # CAPTCHA/Security Challenge detected
+            if 'checkpoint' in current_url or 'challenge' in current_url:
+                print("\n" + "="*70)
+                print("🤖 LINKEDIN SECURITY CHECK DETECTED")
+                print("="*70)
+                print("⚠️  LinkedIn is asking you to verify you're human!")
+                print("")
+                print("📋 INSTRUCTIONS:")
+                print("   1. Look at the browser window (should be visible)")
+                print("   2. Click 'Start Puzzle' or solve the CAPTCHA")
+                print("   3. Complete any security challenges")
+                print("   4. Wait for LinkedIn feed to load")
+                print("")
+                print("⏳ I'll wait up to 5 MINUTES for you to complete this...")
+                print("   (You can take your time!)")
+                print("="*70 + "\n")
                 
-                # Check for verification
-                if 'checkpoint' in current_url or 'challenge' in current_url:
-                    print("\n⚠️ LinkedIn requires verification!")
-                    print("Please complete the verification in the browser window.")
-                    print("Waiting 60 seconds...")
-                    time.sleep(60)
+                # Wait up to 5 minutes for user to solve CAPTCHA
+                max_wait = 300  # 5 minutes
+                check_interval = 5  # Check every 5 seconds
+                start_time = time.time()
+                
+                while time.time() - start_time < max_wait:
+                    time.sleep(check_interval)
+                    
+                    try:
+                        current_url = self.driver.current_url
+                        elapsed = int(time.time() - start_time)
+                        
+                        # Check if we're logged in
+                        if 'feed' in current_url or 'mynetwork' in current_url or 'sales' in current_url:
+                            print(f"\n✅ Verification completed successfully after {elapsed} seconds!")
+                            print("✅ You're now logged in!")
+                            
+                            # Save cookies for next time!
+                            self.save_cookies()
+                            
+                            if USE_DATABASE:
+                                db_manager.log_activity(
+                                    activity_type='login',
+                                    description='Successfully logged into LinkedIn (with CAPTCHA)',
+                                    status='success'
+                                )
+                            return True
+                        
+                        # Still on checkpoint page
+                        if 'checkpoint' in current_url or 'challenge' in current_url:
+                            remaining = max_wait - elapsed
+                            print(f"  ⏳ Still waiting for verification... ({elapsed}s elapsed, {remaining}s remaining)")
+                        
+                    except Exception as e:
+                        print(f"  ⚠️ Error checking status: {str(e)}")
+                        continue
+                
+                # Timeout
+                print(f"\n❌ Verification timeout after {max_wait} seconds")
+                print("   Please try running the scraper again.")
+                return False
+            
+            # No CAPTCHA - check if we're logged in
+            elif 'feed' in current_url or 'sales' in current_url or 'mynetwork' in current_url:
+                print("✅ Successfully logged in! (No CAPTCHA required)")
+                
+                # Save cookies for next time!
+                self.save_cookies()
                 
                 if USE_DATABASE:
                     db_manager.log_activity(
@@ -238,9 +383,19 @@ class LinkedInScraper:
                         status='success'
                     )
                 return True
+            
+            # Login failed for other reason
             else:
                 print(f"❌ Login failed")
                 print(f"   Current URL: {current_url}")
+                
+                # Check for error messages
+                try:
+                    error_msg = self.driver.find_element(By.CSS_SELECTOR, '.alert-error').text
+                    print(f"   Error: {error_msg}")
+                except:
+                    pass
+                
                 return False
         
         except Exception as e:
@@ -685,6 +840,12 @@ class LinkedInScraper:
         
         mode = "Sales Navigator" if self.stats['using_sales_nav'] else "Regular LinkedIn"
         print(f"🔍 Mode: {mode}")
+        
+        # Session info
+        if self.stats['used_saved_session']:
+            print(f"🔄 Session: REUSED (no CAPTCHA!)")
+        else:
+            print(f"🔄 Session: FRESH LOGIN (CAPTCHA solved)")
         
         if self.stats['leads_scraped'] > 0:
             avg_per_page = self.stats['leads_scraped'] / max(self.stats['pages_scraped'], 1)
