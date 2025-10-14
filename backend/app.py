@@ -181,28 +181,8 @@ def test_connection():
             'message': f'Error: {str(e)}'
         }), 500
 
-@app.route('/api/auth/check-credentials', methods=['GET'])
-def check_credentials():
-    """Check if credentials are configured"""
-    try:
-        linkedin_creds = credentials_manager.get_linkedin_credentials()
-        openai_key = credentials_manager.get_openai_key()
-        
-        configured = bool(linkedin_creds and openai_key)
-        
-        return jsonify({
-            'success': True,
-            'configured': configured,
-            'linkedin': bool(linkedin_creds),
-            'openai': bool(openai_key)
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'configured': False,
-            'message': f'Error: {str(e)}'
-        }), 500
+# NOTE: /api/auth/check-credentials is registered by register_missing_endpoints()
+# No duplicate definition needed here
 
 # ============================================================================
 # API ROUTES - FILE UPLOAD
@@ -308,7 +288,7 @@ def upload_targets():
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
-
+    
 # ============================================================================
 # API ROUTES - BOT CONTROL
 # ============================================================================
@@ -441,13 +421,31 @@ def start_bot():
                 
                 bot_status['current_activity'] = 'Login successful!'
                 bot_status['progress'] = 40
-                
-                # Build search from personas
-                search_keyword = personas[0].get('name', 'business professional')
+                                
+                                # ✅ FIXED: Build search from personas - Use job titles instead of persona names
+                if personas and personas[0].get('name'):
+                    persona_name = personas[0].get('name', '').lower()
+                    
+                    # Map persona names to real LinkedIn job titles
+                    if 'founder' in persona_name or 'sme' in persona_name:
+                        search_keyword = 'CEO founder'
+                    elif 'marketing' in persona_name:
+                        search_keyword = 'marketing director manager'
+                    elif 'tech' in persona_name or 'startup' in persona_name:
+                        search_keyword = 'CTO founder startup'
+                    elif 'ecommerce' in persona_name:
+                        search_keyword = 'ecommerce director manager'
+                    elif 'service' in persona_name:
+                        search_keyword = 'service director manager'
+                    elif 'consultant' in persona_name or 'coach' in persona_name:
+                        search_keyword = 'consultant coach advisor'
+                    else:
+                        search_keyword = 'CEO founder director manager'
+                else:
+                    search_keyword = 'CEO founder director'
                 
                 bot_status['current_activity'] = f'Searching: {search_keyword}'
-                bot_status['progress'] = 50
-                
+                bot_status['progress'] = 50                
                 # REAL SCRAPING
                 scraped_leads = scraper.scrape_leads(
                     filters={'keywords': search_keyword},
@@ -734,7 +732,6 @@ def get_messages():
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
-
 @app.route('/api/messages/stats', methods=['GET'])
 def get_message_stats():
     """Get message statistics"""
@@ -1093,7 +1090,7 @@ def get_variant_comparison(test_id):
         }), 500
 
 # ============================================================================
-# CHANGE 3: ADD TWO NEW COOLDOWN API ENDPOINTS
+# COOLDOWN API ENDPOINTS
 # ============================================================================
 
 @app.route('/api/scraping/cooldown-status', methods=['GET'])

@@ -91,7 +91,7 @@ async function sendAllApprovedMessages() {
         }
         
         // Schedule all approved messages
-        const scheduleRes = await fetch('/api/messages/schedule-batch', {
+        const scheduleRes = await fetch('/api/schedule/batch', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -334,7 +334,7 @@ async function sendAllVariantsForLead(leadId) {
         }
         
         // Schedule all variants
-        const scheduleRes = await fetch('/api/messages/schedule-batch', {
+        const scheduleRes = await fetch('/api/schedule/batch', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
