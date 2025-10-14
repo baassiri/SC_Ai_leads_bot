@@ -1,308 +1,310 @@
 """
-SC AI Lead Generation System - Scraping Cooldown Manager
-Enforces weekly/monthly scraping limits to avoid LinkedIn detection
+Scraping Cooldown Manager - SIMPLIFIED VERSION
+Works directly with database without requiring SQLAlchemy models
 """
 
 import sqlite3
 from datetime import datetime, timedelta
-from typing import Dict, Tuple
-from pathlib import Path
-
+from typing import Tuple, Dict
+from backend.config import Config
+from backend.database.db_manager import db_manager
 
 class ScrapingCooldownManager:
     """
-    Manages scraping cooldowns to prevent LinkedIn bans
+    Manages scraping cooldowns to prevent LinkedIn account restrictions
     
-    Features:
-    - Weekly scraping limits (default: 1 scrape per week)
-    - Monthly tracking
-    - Automatic reset logic
-    - Time-until-next-scrape calculations
+    Default limits:
+    - 1 scrape per week (configurable)
+    - Cooldown resets every Monday at midnight
     """
     
-    def __init__(self, db_path: str = None):
-        if db_path is None:
-            from backend.config import Config
-            db_path = Config.get_database_path()
-        
-        self.db_path = db_path
+    def __init__(self, weekly_limit: int = 1):
+        self.weekly_limit = weekly_limit
+        self.db_path = Config.DATABASE_URL.replace('sqlite:///', '')
+    
+    def _ensure_user_exists(self, user_id: int = 1) -> bool:
+        """Ensure default user exists, create if missing"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,))
+            user = cursor.fetchone()
+            
+            if not user:
+                print(f"⚠️ User {user_id} not found. Creating default user...")
+                cursor.execute("""
+                    INSERT INTO users (id, email, is_active)
+                    VALUES (?, ?, ?)
+                """, (user_id, "default@scai.com", 1))
+                conn.commit()
+                print(f"✅ Default user created (ID: {user_id})")
+            
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"❌ Error ensuring user exists: {str(e)}")
+            return False
     
     def check_can_scrape(self, user_id: int = 1) -> Tuple[bool, str, Dict]:
         """
-        Check if scraping is allowed right now
+        Check if user can scrape based on cooldown rules
         
         Args:
             user_id: User ID to check (default: 1)
-            
+        
         Returns:
             Tuple of (can_scrape: bool, message: str, details: dict)
         """
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        # Get user scraping data
-        cursor.execute('''
-            SELECT 
-                last_scrape_date,
-                scrapes_this_week,
-                weekly_scrape_limit,
-                scrapes_this_month,
-                last_week_reset,
-                total_scrapes_alltime
-            FROM users
-            WHERE id = ?
-        ''', (user_id,))
-        
-        row = cursor.fetchone()
-        conn.close()
-        
-        if not row:
-            return False, "User not found", {}
-        
-        (last_scrape_date, scrapes_this_week, weekly_limit, 
-         scrapes_this_month, last_week_reset, total_alltime) = row
-        
-        # Parse dates
-        last_scrape = datetime.fromisoformat(last_scrape_date) if last_scrape_date else None
-        last_reset = datetime.fromisoformat(last_week_reset) if last_week_reset else None
-        
-        now = datetime.utcnow()
-        
-        # Check if week has rolled over (reset counter)
-        if last_reset:
-            days_since_reset = (now - last_reset).days
-            if days_since_reset >= 7:
-                # Week has passed, reset counter
-                self._reset_weekly_counter(user_id)
-                scrapes_this_week = 0
-        
-        # Check weekly limit
-        if scrapes_this_week >= weekly_limit:
-            # Calculate time until next allowed scrape
-            if last_scrape:
-                next_allowed = last_scrape + timedelta(days=7)
-                time_remaining = next_allowed - now
-                
-                hours_left = int(time_remaining.total_seconds() // 3600)
-                days_left = hours_left // 24
-                hours_left = hours_left % 24
-                
-                if days_left > 0:
-                    time_str = f"{days_left} day(s) and {hours_left} hour(s)"
-                else:
-                    time_str = f"{hours_left} hour(s)"
-                
-                message = (
-                    f"🚫 Weekly scraping limit reached ({scrapes_this_week}/{weekly_limit})\n\n"
-                    f"Next scrape available in: {time_str}\n"
-                    f"Next available: {next_allowed.strftime('%Y-%m-%d %H:%M UTC')}"
+        try:
+            # Ensure user exists
+            self._ensure_user_exists(user_id)
+            
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Get start of current week (Monday 00:00)
+            now = datetime.now()
+            week_start = now - timedelta(days=now.weekday(), 
+                                        hours=now.hour,
+                                        minutes=now.minute,
+                                        seconds=now.second,
+                                        microseconds=now.microsecond)
+            
+            # Count scrapes this week
+            cursor.execute("""
+                SELECT COUNT(*) FROM scraping_cooldown
+                WHERE user_id = ? AND scrape_timestamp >= ?
+            """, (user_id, week_start.isoformat()))
+            
+            scrapes_this_week = cursor.fetchone()[0]
+            conn.close()
+            
+            scrapes_remaining = max(0, self.weekly_limit - scrapes_this_week)
+            
+            if scrapes_remaining > 0:
+                return (
+                    True,
+                    f"✅ Ready to scrape! {scrapes_remaining} of {self.weekly_limit} scrapes remaining this week.",
+                    {
+                        'scrapes_this_week': scrapes_this_week,
+                        'scrapes_remaining': scrapes_remaining,
+                        'weekly_limit': self.weekly_limit,
+                        'week_start': week_start.isoformat(),
+                        'next_reset': (week_start + timedelta(days=7)).isoformat()
+                    }
                 )
             else:
-                message = f"🚫 Weekly scraping limit reached ({scrapes_this_week}/{weekly_limit})"
-            
-            details = {
-                'can_scrape': False,
-                'scrapes_used': scrapes_this_week,
-                'weekly_limit': weekly_limit,
-                'last_scrape': last_scrape.isoformat() if last_scrape else None,
-                'next_allowed': (last_scrape + timedelta(days=7)).isoformat() if last_scrape else None
-            }
-            
-            return False, message, details
+                next_reset = week_start + timedelta(days=7)
+                hours_until_reset = (next_reset - now).total_seconds() / 3600
+                
+                return (
+                    False,
+                    f"⏸️ Weekly scrape limit reached ({self.weekly_limit} scrapes/week). Resets in {hours_until_reset:.1f} hours.",
+                    {
+                        'scrapes_this_week': scrapes_this_week,
+                        'scrapes_remaining': 0,
+                        'weekly_limit': self.weekly_limit,
+                        'week_start': week_start.isoformat(),
+                        'next_reset': next_reset.isoformat(),
+                        'hours_until_reset': round(hours_until_reset, 1)
+                    }
+                )
         
-        # Scraping is allowed!
-        remaining = weekly_limit - scrapes_this_week
-        
-        message = (
-            f"✅ Scraping allowed!\n"
-            f"Scrapes remaining this week: {remaining}/{weekly_limit}"
-        )
-        
-        details = {
-            'can_scrape': True,
-            'scrapes_used': scrapes_this_week,
-            'scrapes_remaining': remaining,
-            'weekly_limit': weekly_limit,
-            'last_scrape': last_scrape.isoformat() if last_scrape else None
-        }
-        
-        return True, message, details
+        except Exception as e:
+            print(f"❌ Error checking cooldown: {str(e)}")
+            return (
+                False,
+                f"Error checking cooldown: {str(e)}",
+                {}
+            )
     
     def record_scrape(self, user_id: int = 1, leads_scraped: int = 0) -> bool:
         """
-        Record that a scrape was performed
+        Record a scraping session
         
         Args:
-            user_id: User ID
-            leads_scraped: Number of leads scraped
-            
+            user_id: User who performed the scrape
+            leads_scraped: Number of leads collected
+        
         Returns:
-            bool: Success
+            bool: True if recorded successfully
         """
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        now = datetime.utcnow()
-        
         try:
-            # Increment counters
-            cursor.execute('''
-                UPDATE users
-                SET 
-                    last_scrape_date = ?,
-                    scrapes_this_week = scrapes_this_week + 1,
-                    scrapes_this_month = scrapes_this_month + 1,
-                    total_scrapes_alltime = total_scrapes_alltime + 1,
-                    last_week_reset = COALESCE(last_week_reset, ?),
-                    last_month_reset = COALESCE(last_month_reset, ?)
-                WHERE id = ?
-            ''', (now.isoformat(), now.isoformat(), now.isoformat(), user_id))
+            # Ensure user exists
+            self._ensure_user_exists(user_id)
+            
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT INTO scraping_cooldown (user_id, scrape_timestamp, leads_scraped)
+                VALUES (?, ?, ?)
+            """, (user_id, datetime.now().isoformat(), leads_scraped))
             
             conn.commit()
+            conn.close()
             
-            print(f"✅ Recorded scrape for user {user_id}")
-            print(f"   Leads scraped: {leads_scraped}")
-            print(f"   Timestamp: {now.isoformat()}")
+            print(f"✅ Scrape recorded: {leads_scraped} leads collected")
+            
+            # Log activity
+            db_manager.log_activity(
+                activity_type='cooldown_recorded',
+                description=f'Scraping session recorded: {leads_scraped} leads',
+                status='success'
+            )
             
             return True
             
         except Exception as e:
             print(f"❌ Error recording scrape: {str(e)}")
-            conn.rollback()
             return False
-        finally:
-            conn.close()
-    
-    def _reset_weekly_counter(self, user_id: int = 1):
-        """Reset weekly scrape counter"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        now = datetime.utcnow()
-        
-        cursor.execute('''
-            UPDATE users
-            SET 
-                scrapes_this_week = 0,
-                last_week_reset = ?
-            WHERE id = ?
-        ''', (now.isoformat(), user_id))
-        
-        conn.commit()
-        conn.close()
-        
-        print(f"🔄 Reset weekly counter for user {user_id}")
     
     def get_scraping_stats(self, user_id: int = 1) -> Dict:
-        """Get comprehensive scraping statistics"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        """
+        Get scraping statistics for a user
         
-        cursor.execute('''
-            SELECT 
-                last_scrape_date,
-                scrapes_this_week,
-                scrapes_this_month,
-                weekly_scrape_limit,
-                total_scrapes_alltime,
-                last_week_reset
-            FROM users
-            WHERE id = ?
-        ''', (user_id,))
+        Args:
+            user_id: User ID
         
-        row = cursor.fetchone()
-        conn.close()
-        
-        if not row:
+        Returns:
+            Dict with scraping statistics
+        """
+        try:
+            # Ensure user exists
+            self._ensure_user_exists(user_id)
+            
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Get current week start
+            now = datetime.now()
+            week_start = now - timedelta(days=now.weekday(), 
+                                        hours=now.hour,
+                                        minutes=now.minute,
+                                        seconds=now.second,
+                                        microseconds=now.microsecond)
+            
+            # This week's scrapes
+            cursor.execute("""
+                SELECT COUNT(*), COALESCE(SUM(leads_scraped), 0)
+                FROM scraping_cooldown
+                WHERE user_id = ? AND scrape_timestamp >= ?
+            """, (user_id, week_start.isoformat()))
+            
+            this_week = cursor.fetchone()
+            scrapes_this_week = this_week[0]
+            leads_this_week = this_week[1]
+            
+            # All time stats
+            cursor.execute("""
+                SELECT COUNT(*), COALESCE(SUM(leads_scraped), 0), MAX(scrape_timestamp)
+                FROM scraping_cooldown
+                WHERE user_id = ?
+            """, (user_id,))
+            
+            all_time = cursor.fetchone()
+            scrapes_all_time = all_time[0]
+            leads_all_time = all_time[1]
+            last_scrape = all_time[2]
+            
+            conn.close()
+            
+            return {
+                'scrapes_this_week': scrapes_this_week,
+                'leads_this_week': leads_this_week,
+                'scrapes_all_time': scrapes_all_time,
+                'leads_all_time': leads_all_time,
+                'weekly_limit': self.weekly_limit,
+                'week_start': week_start.isoformat(),
+                'last_scrape': last_scrape
+            }
+            
+        except Exception as e:
+            print(f"❌ Error getting stats: {str(e)}")
             return {}
-        
-        (last_scrape, week_count, month_count, 
-         weekly_limit, total, last_reset) = row
-        
-        last_scrape_dt = datetime.fromisoformat(last_scrape) if last_scrape else None
-        last_reset_dt = datetime.fromisoformat(last_reset) if last_reset else None
-        
-        now = datetime.utcnow()
-        
-        # Calculate next available scrape
-        next_available = None
-        time_until_next = None
-        
-        if last_scrape_dt and week_count >= weekly_limit:
-            next_available = last_scrape_dt + timedelta(days=7)
-            time_until_next = next_available - now
-        
-        return {
-            'last_scrape': last_scrape,
-            'scrapes_this_week': week_count or 0,
-            'scrapes_this_month': month_count or 0,
-            'weekly_limit': weekly_limit or 1,
-            'total_alltime': total or 0,
-            'remaining_this_week': max(0, (weekly_limit or 1) - (week_count or 0)),
-            'next_available': next_available.isoformat() if next_available else None,
-            'seconds_until_next': int(time_until_next.total_seconds()) if time_until_next and time_until_next.total_seconds() > 0 else 0,
-            'can_scrape_now': (week_count or 0) < (weekly_limit or 1)
-        }
     
-    def update_weekly_limit(self, new_limit: int, user_id: int = 1) -> bool:
-        """Update weekly scraping limit"""
-        if new_limit < 0 or new_limit > 7:
-            print("❌ Invalid limit (must be 0-7)")
+    def update_weekly_limit(self, new_limit: int) -> bool:
+        """
+        Update the weekly scraping limit
+        
+        Args:
+            new_limit: New weekly limit (0-7)
+        
+        Returns:
+            bool: True if updated successfully
+        """
+        if 0 <= new_limit <= 7:
+            self.weekly_limit = new_limit
+            print(f"✅ Weekly limit updated to {new_limit} scrapes/week")
+            return True
+        else:
+            print(f"❌ Invalid limit: {new_limit} (must be 0-7)")
             return False
+    
+    def reset_user_cooldown(self, user_id: int = 1) -> bool:
+        """
+        ADMIN: Reset cooldown for a user (delete all records)
         
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        Args:
+            user_id: User to reset
         
-        cursor.execute('''
-            UPDATE users
-            SET weekly_scrape_limit = ?
-            WHERE id = ?
-        ''', (new_limit, user_id))
-        
-        conn.commit()
-        conn.close()
-        
-        print(f"✅ Updated weekly limit to {new_limit} scrapes/week")
-        return True
+        Returns:
+            bool: True if reset successfully
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute("DELETE FROM scraping_cooldown WHERE user_id = ?", (user_id,))
+            
+            conn.commit()
+            conn.close()
+            
+            print(f"✅ Cooldown reset for user {user_id}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error resetting cooldown: {str(e)}")
+            return False
 
 
 # Singleton instance
 _cooldown_manager = None
 
-def get_cooldown_manager() -> ScrapingCooldownManager:
-    """Get or create cooldown manager instance"""
+def get_cooldown_manager(weekly_limit: int = 1) -> ScrapingCooldownManager:
+    """Get singleton instance of cooldown manager"""
     global _cooldown_manager
     if _cooldown_manager is None:
-        _cooldown_manager = ScrapingCooldownManager()
+        _cooldown_manager = ScrapingCooldownManager(weekly_limit=weekly_limit)
     return _cooldown_manager
 
 
-# CLI for testing
+# Quick test
 if __name__ == '__main__':
-    print("\n" + "="*60)
-    print("🧪 SCRAPING COOLDOWN MANAGER TEST")
-    print("="*60)
+    print("=" * 60)
+    print("🧪 Testing Scraping Cooldown Manager")
+    print("=" * 60)
     
-    manager = get_cooldown_manager()
+    manager = get_cooldown_manager(weekly_limit=1)
     
-    # Check if can scrape
+    print("\n1️⃣ Checking if scraping is allowed...")
     can_scrape, message, details = manager.check_can_scrape()
+    print(f"   Result: {message}")
+    print(f"   Details: {details}")
     
-    print(f"\n{message}")
-    print(f"\nDetails: {details}")
+    if can_scrape:
+        print("\n2️⃣ Recording a test scrape...")
+        manager.record_scrape(user_id=1, leads_scraped=25)
+        
+        print("\n3️⃣ Checking again after scrape...")
+        can_scrape, message, details = manager.check_can_scrape()
+        print(f"   Result: {message}")
     
-    # Get stats
+    print("\n4️⃣ Getting statistics...")
     stats = manager.get_scraping_stats()
+    print(f"   Stats: {stats}")
     
-    print("\n📊 Scraping Statistics:")
-    print(f"   Last scrape: {stats['last_scrape'] or 'Never'}")
-    print(f"   This week: {stats['scrapes_this_week']}/{stats['weekly_limit']}")
-    print(f"   This month: {stats['scrapes_this_month']}")
-    print(f"   All time: {stats['total_alltime']}")
-    print(f"   Remaining: {stats['remaining_this_week']}")
-    
-    if not stats['can_scrape_now'] and stats['next_available']:
-        hours = stats['seconds_until_next'] // 3600
-        print(f"   Next available in: {hours} hours")
-    
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
+    print("✅ Test complete!")
+    print("=" * 60)
