@@ -1,147 +1,52 @@
-# SC AI Lead Generation System - Git Ignore Rules
+# Environment variables
+.env
+.env.local
 
-# ===========================
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+data/database*.db
+
 # Python
-# ===========================
+__pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-pip-wheel-metadata/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-__pycache__/
-*.pyc
-
-# ===========================
-# Virtual Environment
-# ===========================
 venv/
-ENV/
 env/
-.venv
+ENV/
 
-# ===========================
-# Flask
-# ===========================
-instance/
-.webassets-cache
+# Logs
+*.log
+logs/
+data/*.log
 
-# ===========================
-# Environment Variables
-# ===========================
-.env
-.env.local
-.env.*.local
-
-# ===========================
-# Database
-# ===========================
-*.db
-*.sqlite
-*.sqlite3
-data/database.db
-
-# ===========================
-# User Data & Uploads
-# ===========================
+# User uploads
 data/uploads/*
 !data/uploads/.gitkeep
+
+# Exports
 data/exports/*
 !data/exports/.gitkeep
-data/personas/*
-!data/personas/.gitkeep
 
-# ===========================
-# Logs
-# ===========================
-logs/
-*.log
+# Session files
+data/session.json
+data/*.json
+!data/.gitkeep
 
-# ===========================
-# IDE & Editor
-# ===========================
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+
+# OS
 .DS_Store
 Thumbs.db
 
-# ===========================
-# Selenium & Browser Drivers
-# ===========================
-chromedriver
+# ChromeDriver
 chromedriver.exe
-geckodriver
-geckodriver.exe
-selenium-debug.log
-
-# ===========================
-# Testing
-# ===========================
-.coverage
-htmlcov/
-.pytest_cache/
-.tox/
-.hypothesis/
-
-# ===========================
-# Jupyter Notebook
-# ===========================
-.ipynb_checkpoints
-
-# ===========================
-# Celery
-# ===========================
-celerybeat-schedule
-celerybeat.pid
-
-# ===========================
-# Temporary Files
-# ===========================
-*.tmp
-*.temp
-*.bak
-*.cache
-
-# ===========================
-# CSV Exports (keep structure, ignore data)
-# ===========================
-data/exports/*.csv
-!data/exports/sample.csv
-
-# ===========================
-# Credentials & Secrets
-# ===========================
-credentials.json
-secrets.json
-*.pem
-*.key
-
-# ===========================
-# OS-specific
-# ===========================
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Desktop.ini
+chromedriver
