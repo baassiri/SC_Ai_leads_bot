@@ -1,83 +1,57 @@
-"""
-Test Regular LinkedIn Scraper
-Run this after entering credentials in the UI
-"""
-
+# scripts/test_linkedin_scraper.py
 import sys
 from pathlib import Path
 
-# Add project to path
-project_root = Path(__file__).parent
-sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from backend.scrapers.linkedin_scraper import LinkedInScraper
-from backend.credentials_manager import credentials_manager
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def test_scraper():
-    print("="*60)
-    print("Testing Regular LinkedIn Scraper")
-    print("="*60)
+    print("🧪 Testing LinkedIn Scraper...")
     
-    # Get credentials from system
-    creds = credentials_manager.get_linkedin_credentials()
+    email = os.getenv('LINKEDIN_EMAIL')
+    password = os.getenv('LINKEDIN_PASSWORD')
     
-    if not creds or not creds.get('email'):
-        print("\n❌ No LinkedIn credentials found!")
-        print("Please go to http://localhost:5000/ and save your credentials first")
-        return
-    
-    email = creds['email']
-    password = creds['password']
-    
-    print(f"\n✅ Using credentials for: {email}")
-    print("\n⚠️  IMPORTANT:")
-    print("- Browser will open (visible mode)")
-    print("- Only scraping 10 leads max (safe)")
-    print("- Using regular LinkedIn search")
-    print("- Will take 2-3 minutes")
-    
-    input("\nPress Enter to start...")
-    
-    # Create scraper
-    scraper = LinkedInScraper(
-        email=email,
-        password=password,
-        headless=False,  # Keep visible so you can see
-        sales_nav_preference=False  # Force regular LinkedIn
-    )
-    
-    # Define search (use your persona keywords)
-    filters = {
-        'keywords': 'Marketing Director OR Agency Owner',
-        'job_titles': ['Marketing Director', 'Agency Owner'],
-        'locations': ['United States']
-    }
-    
-    print("\n🚀 Starting scraper...")
+    if not email or not password:
+        print("❌ Missing LinkedIn credentials in .env")
+        return False
     
     try:
-        # Scrape leads (only 1 page = ~10 leads)
-        leads = scraper.scrape_leads(filters, max_pages=1)
+        # Test with visible browser to see what's happening
+        scraper = LinkedInScraper(email, password, headless=False)
         
-        if leads:
-            print(f"\n✅ SUCCESS! Scraped {len(leads)} leads")
-            print("\nFirst 3 leads:")
-            for i, lead in enumerate(leads[:3], 1):
-                print(f"\n{i}. {lead.get('name', 'Unknown')}")
-                print(f"   Title: {lead.get('title', 'N/A')}")
-                print(f"   Company: {lead.get('company', 'N/A')}")
-                print(f"   Location: {lead.get('location', 'N/A')}")
-        else:
-            print("\n⚠️  No leads found - try different keywords")
-    
+        print("1️⃣ Setting up driver...")
+        scraper.setup_driver()
+        
+        print("2️⃣ Attempting login...")
+        login_success = scraper.login()
+        
+        if not login_success:
+            print("❌ Login failed!")
+            input("Press Enter to close browser...")
+            scraper.close()
+            return False
+        
+        print("✅ Login successful!")
+        
+        print("3️⃣ Testing search...")
+        # Simple test search
+        scraper.driver.get('https://www.linkedin.com/search/results/people/?keywords=CEO')
+        
+        input("Press Enter to close browser (check if search worked)...")
+        scraper.close()
+        
+        return True
+        
     except Exception as e:
-        print(f"\n❌ Error: {str(e)}")
+        print(f"❌ Error: {str(e)}")
         import traceback
         traceback.print_exc()
-    
-    finally:
-        scraper.close_session()
-        print("\n✅ Browser closed")
+        return False
 
 if __name__ == '__main__':
     test_scraper()

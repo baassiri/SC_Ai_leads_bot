@@ -1,0 +1,45 @@
+﻿# Quick fix - just update the SELECTORS in your existing file
+# Find this section in backend/scrapers/linkedin_scraper.py around line 70
+
+Replace this:
+    SELECTORS = {
+        'login': {
+            'email': '#username',
+            'password': '#password',
+            'submit': 'button[type="submit"]'
+        },
+        'regular_linkedin': {
+            'search_result': 'li.reusable-search__result-container',
+            'name': 'span.entity-result__title-text a span[aria-hidden="true"]',
+            'title': '.entity-result__primary-subtitle',
+            'location': '.entity-result__secondary-subtitle',
+            'profile_link': 'a.app-aware-link[href*="/in/"]',
+            'next_button': 'button[aria-label="Next"]'
+        },
+        ...
+    }
+
+With this:
+    SELECTORS = {
+        'login': {
+            'email': '#username',
+            'password': '#password',
+            'submit': 'button[type="submit"]'
+        },
+        'regular_linkedin': {
+            'search_result': 'div._3bb1cbb3',  # UPDATED Oct 14, 2025
+            'profile_link': 'a[href*="/in/"]',  # UPDATED - most reliable
+            'name': 'a[href*="/in/"]',          # Get from link text
+            'title': None,                       # Extract from card text
+            'location': None,                    # Extract from card text
+            'next_button': 'button[aria-label*="Next"]'
+        },
+        'sales_navigator': {
+            'search_result': 'li.artdeco-list__item',
+            'name': '.artdeco-entity-lockup__title',
+            'title': '.artdeco-entity-lockup__subtitle',
+            'company': '.artdeco-entity-lockup__caption',
+            'profile_link': 'a.artdeco-entity-lockup__title-link',
+            'next_button': 'button[aria-label="Next"]'
+        }
+    }

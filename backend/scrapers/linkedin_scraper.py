@@ -80,7 +80,7 @@ class LinkedInScraper:
             'submit': 'button[type="submit"]'
         },
         'regular_linkedin': {
-            'search_result': 'li.reusable-search__result-container',
+            'search_result': 'div.b9fd59a4',
             'name': 'span.entity-result__title-text a span[aria-hidden="true"]',
             'title': '.entity-result__primary-subtitle',
             'location': '.entity-result__secondary-subtitle',
@@ -124,45 +124,52 @@ class LinkedInScraper:
         }
     
     def setup_driver(self):
-        """Setup Chrome WebDriver with anti-detection"""
-        print("🔧 Setting up Chrome WebDriver...")
+        """Setup Chrome WebDriver with anti-detection measures"""
+        print("\n🚗 Setting up Chrome driver...")
         
         options = Options()
         
-        # Headless mode
-        if self.headless:
-            options.add_argument('--headless=new')
-            print("  → Running invisibly (headless mode)")
-        
-        # Anti-detection
-        options.add_argument('--no-sandbox')
-        options.add_argument('--disable-dev-shm-usage')
+        # Stealth mode enhancements
         options.add_argument('--disable-blink-features=AutomationControlled')
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option('useAutomationExtension', False)
         
-        # Realistic user agent
+        # Additional stealth
+        options.add_argument('--disable-dev-shm-usage')
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-setuid-sandbox')
+        options.add_argument('--disable-web-security')
+        options.add_argument('--disable-features=IsolateOrigins,site-per-process')
+        
+        # User agent
         options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
         
-        # Window size
-        options.add_argument('--window-size=1920,1080')
+        if self.headless:
+            options.add_argument('--headless=new')
+            options.add_argument('--window-size=1920,1080')
         
+        # Install and setup driver
         try:
             service = Service(ChromeDriverManager().install())
             self.driver = webdriver.Chrome(service=service, options=options)
-        except:
-            print("⚠️ Trying alternative Chrome setup...")
-            self.driver = webdriver.Chrome(options=options)
-        
-        # Remove webdriver property
-        self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        
-        self.wait = WebDriverWait(self.driver, 20)
-        
-        if not self.headless:
-            self.driver.maximize_window()
-        
-        print("✅ Chrome WebDriver ready!")
+            
+            # Execute stealth scripts
+            self.driver.execute_cdp_cmd('Network.setUserAgentOverride', {
+                "userAgent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            })
+            
+            # Hide webdriver property
+            self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+            
+            self.wait = WebDriverWait(self.driver, 20)
+            self.driver.implicitly_wait(10)
+            
+            print("✅ Driver setup complete")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Driver setup failed: {str(e)}")
+            return False
     
     def human_delay(self, min_sec: float = 1.0, max_sec: float = 3.0):
         """Random delay to mimic human behavior"""
