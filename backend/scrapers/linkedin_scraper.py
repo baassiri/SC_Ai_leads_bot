@@ -206,9 +206,41 @@ class LinkedInScraper:
         except Exception as e:
             print(f"⚠️ Could not save session: {str(e)}")
             return False
+    
+    def ensure_driver_alive(self):
+        """Ensure driver is alive before using it - RECOVERY HELPER"""
+        if not self.driver:
+            print("⚠️ Driver is None - setting up new driver")
+            return self.setup_driver()
         
+        try:
+            # Test if driver is alive
+            _ = self.driver.current_url
+            return True
+        except Exception as e:
+            print(f"⚠️ Driver died: {str(e)}")
+            print("   🔄 Attempting recovery...")
+            
+            # Try to close dead driver
+            try:
+                self.driver.quit()
+            except:
+                pass
+            
+            # Reset driver
+            self.driver = None
+            self.wait = None
+            
+            # Recreate driver
+            if self.setup_driver():
+                print("✅ Driver recovered successfully")
+                return True
+            else:
+                print("❌ Driver recovery failed")
+                return False
+    
     def load_cookies(self):
-        """Load session cookies from file - FIXED VERSION"""
+        """Load session cookies from file - FIXED VERSION WITH SESSION RECOVERY"""
         try:
             if not self.cookie_file.exists():
                 print("🔍 No saved session found - will do fresh login")
@@ -220,47 +252,79 @@ class LinkedInScraper:
             if age_days > 7:
                 print(f"⚠️ Saved session expired ({age_days:.1f} days old)")
                 print("   Will do fresh login")
-                self.cookie_file.unlink()  # Delete old cookies
+                self.cookie_file.unlink()
                 return False
             
             print(f"🔄 Found saved session ({age_days:.1f} days old)")
             print("   Loading cookies...")
             
-            # ✅ CRITICAL FIX: Check if driver is alive before using it
+            # ✅ CRITICAL FIX: Check if driver is alive, if not, recreate it
             if not self.driver:
-                print("⚠️ Driver not initialized - cannot load cookies")
-                return False
+                print("⚠️ Driver not initialized - initializing now")
+                if not self.setup_driver():
+                    return False
             
+            driver_alive = False
             try:
                 # Test if driver is still alive
                 _ = self.driver.current_url
+                driver_alive = True
+                print("✅ Driver session is alive")
             except Exception as e:
-                print(f"⚠️ Driver session is dead - will do fresh login")
+                print(f"⚠️ Driver session died: {str(e)}")
+                print("   🔄 Recreating driver...")
+                
+                # Close dead driver properly
+                try:
+                    self.driver.quit()
+                except:
+                    pass
+                
+                # Recreate the driver
+                self.driver = None
+                self.wait = None
+                
+                if not self.setup_driver():
+                    print("❌ Could not recreate driver")
+                    return False
+                
+                print("✅ Driver recreated successfully")
+                driver_alive = True
+            
+            if not driver_alive:
                 return False
             
-            # Go to LinkedIn to set domain
+            # Now proceed with cookie loading
+            print("   📍 Navigating to LinkedIn...")
             self.driver.get('https://www.linkedin.com')
             time.sleep(2)
             
             # Load cookies
+            print("   🍪 Loading cookies...")
             with open(self.cookie_file, 'rb') as f:
                 cookies = pickle.load(f)
             
+            cookies_loaded = 0
             for cookie in cookies:
                 if 'domain' in cookie:
                     del cookie['domain']
                 try:
                     self.driver.add_cookie(cookie)
+                    cookies_loaded += 1
                 except Exception as e:
-                    # Skip cookies that can't be added
                     continue
             
+            print(f"   ✅ Loaded {cookies_loaded} cookies")
+            
             # Refresh to apply cookies
+            print("   🔄 Applying cookies...")
             self.driver.refresh()
             time.sleep(3)
             
             # Check if logged in
             current_url = self.driver.current_url
+            print(f"   📍 Current URL: {current_url[:50]}...")
+            
             if 'feed' in current_url or 'mynetwork' in current_url or 'sales' in current_url:
                 print("✅ Successfully resumed session!")
                 print("   🎉 NO LOGIN NEEDED - NO CAPTCHA!")
@@ -273,13 +337,15 @@ class LinkedInScraper:
                 
         except Exception as e:
             print(f"⚠️ Could not load session: {str(e)}")
-            # Don't try to use invalid cookies
+            print(f"   Error type: {type(e).__name__}")
+            traceback.print_exc()
+            
             if self.cookie_file.exists():
                 try:
                     self.cookie_file.unlink()
                 except:
                     pass
-            return False                
+            return False
     
     def login(self) -> bool:
         """Login to LinkedIn with extended CAPTCHA handling - FIXED VERSION"""
@@ -296,7 +362,7 @@ class LinkedInScraper:
             
             # ✅ CRITICAL FIX: Wait longer for page to fully load
             print("   ⏳ Waiting for login page to load...")
-            self.human_delay(4, 6)  # Increased from 2-4 to 4-6
+            self.human_delay(4, 6)
             
             # ✅ CRITICAL FIX: Verify we're on the login page
             current_url = self.driver.current_url
@@ -371,8 +437,8 @@ class LinkedInScraper:
                 print("="*70 + "\n")
                 
                 # Wait up to 5 minutes for user to solve CAPTCHA
-                max_wait = 300  # 5 minutes
-                check_interval = 5  # Check every 5 seconds
+                max_wait = 300
+                check_interval = 5
                 start_time = time.time()
                 
                 while time.time() - start_time < max_wait:
@@ -445,7 +511,7 @@ class LinkedInScraper:
             print(f"❌ Login error: {str(e)}")
             traceback.print_exc()
             return False
-        
+    
     def detect_sales_nav_access(self) -> bool:
         """Check if user has Sales Navigator access"""
         try:
@@ -468,302 +534,304 @@ class LinkedInScraper:
             return False
     
     def search_leads(self, keywords: str) -> bool:
-            """
-            Search for leads using keywords
-            IMPROVED: Better Sales Nav URL formatting + login verification
-            """
-            try:
-                # FIRST: Verify we're actually logged in
-                print("\n🔐 Verifying login status...")
-                current_url = self.driver.current_url
-                
-                # If we're not on a LinkedIn page, something went wrong
-                if 'linkedin.com' not in current_url:
-                    print("❌ Not on LinkedIn! Attempting to navigate to feed...")
-                    self.driver.get('https://www.linkedin.com/feed/')
-                    self.human_delay(3, 5)
-                    current_url = self.driver.current_url
-                
-                # Check if we're actually logged in
-                if 'login' in current_url or 'uas/login' in current_url:
-                    print("❌ Still on login page - login must have failed!")
-                    return False
-                
-                print(f"✅ Logged in - current page: {current_url[:60]}...")
-                
-                # Clean and prepare keywords
-                clean_keywords = keywords.strip()
-                if not clean_keywords:
-                    clean_keywords = "CEO founder"  # Default fallback
-                
-                print(f"\n🎯 Search target: {clean_keywords}")
-                
-                # Try Sales Navigator first if preferred
-                if self.sales_nav_preference:
-                    has_sales_nav = self.detect_sales_nav_access()
-                    
-                    if has_sales_nav:
-                        print(f"\n🔎 Searching Sales Navigator for: {clean_keywords}")
-                        
-                        # IMPROVED: Better Sales Nav URL formatting
-                        # Sales Nav works better with title-based searches
-                        url_keywords = clean_keywords.replace(' ', '%20')
-                        search_url = f"https://www.linkedin.com/sales/search/people?keywords={url_keywords}"
-                        
-                        print(f"   Navigating to: {search_url}")
-                        self.driver.get(search_url)
-                        self.human_delay(4, 6)  # Longer wait for Sales Nav
-                        
-                        if 'sales/search/people' in self.driver.current_url:
-                            print("✅ Sales Navigator search loaded!")
-                            self.stats['using_sales_nav'] = True
-                            
-                            if USE_DATABASE:
-                                db_manager.log_activity(
-                                    activity_type='search',
-                                    description=f'🎯 Sales Nav search: {clean_keywords}',
-                                    status='success'
-                                )
-                            return True
-                        else:
-                            print(f"⚠️ Sales Nav redirect failed, current URL: {self.driver.current_url[:60]}")
-                
-                # Fallback to regular LinkedIn
-                print(f"\n🔎 Searching Regular LinkedIn for: {clean_keywords}")
-                url_keywords = clean_keywords.replace(' ', '%20')
-                search_url = f"https://www.linkedin.com/search/results/people/?keywords={url_keywords}"
-                
-                print(f"   Navigating to: {search_url}")
-                self.driver.get(search_url)
-                self.human_delay(3, 5)
-                
-                final_url = self.driver.current_url
-                print(f"   Final URL: {final_url[:80]}")
-                
-                if 'search/results/people' in final_url:
-                    print("✅ Regular LinkedIn search loaded!")
-                    self.stats['using_sales_nav'] = False
-                    
-                    if USE_DATABASE:
-                        db_manager.log_activity(
-                            activity_type='search',
-                            description=f'🎯 LinkedIn search: {clean_keywords}',
-                            status='success'
-                        )
-                    return True
-                else:
-                    print(f"❌ Search failed! Current URL: {final_url}")
-                    
-                    # Check if we got logged out
-                    if 'login' in final_url or 'checkpoint' in final_url:
-                        print("❌ Got logged out or hit security checkpoint!")
-                    
-                    return False
-            
-            except Exception as e:
-                print(f"❌ Search error: {str(e)}")
-                import traceback
-                traceback.print_exc()
+        """
+        Search for leads using keywords - FIXED WITH DRIVER HEALTH CHECK
+        """
+        try:
+            # ✅ CRITICAL: Verify driver is alive before searching
+            if not self.ensure_driver_alive():
+                print("❌ Driver died before search")
                 return False
+            
+            # FIRST: Verify we're actually logged in
+            print("\n🔐 Verifying login status...")
+            current_url = self.driver.current_url
+            
+            # If we're not on a LinkedIn page, something went wrong
+            if 'linkedin.com' not in current_url:
+                print("❌ Not on LinkedIn! Attempting to navigate to feed...")
+                self.driver.get('https://www.linkedin.com/feed/')
+                self.human_delay(3, 5)
+                current_url = self.driver.current_url
+            
+            # Check if we're actually logged in
+            if 'login' in current_url or 'uas/login' in current_url:
+                print("❌ Still on login page - login must have failed!")
+                return False
+            
+            print(f"✅ Logged in - current page: {current_url[:60]}...")
+            
+            # Clean and prepare keywords
+            clean_keywords = keywords.strip()
+            if not clean_keywords:
+                clean_keywords = "CEO founder"
+            
+            print(f"\n🎯 Search target: {clean_keywords}")
+            
+            # Try Sales Navigator first if preferred
+            if self.sales_nav_preference:
+                has_sales_nav = self.detect_sales_nav_access()
+                
+                if has_sales_nav:
+                    print(f"\n🔎 Searching Sales Navigator for: {clean_keywords}")
+                    
+                    url_keywords = clean_keywords.replace(' ', '%20')
+                    search_url = f"https://www.linkedin.com/sales/search/people?keywords={url_keywords}"
+                    
+                    print(f"   Navigating to: {search_url}")
+                    self.driver.get(search_url)
+                    self.human_delay(4, 6)
+                    
+                    if 'sales/search/people' in self.driver.current_url:
+                        print("✅ Sales Navigator search loaded!")
+                        self.stats['using_sales_nav'] = True
+                        
+                        if USE_DATABASE:
+                            db_manager.log_activity(
+                                activity_type='search',
+                                description=f'🎯 Sales Nav search: {clean_keywords}',
+                                status='success'
+                            )
+                        return True
+                    else:
+                        print(f"⚠️ Sales Nav redirect failed, current URL: {self.driver.current_url[:60]}")
+            
+            # Fallback to regular LinkedIn
+            print(f"\n🔎 Searching Regular LinkedIn for: {clean_keywords}")
+            url_keywords = clean_keywords.replace(' ', '%20')
+            search_url = f"https://www.linkedin.com/search/results/people/?keywords={url_keywords}"
+            
+            print(f"   Navigating to: {search_url}")
+            self.driver.get(search_url)
+            self.human_delay(3, 5)
+            
+            final_url = self.driver.current_url
+            print(f"   Final URL: {final_url[:80]}")
+            
+            if 'search/results/people' in final_url:
+                print("✅ Regular LinkedIn search loaded!")
+                self.stats['using_sales_nav'] = False
+                
+                if USE_DATABASE:
+                    db_manager.log_activity(
+                        activity_type='search',
+                        description=f'🎯 LinkedIn search: {clean_keywords}',
+                        status='success'
+                    )
+                return True
+            else:
+                print(f"❌ Search failed! Current URL: {final_url}")
+                
+                # Check if we got logged out
+                if 'login' in final_url or 'checkpoint' in final_url:
+                    print("❌ Got logged out or hit security checkpoint!")
+                
+                return False
+        
+        except Exception as e:
+            print(f"❌ Search error: {str(e)}")
+            traceback.print_exc()
+            return False
     
     def extract_lead_data(self, card_element) -> Optional[Dict]:
-            """Extract lead data from search result card - UPDATED FOR OCT 2025"""
+        """Extract lead data from search result card - UPDATED FOR OCT 2025"""
+        try:
+            lead = {
+                'name': None,
+                'title': None,
+                'company': None,
+                'location': None,
+                'profile_url': None,
+                'headline': None,
+                'industry': None,
+                'company_size': None,
+                'ai_score': 0,
+                'status': 'new'
+            }
+            
+            # Get the full card text for debugging
             try:
-                lead = {
-                    'name': None,
-                    'title': None,
-                    'company': None,
-                    'location': None,
-                    'profile_url': None,
-                    'headline': None,
-                    'industry': None,
-                    'company_size': None,
-                    'ai_score': 0,
-                    'status': 'new'
-                }
+                card_text = card_element.text.strip()
+            except:
+                card_text = ""
+            
+            # CRITICAL: Find profile link first
+            try:
+                # Try multiple link selectors
+                link_selectors = [
+                    'a[href*="/in/"]',
+                    '.entity-result__title-text a',
+                    '.app-aware-link[href*="/in/"]',
+                    'a.app-aware-link'
+                ]
                 
-                # Get the full card text for debugging
-                try:
-                    card_text = card_element.text.strip()
-                except:
-                    card_text = ""
+                profile_link = None
+                for selector in link_selectors:
+                    try:
+                        link_elem = card_element.find_element(By.CSS_SELECTOR, selector)
+                        href = link_elem.get_attribute('href')
+                        if href and '/in/' in href and 'linkedin.com' in href:
+                            profile_link = href
+                            break
+                    except:
+                        continue
                 
-                # CRITICAL: Find profile link first
-                try:
-                    # Try multiple link selectors
-                    link_selectors = [
-                        'a[href*="/in/"]',
-                        '.entity-result__title-text a',
-                        '.app-aware-link[href*="/in/"]',
-                        'a.app-aware-link'
-                    ]
-                    
-                    profile_link = None
-                    for selector in link_selectors:
-                        try:
-                            link_elem = card_element.find_element(By.CSS_SELECTOR, selector)
-                            href = link_elem.get_attribute('href')
-                            if href and '/in/' in href and 'linkedin.com' in href:
-                                profile_link = href
-                                break
-                        except:
-                            continue
-                    
-                    if not profile_link:
-                        return None
-                    
-                    # Clean URL
-                    if '?' in profile_link:
-                        profile_link = profile_link.split('?')[0]
-                    
-                    lead['profile_url'] = profile_link
-                    
-                except Exception as e:
+                if not profile_link:
                     return None
                 
-                # Extract name from the link or card
-                try:
-                    # Try multiple name selectors
-                    name_selectors = [
-                        '.entity-result__title-text a span[aria-hidden="true"]',
-                        '.entity-result__title-text a span:first-child',
-                        'span.entity-result__title-text span',
-                        '.entity-result__title-text'
-                    ]
-                    
-                    name = None
-                    for selector in name_selectors:
-                        try:
-                            name_elem = card_element.find_element(By.CSS_SELECTOR, selector)
-                            name_text = name_elem.text.strip()
-                            if name_text and len(name_text) > 0:
-                                name = name_text
-                                break
-                        except:
-                            continue
-                    
-                    # Fallback: extract from card text
-                    if not name and card_text:
-                        lines = [l.strip() for l in card_text.split('\n') if l.strip()]
-                        if lines:
-                            # First non-button line is usually the name
-                            for line in lines:
-                                if line and len(line) < 100 and not any(word in line.lower() for word in ['connect', 'message', 'follow', 'view', 'profile']):
-                                    name = line
-                                    break
-                    
-                    if name:
-                        lead['name'] = name
-                    else:
-                        return None
-                        
-                except:
-                    return None
+                # Clean URL
+                if '?' in profile_link:
+                    profile_link = profile_link.split('?')[0]
                 
-                # Extract title and company
-                try:
-                    # Try structured selectors first
-                    title_selectors = [
-                        '.entity-result__primary-subtitle',
-                        '.entity-result__summary',
-                        'div.entity-result__primary-subtitle'
-                    ]
-                    
-                    for selector in title_selectors:
-                        try:
-                            subtitle_elem = card_element.find_element(By.CSS_SELECTOR, selector)
-                            subtitle_text = subtitle_elem.text.strip()
-                            
-                            if subtitle_text:
-                                # Parse "Title at Company" format
-                                if ' at ' in subtitle_text:
-                                    parts = subtitle_text.split(' at ', 1)
-                                    lead['title'] = parts[0].strip()
-                                    lead['company'] = parts[1].strip()
-                                elif ' | ' in subtitle_text:
-                                    parts = subtitle_text.split(' | ', 1)
-                                    lead['title'] = parts[0].strip()
-                                    if len(parts) > 1:
-                                        lead['company'] = parts[1].strip()
-                                else:
-                                    lead['title'] = subtitle_text
-                                break
-                        except:
-                            continue
-                    
-                    # Fallback: parse from card text
-                    if not lead['title'] and card_text:
-                        lines = [l.strip() for l in card_text.split('\n') if l.strip()]
-                        if len(lines) >= 2:
-                            # Second line is usually title
-                            title_line = lines[1] if len(lines) > 1 else ""
-                            
-                            if title_line and not any(word in title_line.lower() for word in ['connect', 'message', 'follow']):
-                                if ' at ' in title_line:
-                                    parts = title_line.split(' at ', 1)
-                                    lead['title'] = parts[0].strip()
-                                    lead['company'] = parts[1].strip()
-                                else:
-                                    lead['title'] = title_line
-                    
-                except:
-                    pass
+                lead['profile_url'] = profile_link
                 
-                # Extract location
-                try:
-                    location_selectors = [
-                        '.entity-result__secondary-subtitle',
-                        'div.entity-result__secondary-subtitle',
-                        '.t-black--light.t-12'
-                    ]
-                    
-                    for selector in location_selectors:
-                        try:
-                            loc_elem = card_element.find_element(By.CSS_SELECTOR, selector)
-                            loc_text = loc_elem.text.strip()
-                            
-                            if loc_text and not any(word in loc_text.lower() for word in ['connect', 'message', 'mutual']):
-                                lead['location'] = loc_text
-                                break
-                        except:
-                            continue
-                    
-                    # Fallback: third line in card text
-                    if not lead['location'] and card_text:
-                        lines = [l.strip() for l in card_text.split('\n') if l.strip()]
-                        if len(lines) >= 3:
-                            location_line = lines[2]
-                            if location_line and not any(word in location_line.lower() for word in ['connect', 'message', 'mutual', 'follower']):
-                                lead['location'] = location_line
-                                
-                except:
-                    pass
-                
-                # Set headline (combination of title and company)
-                if lead['title']:
-                    if lead['company']:
-                        lead['headline'] = f"{lead['title']} at {lead['company']}"
-                    else:
-                        lead['headline'] = lead['title']
-                
-                # Validate - must have name and profile URL
-                if not lead['name'] or not lead['profile_url']:
-                    return None
-                
-                # Must be a real LinkedIn profile
-                if '/in/' not in lead['profile_url']:
-                    return None
-                
-                return lead
             except Exception as e:
                 return None
+            
+            # Extract name from the link or card
+            try:
+                # Try multiple name selectors
+                name_selectors = [
+                    '.entity-result__title-text a span[aria-hidden="true"]',
+                    '.entity-result__title-text a span:first-child',
+                    'span.entity-result__title-text span',
+                    '.entity-result__title-text'
+                ]
+                
+                name = None
+                for selector in name_selectors:
+                    try:
+                        name_elem = card_element.find_element(By.CSS_SELECTOR, selector)
+                        name_text = name_elem.text.strip()
+                        if name_text and len(name_text) > 0:
+                            name = name_text
+                            break
+                    except:
+                        continue
+                
+                # Fallback: extract from card text
+                if not name and card_text:
+                    lines = [l.strip() for l in card_text.split('\n') if l.strip()]
+                    if lines:
+                        # First non-button line is usually the name
+                        for line in lines:
+                            if line and len(line) < 100 and not any(word in line.lower() for word in ['connect', 'message', 'follow', 'view', 'profile']):
+                                name = line
+                                break
+                
+                if name:
+                    lead['name'] = name
+                else:
+                    return None
+                    
+            except:
+                return None
+            
+            # Extract title and company
+            try:
+                # Try structured selectors first
+                title_selectors = [
+                    '.entity-result__primary-subtitle',
+                    '.entity-result__summary',
+                    'div.entity-result__primary-subtitle'
+                ]
+                
+                for selector in title_selectors:
+                    try:
+                        subtitle_elem = card_element.find_element(By.CSS_SELECTOR, selector)
+                        subtitle_text = subtitle_elem.text.strip()
+                        
+                        if subtitle_text:
+                            # Parse "Title at Company" format
+                            if ' at ' in subtitle_text:
+                                parts = subtitle_text.split(' at ', 1)
+                                lead['title'] = parts[0].strip()
+                                lead['company'] = parts[1].strip()
+                            elif ' | ' in subtitle_text:
+                                parts = subtitle_text.split(' | ', 1)
+                                lead['title'] = parts[0].strip()
+                                if len(parts) > 1:
+                                    lead['company'] = parts[1].strip()
+                            else:
+                                lead['title'] = subtitle_text
+                            break
+                    except:
+                        continue
+                
+                # Fallback: parse from card text
+                if not lead['title'] and card_text:
+                    lines = [l.strip() for l in card_text.split('\n') if l.strip()]
+                    if len(lines) >= 2:
+                        # Second line is usually title
+                        title_line = lines[1] if len(lines) > 1 else ""
+                        
+                        if title_line and not any(word in title_line.lower() for word in ['connect', 'message', 'follow']):
+                            if ' at ' in title_line:
+                                parts = title_line.split(' at ', 1)
+                                lead['title'] = parts[0].strip()
+                                lead['company'] = parts[1].strip()
+                            else:
+                                lead['title'] = title_line
+                
+            except:
+                pass
+            
+            # Extract location
+            try:
+                location_selectors = [
+                    '.entity-result__secondary-subtitle',
+                    'div.entity-result__secondary-subtitle',
+                    '.t-black--light.t-12'
+                ]
+                
+                for selector in location_selectors:
+                    try:
+                        loc_elem = card_element.find_element(By.CSS_SELECTOR, selector)
+                        loc_text = loc_elem.text.strip()
+                        
+                        if loc_text and not any(word in loc_text.lower() for word in ['connect', 'message', 'mutual']):
+                            lead['location'] = loc_text
+                            break
+                    except:
+                        continue
+                
+                # Fallback: third line in card text
+                if not lead['location'] and card_text:
+                    lines = [l.strip() for l in card_text.split('\n') if l.strip()]
+                    if len(lines) >= 3:
+                        location_line = lines[2]
+                        if location_line and not any(word in location_line.lower() for word in ['connect', 'message', 'mutual', 'follower']):
+                            lead['location'] = location_line
+                            
+            except:
+                pass
+            
+            # Set headline (combination of title and company)
+            if lead['title']:
+                if lead['company']:
+                    lead['headline'] = f"{lead['title']} at {lead['company']}"
+                else:
+                    lead['headline'] = lead['title']
+            
+            # Validate - must have name and profile URL
+            if not lead['name'] or not lead['profile_url']:
+                return None
+            
+            # Must be a real LinkedIn profile
+            if '/in/' not in lead['profile_url']:
+                return None
+            
+            return lead
+        except Exception as e:
+            return None
+    
     def scrape_current_page(self) -> List[Dict]:
         """Scrape all leads from current page - FIXED with multiple selector fallbacks"""
         leads = []
         
         try:
             print("\n📊 Scraping current page...")
-            self.human_delay(3, 5)  # ✅ Longer wait for page to load
+            self.human_delay(3, 5)
             
             # ✅ TRY MULTIPLE SELECTORS (LinkedIn changes these frequently)
             if self.stats['using_sales_nav']:
@@ -774,11 +842,11 @@ class LinkedInScraper:
                 ]
             else:
                 selectors_to_try = [
-                    'li.reusable-search__result-container',  # Current standard
-                    'div.entity-result__item',  # Alternative
-                    'li[class*="reusable-search"]',  # Partial match
-                    'div.search-result',  # Fallback
-                    'li.search-result__occluded-item'  # Another variant
+                    'li.reusable-search__result-container',
+                    'div.entity-result__item',
+                    'li[class*="reusable-search"]',
+                    'div.search-result',
+                    'li.search-result__occluded-item'
                 ]
             
             cards = []
@@ -883,7 +951,7 @@ class LinkedInScraper:
     
     def scrape_leads(self, filters: Dict, max_pages: int = 3) -> List[Dict]:
         """
-        Main scraping function
+        Main scraping function - FIXED WITH DRIVER HEALTH MONITORING
         
         Args:
             filters: Dict with 'keywords' key
@@ -900,14 +968,55 @@ class LinkedInScraper:
             print("🚀 LINKEDIN LEAD SCRAPER - STARTING (IMPROVED VERSION)")
             print("="*70)
             
+            # ✅ CRITICAL: Ensure driver is alive at the start
+            if not self.ensure_driver_alive():
+                print("❌ Cannot start scraping - driver setup failed")
+                if USE_DATABASE:
+                    db_manager.log_activity(
+                        activity_type='scrape',
+                        description='Scraping failed - driver initialization error',
+                        status='failed',
+                        error_message='Driver setup failed'
+                    )
+                return all_leads
+            
             # Setup
             if not self.setup_driver():
                 return all_leads
             
             # Login
+            print("\n📝 Checking login status...")
+            
+            # ✅ CRITICAL: Verify driver before login
+            if not self.ensure_driver_alive():
+                print("❌ Driver died before login")
+                return all_leads
+            
             if not self.login():
                 print("\n❌ Cannot proceed without login")
+                if USE_DATABASE:
+                    db_manager.log_activity(
+                        activity_type='login',
+                        description='Login failed',
+                        status='failed',
+                        error_message='Login unsuccessful'
+                    )
                 return all_leads
+            
+            # ✅ CRITICAL: Verify driver after login, before search
+            print("\n🔍 Verifying driver status before search...")
+            if not self.ensure_driver_alive():
+                print("❌ Driver died after login, before search")
+                if USE_DATABASE:
+                    db_manager.log_activity(
+                        activity_type='scrape',
+                        description='Driver died between login and search',
+                        status='failed',
+                        error_message='Driver session lost after login'
+                    )
+                return all_leads
+            
+            print("✅ Driver is healthy, proceeding to search...")
             
             # Get keywords
             keywords = filters.get('keywords', 'CEO founder')
@@ -916,6 +1025,13 @@ class LinkedInScraper:
             # Search
             if not self.search_leads(keywords):
                 print("\n❌ Search failed")
+                if USE_DATABASE:
+                    db_manager.log_activity(
+                        activity_type='search',
+                        description=f'Search failed for: {keywords}',
+                        status='failed',
+                        error_message='Could not perform search'
+                    )
                 return all_leads
             
             # Scrape pages
@@ -956,6 +1072,14 @@ class LinkedInScraper:
         except Exception as e:
             print(f"\n❌ Fatal error: {str(e)}")
             traceback.print_exc()
+            
+            if USE_DATABASE:
+                db_manager.log_activity(
+                    activity_type='scrape',
+                    description=f'Error: {str(e)}',
+                    status='failed',
+                    error_message=str(e)
+                )
         
         finally:
             if self.driver:
