@@ -923,16 +923,19 @@ class LinkedInScraper:
             # Extract data from valid cards
             for i, card in enumerate(valid_cards, 1):
                 try:
-                    lead_data = self._extract_lead_from_card(card)
+                    lead_data = self.extract_lead_data(card)
                     if lead_data:
                         leads.append(lead_data)
+                        self.stats['leads_scraped'] += 1
                         print(f"  [{i}/{len(valid_cards)}] ✅ {lead_data['name']}")
                     else:
                         print(f"  [{i}/{len(valid_cards)}] ⚠️  Skipped - missing data")
                 except Exception as e:
                     print(f"  [{i}/{len(valid_cards)}] ❌ Error: {str(e)[:50]}")
+                    self.stats['errors'] += 1
                     continue
             
+            self.stats['pages_scraped'] += 1
             return leads
             
         except Exception as e:
