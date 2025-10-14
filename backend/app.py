@@ -1,7 +1,7 @@
 """
 SC AI Lead Generation System - Clean Dynamic Backend
 Works only with uploaded documents - no hardcoded personas
-FIXED: Clean AB test routes, no duplicates
+FIXED: Clean AB test routes, no duplicates, cooldown manager integrated
 """
 
 from flask import Flask, request, jsonify, render_template
@@ -18,7 +18,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 from backend.config import Config, get_config
 from backend.database.db_manager import db_manager
 from backend.credentials_manager import credentials_manager
-from backend.scraping_cooldown_manager import get_cooldown_manager  # ← ADD THIS LINE
+from backend.scraping_cooldown_manager import get_cooldown_manager
 
 app = Flask(__name__,
            template_folder='../frontend/templates',
@@ -122,14 +122,17 @@ def save_credentials():
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
+
 @app.route('/api/settings/save', methods=['POST'])
 def save_settings_alias():
     """Alias route for settings page compatibility"""
     return save_credentials()
+
 @app.route('/api/settings/test', methods=['POST'])
 def test_settings_alias():
     """Alias for test connection"""
     return test_connection()
+
 @app.route('/api/auth/test-connection', methods=['POST'])
 def test_connection():
     try:
@@ -197,6 +200,7 @@ def check_credentials():
             'configured': False,
             'message': f'Error: {str(e)}'
         }), 500
+
 # ============================================================================
 # API ROUTES - FILE UPLOAD
 # ============================================================================
@@ -340,8 +344,9 @@ def generate_lead_from_persona(persona):
         'company_size': random.choice(['1-10', '11-50', '51-200', '201-500']) + ' employees',
         'score': random.randint(70, 98)
     }
+
 # ============================================================================
-# REPLACE YOUR start_bot() FUNCTION WITH THIS (around line 356)
+# CHANGE 2: REPLACE start_bot() WITH COOLDOWN-ENABLED VERSION
 # ============================================================================
 
 @app.route('/api/bot/start', methods=['POST'])
@@ -550,6 +555,7 @@ def start_bot():
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
+
 @app.route('/api/bot/stop', methods=['POST'])
 def stop_bot():
     global bot_status
@@ -741,7 +747,6 @@ def get_message_stats():
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
-# Add after line 680 (after the personas route)
 
 @app.route('/api/leads/top', methods=['GET'])
 def get_top_leads():
@@ -769,9 +774,8 @@ def get_top_leads():
 @app.route('/api/scrape/start', methods=['POST'])
 def start_scrape():
     """Start scraping with smart keywords"""
-    # This is for the dashboard's "Smart Scraping" button
-    # For now, just redirect to bot/start
     return start_bot()
+
 @app.route('/api/messages/<int:message_id>/approve', methods=['POST'])
 def approve_message(message_id):
     try:
@@ -813,7 +817,6 @@ def get_scheduler_status():
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 
-
 @app.route('/api/scheduler/start', methods=['POST'])
 def start_scheduler():
     """Start the message scheduler"""
@@ -822,7 +825,6 @@ def start_scheduler():
         return jsonify({'success': True, 'message': 'Scheduler started'})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
-
 
 @app.route('/api/scheduler/stop', methods=['POST'])
 def stop_scheduler():
@@ -856,16 +858,16 @@ def get_dashboard_stats():
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
+
 @app.route('/api/messages/<int:message_id>/send', methods=['POST'])
 def send_single_message(message_id):
     """Queue a single message for immediate sending"""
     try:
         from backend.automation.scheduler import scheduler
         
-        # Schedule message ASAP
         schedule_id = scheduler.schedule_message(
             message_id=message_id,
-            scheduled_time=None  # ASAP
+            scheduled_time=None
         )
         
         if schedule_id:
@@ -900,7 +902,7 @@ def schedule_batch_messages():
         
         data = request.json
         message_ids = data.get('message_ids', [])
-        start_time = data.get('start_time')  # Optional
+        start_time = data.get('start_time')
         spread_hours = data.get('spread_hours', 4)
         
         if not message_ids:
@@ -909,7 +911,6 @@ def schedule_batch_messages():
                 'message': 'No message IDs provided'
             }), 400
         
-        # Schedule the batch
         schedule_ids = scheduler.schedule_batch(
             message_ids=message_ids,
             start_time=start_time,
@@ -959,6 +960,7 @@ def delete_message(message_id):
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
+
 @app.route('/api/activity-logs', methods=['GET'])
 def get_activity_logs():
     try:
@@ -977,8 +979,9 @@ def get_activity_logs():
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
+
 # ============================================================================
-# API ROUTES - A/B TEST ANALYTICS (ADD THESE TO YOUR app.py)
+# API ROUTES - A/B TEST ANALYTICS
 # ============================================================================
 
 @app.route('/api/ab-tests/<int:test_id>/analyze', methods=['GET'])
@@ -1008,7 +1011,6 @@ def auto_analyze_tests():
         
         results = ab_analyzer.auto_analyze_all_active_tests()
         
-        # Log activity for each winner
         for result in results:
             db_manager.log_activity(
                 activity_type='ab_test_winner',
@@ -1028,58 +1030,7 @@ def auto_analyze_tests():
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
-# ============================================================================
-# ADD THESE TWO NEW ENDPOINTS TO YOUR app.py
-# Add them after the A/B test analytics routes (around line 1040)
-# ============================================================================
 
-@app.route('/api/scraping/cooldown-status', methods=['GET'])
-def get_cooldown_status():
-    """Get current scraping cooldown status"""
-    try:
-        cooldown_manager = get_cooldown_manager()
-        can_scrape, message, details = cooldown_manager.check_can_scrape()
-        stats = cooldown_manager.get_scraping_stats()
-        
-        return jsonify({
-            'success': True,
-            'can_scrape': can_scrape,
-            'message': message,
-            'details': details,
-            'stats': stats
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-
-
-@app.route('/api/scraping/update-limit', methods=['POST'])
-def update_scraping_limit():
-    """Update weekly scraping limit"""
-    try:
-        data = request.json
-        new_limit = data.get('weekly_limit', 1)
-        
-        cooldown_manager = get_cooldown_manager()
-        success = cooldown_manager.update_weekly_limit(new_limit)
-        
-        if success:
-            return jsonify({
-                'success': True,
-                'message': f'Weekly limit updated to {new_limit} scrapes/week'
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'message': 'Invalid limit (must be 0-7)'
-            }), 400
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
 @app.route('/api/ab-tests/best-practices', methods=['GET'])
 def get_best_practices():
     """Get best practices from all completed tests"""
@@ -1137,21 +1088,74 @@ def get_variant_comparison(test_id):
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
+
+# ============================================================================
+# CHANGE 3: ADD TWO NEW COOLDOWN API ENDPOINTS
+# ============================================================================
+
+@app.route('/api/scraping/cooldown-status', methods=['GET'])
+def get_cooldown_status():
+    """Get current scraping cooldown status"""
+    try:
+        cooldown_manager = get_cooldown_manager()
+        can_scrape, message, details = cooldown_manager.check_can_scrape()
+        stats = cooldown_manager.get_scraping_stats()
+        
+        return jsonify({
+            'success': True,
+            'can_scrape': can_scrape,
+            'message': message,
+            'details': details,
+            'stats': stats
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+@app.route('/api/scraping/update-limit', methods=['POST'])
+def update_scraping_limit():
+    """Update weekly scraping limit"""
+    try:
+        data = request.json
+        new_limit = data.get('weekly_limit', 1)
+        
+        cooldown_manager = get_cooldown_manager()
+        success = cooldown_manager.update_weekly_limit(new_limit)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': f'Weekly limit updated to {new_limit} scrapes/week'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Invalid limit (must be 0-7)'
+            }), 400
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
 # ============================================================================
 # RUN APPLICATION
 # ============================================================================
 
 if __name__ == '__main__':
     print("=" * 60)
-    print("🚀 SC AI Lead Generation System - FIXED VERSION")
+    print("🚀 SC AI Lead Generation System - COOLDOWN ENABLED")
     print("=" * 60)
-    print("\n✅ All duplicate routes removed!")
+    print("\n✅ Scraping cooldown manager integrated!")
     print("\n📋 Quick Start:")
     print("1. Visit: http://localhost:5000/settings")
     print("2. Save LinkedIn + OpenAI credentials")
     print("3. Test connection")
     print("4. Upload target document")
     print("5. Start scraping!")
+    print("\n⏰ Cooldown: 1 scrape/week by default (configurable)")
     print("\n" + "=" * 60)
     
     app.run(
