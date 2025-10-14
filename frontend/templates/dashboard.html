@@ -41,6 +41,18 @@
     border-radius: 16px;
     font-size: 12px;
     margin: 4px;
+    font-weight: 500;
+}
+.scraping-progress {
+    display: none;
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #f0f9ff;
+    border: 1px solid #0ea5e9;
+    border-radius: 0.5rem;
+}
+.scraping-progress.active {
+    display: block;
 }
 </style>
 {% endblock %}
@@ -134,7 +146,7 @@
         
         <!-- Show Loaded Personas -->
         <div class="mb-4">
-            <label class="block text-sm font-medium text-gray-700 mb-2">AI will search for:</label>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Target Profiles:</label>
             <div id="loaded-personas" class="min-h-[60px] p-3 bg-gray-50 rounded-md border border-gray-200">
                 <p class="text-sm text-gray-500">Loading personas...</p>
             </div>
@@ -152,15 +164,24 @@
         </div>
         
         <!-- Smart Scraping Button -->
-        <button onclick="startSmartScraping()" class="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md flex items-center justify-center">
+        <button id="start-scrape-btn" onclick="startSmartScraping()" class="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md flex items-center justify-center">
             <i data-feather="zap" class="w-4 h-4 mr-2"></i>
             Start Smart Scraping
         </button>
         
+        <!-- Progress Indicator -->
+        <div id="scraping-progress" class="scraping-progress">
+            <div class="flex items-center mb-2">
+                <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                <span class="text-sm font-medium text-blue-800">Scraping in progress...</span>
+            </div>
+            <p class="text-xs text-blue-600" id="scraping-status">Initializing...</p>
+        </div>
+        
         <div class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
             <p class="text-sm text-blue-800">
                 <i data-feather="info" class="w-4 h-4 inline mr-1"></i>
-                AI will automatically use keywords from ALL your personas to find the best leads!
+                AI automatically uses job titles from your personas to find the best leads!
             </p>
         </div>
     </div>
@@ -199,6 +220,7 @@
 <script src="/static/js/dashboard.js"></script>
 <script>
     let loadedPersonas = [];
+    let scrapingInterval = null;
     
     /**
      * Load personas on page load
@@ -217,11 +239,34 @@
                 ).join('');
             } else {
                 document.getElementById('loaded-personas').innerHTML = 
-                    '<p class="text-sm text-red-600">⚠️ No personas found! Upload a document first.</p>';
+                    '<p class="text-sm text-red-600">⚠️ No personas found! <a href="/" class="underline">Upload a document first</a>.</p>';
             }
         } catch (error) {
             console.error('Error loading personas:', error);
         }
+    }
+    
+    /**
+     * Extract smart keywords from personas
+     * IMPROVED: Better keyword extraction for Sales Nav
+     */
+    function extractSmartKeywords(personas) {
+        // Combine job titles from all personas (best for Sales Nav)
+        const titles = personas
+            .map(p => p.job_titles)
+            .flat()
+            .filter(t => t && t.trim())
+            .slice(0, 5);  // Top 5 titles
+        
+        if (titles.length > 0) {
+            return titles.join(' OR ');  // Sales Nav likes OR syntax
+        }
+        
+        // Fallback: use persona names
+        return personas
+            .map(p => p.name)
+            .filter(n => n)
+            .join(' ');
     }
     
     /**
@@ -236,60 +281,85 @@
         
         const maxPages = document.getElementById('max-pages').value;
         
-        // Build keywords from ALL personas
-        const allKeywords = loadedPersonas
-            .map(p => p.message_tone || '')
-            .filter(k => k)
-            .join(', ');
+        // Build SMART keywords from personas (job titles work best)
+        const smartKeywords = extractSmartKeywords(loadedPersonas);
         
         const confirmed = confirm(
             `🤖 Smart Scraping Ready!\n\n` +
-            `Will search for: ${allKeywords.substring(0, 100)}...\n\n` +
-            `Personas: ${loadedPersonas.map(p => p.name).join(', ')}\n` +
+            `Search Keywords: ${smartKeywords}\n\n` +
+            `Targeting: ${loadedPersonas.map(p => p.name).join(', ')}\n` +
             `Pages: ${maxPages} (~${maxPages * 10} leads)\n\n` +
             `This will:\n` +
-            `1. Search LinkedIn with AI-generated keywords\n` +
-            `2. Scrape REAL profiles\n` +
-            `3. Auto-score each lead\n\n` +
+            `1. Login to LinkedIn\n` +
+            `2. Try Sales Navigator first (if available)\n` +
+            `3. Scrape REAL profiles matching your personas\n` +
+            `4. Auto-score and save to database\n\n` +
             `Continue?`
         );
         
         if (!confirmed) return;
         
+        // Show progress
+        const progressDiv = document.getElementById('scraping-progress');
+        const statusText = document.getElementById('scraping-status');
+        const startBtn = document.getElementById('start-scrape-btn');
+        
+        progressDiv.classList.add('active');
+        startBtn.disabled = true;
+        startBtn.innerHTML = '<i data-feather="loader" class="w-4 h-4 mr-2 animate-spin"></i> Scraping...';
+        feather.replace();
+        
         try {
-            const response = await fetch('/api/scrape/start', {
+            // Start scraping
+            const response = await fetch('/api/bot/start', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    keywords: allKeywords,
-                    max_pages: parseInt(maxPages),
-                    use_personas: true
+                    keywords: smartKeywords,
+                    max_pages: parseInt(maxPages)
                 })
             });
             
             const data = await response.json();
             
             if (data.success) {
-                alert('✅ Smart scraping started!\n\nWatch the Activity Feed for progress.');
+                statusText.textContent = 'Scraping started! Watch the Activity Feed for progress.';
                 
-                // Refresh activity feed
-                const refreshInterval = setInterval(() => {
+                // Poll activity feed every 5 seconds
+                scrapingInterval = setInterval(() => {
                     loadActivityFeed();
+                    loadStats();
                 }, 5000);
                 
-                // Navigate to leads after 2 minutes
+                // Auto-navigate to leads after 2 minutes
                 setTimeout(() => {
-                    clearInterval(refreshInterval);
-                    if (confirm('Scraping complete! View leads now?')) {
+                    if (scrapingInterval) {
+                        clearInterval(scrapingInterval);
+                    }
+                    progressDiv.classList.remove('active');
+                    startBtn.disabled = false;
+                    startBtn.innerHTML = '<i data-feather="zap" class="w-4 h-4 mr-2"></i> Start Smart Scraping';
+                    feather.replace();
+                    
+                    if (confirm('✅ Scraping complete! View leads now?')) {
                         window.location.href = '/leads';
                     }
                 }, 120000);
             } else {
-                alert('❌ Error: ' + data.message);
+                throw new Error(data.message || 'Failed to start scraper');
             }
         } catch (error) {
-            alert('❌ Error starting scraper');
-            console.error(error);
+            console.error('Error:', error);
+            alert('❌ Error starting scraper: ' + error.message);
+            
+            progressDiv.classList.remove('active');
+            startBtn.disabled = false;
+            startBtn.innerHTML = '<i data-feather="zap" class="w-4 h-4 mr-2"></i> Start Smart Scraping';
+            feather.replace();
+            
+            if (scrapingInterval) {
+                clearInterval(scrapingInterval);
+            }
         }
     }
     
@@ -397,7 +467,7 @@
                     }
                     
                     container.innerHTML = data.leads.map(lead => `
-                        <div class="p-3 border border-gray-200 rounded-md mb-3 hover:bg-gray-50">
+                        <div class="p-3 border border-gray-200 rounded-md mb-3 hover:bg-gray-50 cursor-pointer" onclick="window.location.href='/leads'">
                             <div class="flex items-center justify-between">
                                 <div class="flex-1">
                                     <h3 class="font-semibold text-gray-800">${lead.name}</h3>
@@ -427,11 +497,22 @@
         loadActivityFeed();
         loadTopLeads();
         
+        // Auto-refresh every 10 seconds
         setInterval(() => {
             loadStats();
-            loadActivityFeed();
             loadTopLeads();
+            // Activity feed refreshes more often during scraping
+            if (!document.getElementById('scraping-progress').classList.contains('active')) {
+                loadActivityFeed();
+            }
         }, 10000);
+    });
+    
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', function() {
+        if (scrapingInterval) {
+            clearInterval(scrapingInterval);
+        }
     });
 </script>
 {% endblock %}
