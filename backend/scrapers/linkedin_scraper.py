@@ -84,7 +84,7 @@ class LinkedInScraper:
             'submit': 'button[type="submit"]'
         },
         'regular_linkedin': {
-            'search_result': 'div.b9fd59a4',
+            'search_result': 'li.reusable-search__result-container',
             'profile_link': 'a[href*="/in/"]',
             'next_button': 'button[aria-label="Next"]'
         },
@@ -206,12 +206,12 @@ class LinkedInScraper:
         except Exception as e:
             print(f"⚠️ Could not save session: {str(e)}")
             return False
-    
+        
     def load_cookies(self):
-        """Load session cookies from file"""
+        """Load session cookies from file - FIXED VERSION"""
         try:
             if not self.cookie_file.exists():
-                print("📝 No saved session found - will do fresh login")
+                print("🔍 No saved session found - will do fresh login")
                 return False
             
             # Check cookie age
@@ -226,6 +226,18 @@ class LinkedInScraper:
             print(f"🔄 Found saved session ({age_days:.1f} days old)")
             print("   Loading cookies...")
             
+            # ✅ CRITICAL FIX: Check if driver is alive before using it
+            if not self.driver:
+                print("⚠️ Driver not initialized - cannot load cookies")
+                return False
+            
+            try:
+                # Test if driver is still alive
+                _ = self.driver.current_url
+            except Exception as e:
+                print(f"⚠️ Driver session is dead - will do fresh login")
+                return False
+            
             # Go to LinkedIn to set domain
             self.driver.get('https://www.linkedin.com')
             time.sleep(2)
@@ -239,7 +251,8 @@ class LinkedInScraper:
                     del cookie['domain']
                 try:
                     self.driver.add_cookie(cookie)
-                except:
+                except Exception as e:
+                    # Skip cookies that can't be added
                     continue
             
             # Refresh to apply cookies
@@ -260,12 +273,16 @@ class LinkedInScraper:
                 
         except Exception as e:
             print(f"⚠️ Could not load session: {str(e)}")
+            # Don't try to use invalid cookies
             if self.cookie_file.exists():
-                self.cookie_file.unlink()
-            return False
+                try:
+                    self.cookie_file.unlink()
+                except:
+                    pass
+            return False                
     
     def login(self) -> bool:
-        """Login to LinkedIn with extended CAPTCHA handling"""
+        """Login to LinkedIn with extended CAPTCHA handling - FIXED VERSION"""
         try:
             print("\n🔐 Logging into LinkedIn...")
             
@@ -276,14 +293,32 @@ class LinkedInScraper:
             # Fresh login required
             print("🆕 Starting fresh login...")
             self.driver.get('https://www.linkedin.com/login')
-            self.human_delay(2, 4)
             
-            # Enter email
-            email_field = self.safe_find_element(By.CSS_SELECTOR, self.SELECTORS['login']['email'])
-            if not email_field:
-                print("❌ Cannot find email field")
+            # ✅ CRITICAL FIX: Wait longer for page to fully load
+            print("   ⏳ Waiting for login page to load...")
+            self.human_delay(4, 6)  # Increased from 2-4 to 4-6
+            
+            # ✅ CRITICAL FIX: Verify we're on the login page
+            current_url = self.driver.current_url
+            if 'login' not in current_url:
+                print(f"   ⚠️ Not on login page! Current URL: {current_url}")
+                print("   📍 Navigating to login page again...")
+                self.driver.get('https://www.linkedin.com/login')
+                self.human_delay(4, 6)
+            
+            # ✅ CRITICAL FIX: Wait for email field to be visible and clickable
+            print("   🔍 Looking for email field...")
+            try:
+                email_field = WebDriverWait(self.driver, 15).until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, self.SELECTORS['login']['email']))
+                )
+                print("   ✅ Email field found!")
+            except TimeoutException:
+                print("   ❌ Email field not found after 15 seconds")
+                print(f"   📍 Current URL: {self.driver.current_url}")
                 return False
             
+            # Enter email
             email_field.clear()
             for char in self.email:
                 email_field.send_keys(char)
@@ -292,17 +327,25 @@ class LinkedInScraper:
             self.human_delay(0.5, 1.0)
             
             # Enter password
-            password_field = self.driver.find_element(By.CSS_SELECTOR, self.SELECTORS['login']['password'])
-            password_field.clear()
-            for char in self.password:
-                password_field.send_keys(char)
-                time.sleep(random.uniform(0.05, 0.15))
+            try:
+                password_field = self.driver.find_element(By.CSS_SELECTOR, self.SELECTORS['login']['password'])
+                password_field.clear()
+                for char in self.password:
+                    password_field.send_keys(char)
+                    time.sleep(random.uniform(0.05, 0.15))
+            except NoSuchElementException:
+                print("   ❌ Password field not found")
+                return False
             
             self.human_delay(0.5, 1.0)
             
             # Submit
-            login_btn = self.driver.find_element(By.CSS_SELECTOR, self.SELECTORS['login']['submit'])
-            login_btn.click()
+            try:
+                login_btn = self.driver.find_element(By.CSS_SELECTOR, self.SELECTORS['login']['submit'])
+                login_btn.click()
+            except NoSuchElementException:
+                print("   ❌ Login button not found")
+                return False
             
             print("  → Waiting for login...")
             self.human_delay(4, 6)
@@ -402,7 +445,7 @@ class LinkedInScraper:
             print(f"❌ Login error: {str(e)}")
             traceback.print_exc()
             return False
-    
+        
     def detect_sales_nav_access(self) -> bool:
         """Check if user has Sales Navigator access"""
         try:
@@ -715,22 +758,47 @@ class LinkedInScraper:
             except Exception as e:
                 return None
     def scrape_current_page(self) -> List[Dict]:
-        """Scrape all leads from current page"""
+        """Scrape all leads from current page - FIXED with multiple selector fallbacks"""
         leads = []
         
         try:
             print("\n📊 Scraping current page...")
-            self.human_delay(2, 4)
+            self.human_delay(3, 5)  # ✅ Longer wait for page to load
             
+            # ✅ TRY MULTIPLE SELECTORS (LinkedIn changes these frequently)
             if self.stats['using_sales_nav']:
-                result_selector = self.SELECTORS['sales_navigator']['search_result']
+                selectors_to_try = [
+                    'li.artdeco-list__item',
+                    'li[class*="artdeco-list"]',
+                    'div.search-result'
+                ]
             else:
-                result_selector = self.SELECTORS['regular_linkedin']['search_result']
+                selectors_to_try = [
+                    'li.reusable-search__result-container',  # Current standard
+                    'div.entity-result__item',  # Alternative
+                    'li[class*="reusable-search"]',  # Partial match
+                    'div.search-result',  # Fallback
+                    'li.search-result__occluded-item'  # Another variant
+                ]
             
-            cards = self.driver.find_elements(By.CSS_SELECTOR, result_selector)
+            cards = []
+            working_selector = None
+            
+            # Try each selector until we find results
+            for selector in selectors_to_try:
+                try:
+                    test_cards = self.driver.find_elements(By.CSS_SELECTOR, selector)
+                    if len(test_cards) > 0:
+                        cards = test_cards
+                        working_selector = selector
+                        print(f"  ✅ Found results with selector: {selector}")
+                        break
+                except:
+                    continue
             
             if not cards:
-                print("  ⚠️ No results found on page")
+                print("  ⚠️ No results found on page with any selector")
+                print(f"  💡 Current URL: {self.driver.current_url}")
                 return leads
             
             print(f"  → Found {len(cards)} potential cards")

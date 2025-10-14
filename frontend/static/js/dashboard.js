@@ -1,6 +1,6 @@
 /**
  * SC AI Lead Generation System - Dashboard JavaScript
- * Fixed version with proper lead limits
+ * Fixed version with proper lead limits and target profile support
  */
 
 // Global state
@@ -53,15 +53,28 @@ function setupEventListeners() {
 }
 
 /**
- * Start the bot
+ * Start the bot - FIXED TO SEND TARGET PROFILE
  */
 async function startBot() {
     try {
+        // Get target profile from dropdown (if exists)
+        let targetProfile = '';
+        const targetSelect = document.getElementById('target-profile-select');
+        if (targetSelect) {
+            targetProfile = targetSelect.value;
+            console.log('Selected target profile:', targetProfile);
+        }
+        
         showNotification('Starting bot...', 'info');
         
         const response = await fetch('/api/bot/start', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 
+                'Content-Type': 'application/json' 
+            },
+            body: JSON.stringify({
+                target_profile: targetProfile  // ✅ SEND IT!
+            })
         });
         
         const data = await response.json();

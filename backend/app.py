@@ -332,6 +332,7 @@ def generate_lead_from_persona(persona):
 # CHANGE 2: REPLACE start_bot() WITH COOLDOWN-ENABLED VERSION
 # ============================================================================
 
+
 @app.route('/api/bot/start', methods=['POST'])
 def start_bot():
     """Start the REAL lead scraping bot with cooldown enforcement"""
@@ -344,25 +345,24 @@ def start_bot():
                 'message': 'Bot is already running'
             }), 400
         
-        # ✅ CHECK SCRAPING COOLDOWN (NEW!)
+        # Check scraping cooldown
         cooldown_manager = get_cooldown_manager()
         can_scrape, cooldown_message, details = cooldown_manager.check_can_scrape()
         
         if not can_scrape:
-            # Scraping not allowed due to cooldown
             return jsonify({
                 'success': False,
                 'message': cooldown_message,
                 'cooldown_active': True,
                 'details': details
-            }), 429  # HTTP 429 = Too Many Requests
+            }), 429
         
         personas = db_manager.get_all_personas()
         
         if not personas:
             return jsonify({
                 'success': False,
-                'message': '⚠️ No personas found! Please upload a document first.'
+                'message': 'No personas found! Please upload a document first.'
             }), 400
         
         linkedin_creds = credentials_manager.get_linkedin_credentials()
@@ -380,9 +380,13 @@ def start_bot():
         
         db_manager.log_activity(
             activity_type='bot_started',
-            description='🚀 REAL LinkedIn scraping started',
+            description='REAL LinkedIn scraping started',
             status='success'
         )
+        
+        # GET REQUEST DATA BEFORE THREAD STARTS
+        request_data = request.json or {}
+        target_profile_from_ui = request_data.get('target_profile', '').strip()
         
         def scrape_leads_background():
             """REAL LINKEDIN SCRAPING with cooldown recording"""
@@ -421,31 +425,33 @@ def start_bot():
                 
                 bot_status['current_activity'] = 'Login successful!'
                 bot_status['progress'] = 40
-                                
-                                # ✅ FIXED: Build search from personas - Use job titles instead of persona names
-                if personas and personas[0].get('name'):
-                    persona_name = personas[0].get('name', '').lower()
+                
+                # Use target profile from UI if provided
+                if target_profile_from_ui:
+                    search_keyword = target_profile_from_ui
+                    print(f"Using target profile from UI: {target_profile_from_ui}")
+                elif personas and len(personas) > 0:
+                    # Use persona data
+                    persona = personas[0]
+                    persona_name = persona.get('name', '').lower()
                     
-                    # Map persona names to real LinkedIn job titles
                     if 'founder' in persona_name or 'sme' in persona_name:
                         search_keyword = 'CEO founder'
-                    elif 'marketing' in persona_name:
-                        search_keyword = 'marketing director manager'
-                    elif 'tech' in persona_name or 'startup' in persona_name:
-                        search_keyword = 'CTO founder startup'
-                    elif 'ecommerce' in persona_name:
-                        search_keyword = 'ecommerce director manager'
-                    elif 'service' in persona_name:
-                        search_keyword = 'service director manager'
                     elif 'consultant' in persona_name or 'coach' in persona_name:
                         search_keyword = 'consultant coach advisor'
+                    elif 'marketing' in persona_name:
+                        search_keyword = 'marketing director'
                     else:
-                        search_keyword = 'CEO founder director manager'
+                        search_keyword = 'CEO founder director'
+                    
+                    print(f"Using persona: {search_keyword}")
                 else:
-                    search_keyword = 'CEO founder director'
+                    search_keyword = 'CEO founder'
+                    print(f"Using default: {search_keyword}")
                 
                 bot_status['current_activity'] = f'Searching: {search_keyword}'
-                bot_status['progress'] = 50                
+                bot_status['progress'] = 50
+                
                 # REAL SCRAPING
                 scraped_leads = scraper.scrape_leads(
                     filters={'keywords': search_keyword},
@@ -509,16 +515,16 @@ def start_bot():
                 if scraper.driver:
                     scraper.driver.quit()
                 
-                # ✅ RECORD THE SCRAPE (NEW!)
+                # Record the scrape
                 cooldown_manager = get_cooldown_manager()
                 cooldown_manager.record_scrape(user_id=1, leads_scraped=successfully_imported)
                 
-                bot_status['current_activity'] = f'✅ Complete! {successfully_imported} real leads scraped'
+                bot_status['current_activity'] = f'Complete! {successfully_imported} real leads scraped'
                 bot_status['progress'] = 100
                 
                 db_manager.log_activity(
                     activity_type='scrape',
-                    description=f'🎉 Scraped {successfully_imported} REAL leads',
+                    description=f'Scraped {successfully_imported} REAL leads',
                     status='success'
                 )
                 
@@ -531,7 +537,7 @@ def start_bot():
                 
                 db_manager.log_activity(
                     activity_type='scrape',
-                    description=f'❌ Error: {str(e)}',
+                    description=f'Error: {str(e)}',
                     status='failed',
                     error_message=str(e)
                 )
@@ -556,7 +562,6 @@ def start_bot():
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
-
 @app.route('/api/bot/stop', methods=['POST'])
 def stop_bot():
     global bot_status
