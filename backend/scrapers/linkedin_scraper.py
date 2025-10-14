@@ -838,8 +838,9 @@ class LinkedInScraper:
         except Exception as e:
             return None
     
-    def scrape_current_page(self) -> List[Dict]:
-        """Scrape all leads from current page - FIXED with multiple selector fallbacks"""
+
+    def scrape_current_page(self):
+        """Scrape leads from current page - FIXED with adaptive selectors for October 2025"""
         leads = []
         
         try:
@@ -854,12 +855,20 @@ class LinkedInScraper:
                     'div.search-result'
                 ]
             else:
+                # UPDATED SELECTORS for October 2025
                 selectors_to_try = [
+                    # Obfuscated classes (change frequently - currently working Oct 2025)
+                    'div.b9fd59a4',  # Current working selector
+                    'div[class^="b9"]',  # Pattern for obfuscated classes starting with b9
+                    'div[class*="reusable-search"]',  # Pattern match
+                    # Standard selectors (fallback)
                     'li.reusable-search__result-container',
                     'div.entity-result__item',
                     'li[class*="reusable-search"]',
                     'div.search-result',
-                    'li.search-result__occluded-item'
+                    'li.search-result__occluded-item',
+                    # Structural fallback
+                    'ul.reusable-search__entity-result-list > li',
                 ]
             
             cards = []
@@ -872,19 +881,27 @@ class LinkedInScraper:
                     if len(test_cards) > 0:
                         cards = test_cards
                         working_selector = selector
-                        print(f"  ✅ Found results with selector: {selector}")
+                        print(f"  ✅ Found {len(test_cards)} results with selector: {selector}")
                         break
                 except:
                     continue
+            
+            # If no selectors work, try structural analysis
+            if not cards:
+                print("  ⚠️ Standard selectors failed, trying structural analysis...")
+                cards = self._find_cards_by_structure()
+                if cards:
+                    working_selector = "structural analysis"
+                    print(f"  ✅ Found {len(cards)} results via structural analysis")
             
             if not cards:
                 print("  ⚠️ No results found on page with any selector")
                 print(f"  💡 Current URL: {self.driver.current_url}")
                 return leads
             
-            print(f"  → Found {len(cards)} potential cards")
+            print(f"  → Processing {len(cards)} potential cards")
             
-            # Deduplicate
+            # Deduplicate and validate
             seen_urls = set()
             valid_cards = []
             for card in cards:
@@ -893,46 +910,87 @@ class LinkedInScraper:
                     href = link.get_attribute('href')
                     
                     if href and '/in/' in href and 'linkedin.com/in/' in href:
-                        clean_url = href.split('?')[0]
+                        clean_url = href.split('?')[0].rstrip('/')
                         
                         if clean_url not in seen_urls:
-                            seen_urls.add(clean_url)
                             valid_cards.append(card)
+                            seen_urls.add(clean_url)
                 except:
                     continue
             
-            print(f"  → {len(valid_cards)} unique person cards")
+            print(f"  → {len(valid_cards)} unique valid profiles")
             
-            # Extract leads
+            # Extract data from valid cards
             for i, card in enumerate(valid_cards, 1):
                 try:
-                    self.driver.execute_script("arguments[0].scrollIntoView(true);", card)
-                    self.human_delay(0.3, 0.6)
-                    
-                    lead_data = self.extract_lead_data(card)
-                    
+                    lead_data = self._extract_lead_from_card(card)
                     if lead_data:
                         leads.append(lead_data)
-                        print(f"  ✅ [{i}/{len(valid_cards)}] {lead_data['name']}")
-                        self.stats['leads_scraped'] += 1
+                        print(f"  [{i}/{len(valid_cards)}] ✅ {lead_data['name']}")
                     else:
-                        print(f"  ⚠️ [{i}/{len(valid_cards)}] Skipped")
-                    
-                    self.human_delay(0.2, 0.5)
-                
+                        print(f"  [{i}/{len(valid_cards)}] ⚠️  Skipped - missing data")
                 except Exception as e:
-                    print(f"  ❌ [{i}/{len(valid_cards)}] Error: {str(e)}")
-                    self.stats['errors'] += 1
+                    print(f"  [{i}/{len(valid_cards)}] ❌ Error: {str(e)[:50]}")
                     continue
             
-            print(f"\n✅ Scraped {len(leads)} leads from this page")
-            self.stats['pages_scraped'] += 1
-        
+            return leads
+            
         except Exception as e:
-            print(f"❌ Page scrape error: {str(e)}")
-            traceback.print_exc()
+            print(f"  ❌ Error scraping page: {str(e)}")
+            return leads
+
+
+    def _find_cards_by_structure(self):
+        """Fallback: Find search result cards by analyzing DOM structure
         
-        return leads
+        This method is used when LinkedIn changes their class names and our
+        predefined selectors stop working. It analyzes the page structure
+        to find the results list dynamically.
+        """
+        try:
+            # Find all UL elements on the page
+            all_uls = self.driver.find_elements(By.TAG_NAME, 'ul')
+            
+            # Find the UL with the most LI children (likely the results list)
+            best_ul = None
+            max_children = 0
+            
+            for ul in all_uls:
+                try:
+                    li_children = ul.find_elements(By.TAG_NAME, 'li')
+                    
+                    # Only consider ULs with a reasonable number of items (5-100)
+                    if len(li_children) > max_children and 5 <= len(li_children) <= 100:
+                        # Verify these LI elements contain profile links
+                        has_profiles = False
+                        profile_count = 0
+                        
+                        # Check first 5 items to see if they contain LinkedIn profile links
+                        for li in li_children[:5]:
+                            try:
+                                link = li.find_element(By.CSS_SELECTOR, 'a[href*="/in/"]')
+                                href = link.get_attribute('href')
+                                if '/in/' in href and 'linkedin.com/in/' in href:
+                                    profile_count += 1
+                            except:
+                                continue
+                        
+                        # If at least 3 out of 5 sampled items have profile links, it's probably the results list
+                        if profile_count >= 3:
+                            max_children = len(li_children)
+                            best_ul = ul
+                except:
+                    continue
+            
+            if best_ul:
+                print(f"  🔍 Structural analysis found {max_children} potential results")
+                return best_ul.find_elements(By.TAG_NAME, 'li')
+            
+            return []
+            
+        except Exception as e:
+            print(f"  ⚠️ Structural analysis failed: {str(e)}")
+            return []
     
     def go_to_next_page(self) -> bool:
         """Navigate to next page"""
