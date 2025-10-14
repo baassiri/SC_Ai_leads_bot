@@ -297,7 +297,7 @@ class LinkedInScraper:
             # Now proceed with cookie loading
             print("   📍 Navigating to LinkedIn...")
             self.driver.get('https://www.linkedin.com')
-            time.sleep(2)
+            time.sleep(3)  # Increased wait time
             
             # Load cookies
             print("   🍪 Loading cookies...")
@@ -306,34 +306,47 @@ class LinkedInScraper:
             
             cookies_loaded = 0
             for cookie in cookies:
-                if 'domain' in cookie:
-                    del cookie['domain']
+                # Remove domain to avoid issues
+                cookie_copy = cookie.copy()
+                if 'domain' in cookie_copy:
+                    del cookie_copy['domain']
+                if 'sameSite' in cookie_copy and cookie_copy['sameSite'] not in ['Strict', 'Lax', 'None']:
+                    del cookie_copy['sameSite']
                 try:
-                    self.driver.add_cookie(cookie)
+                    self.driver.add_cookie(cookie_copy)
                     cookies_loaded += 1
                 except Exception as e:
                     continue
             
             print(f"   ✅ Loaded {cookies_loaded} cookies")
             
-            # Refresh to apply cookies
-            print("   🔄 Applying cookies...")
+            # Refresh to apply cookies - CRITICAL STEP
+            print("   🔄 Refreshing page to apply cookies...")
             self.driver.refresh()
-            time.sleep(3)
+            time.sleep(4)  # Increased wait time for page to fully load
             
-            # Check if logged in
-            current_url = self.driver.current_url
-            print(f"   📍 Current URL: {current_url[:50]}...")
+            # Wait a bit more and check multiple times
+            for attempt in range(3):
+                current_url = self.driver.current_url
+                print(f"   📍 Attempt {attempt + 1}: Current URL = {current_url[:60]}...")
+                
+                # Check if we're logged in (more comprehensive check)
+                if 'feed' in current_url or 'mynetwork' in current_url or 'sales' in current_url:
+                    print("✅ Successfully resumed session!")
+                    print("   🎉 NO LOGIN NEEDED - NO CAPTCHA!")
+                    self.stats['used_saved_session'] = True
+                    return True
+                
+                # If not logged in yet, wait a bit more
+                if attempt < 2:
+                    print(f"   ⏳ Waiting for LinkedIn to fully load...")
+                    time.sleep(2)
             
-            if 'feed' in current_url or 'mynetwork' in current_url or 'sales' in current_url:
-                print("✅ Successfully resumed session!")
-                print("   🎉 NO LOGIN NEEDED - NO CAPTCHA!")
-                self.stats['used_saved_session'] = True
-                return True
-            else:
-                print("⚠️ Saved session invalid - will do fresh login")
-                self.cookie_file.unlink()
-                return False
+            # After 3 attempts, if still not on a logged-in page, cookies are invalid
+            print("⚠️ Saved session invalid - will do fresh login")
+            print(f"   Final URL was: {current_url}")
+            self.cookie_file.unlink()
+            return False
                 
         except Exception as e:
             print(f"⚠️ Could not load session: {str(e)}")
@@ -346,15 +359,26 @@ class LinkedInScraper:
                 except:
                     pass
             return False
-    
+
     def login(self) -> bool:
         """Login to LinkedIn with extended CAPTCHA handling - FIXED VERSION"""
         try:
             print("\n🔐 Logging into LinkedIn...")
             
+            # ✅ CRITICAL FIX: Check if we're ALREADY logged in!
+            try:
+                current_url = self.driver.current_url
+                print(f"   📍 Current page: {current_url[:60]}...")
+                if 'feed' in current_url or 'mynetwork' in current_url or 'sales' in current_url:
+                    print("✅ Already logged in! Skipping login.")
+                    return True
+            except:
+                pass
+            
             # Try to use saved session first!
             if self.load_cookies():
                 return True
+            
             
             # Fresh login required
             print("🆕 Starting fresh login...")
