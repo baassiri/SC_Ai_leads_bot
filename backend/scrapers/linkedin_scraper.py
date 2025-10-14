@@ -1,7 +1,7 @@
 """
 SC AI Lead Generation System - LinkedIn Scraper
-Complete Fixed Version - October 2025
-Works with Regular LinkedIn + Sales Navigator
+FIXED VERSION - Uses working selectors from test script
+October 2025
 """
 
 import time
@@ -72,7 +72,7 @@ except ImportError:
 class LinkedInScraper:
     """LinkedIn scraper with Sales Navigator support"""
     
-    # Updated selectors for October 2025
+    # FIXED selectors for October 2025 - Based on working test script
     SELECTORS = {
         'login': {
             'email': '#username',
@@ -81,10 +81,8 @@ class LinkedInScraper:
         },
         'regular_linkedin': {
             'search_result': 'div.b9fd59a4',
-            'name': 'span.entity-result__title-text a span[aria-hidden="true"]',
-            'title': '.entity-result__primary-subtitle',
-            'location': '.entity-result__secondary-subtitle',
-            'profile_link': 'a.app-aware-link[href*="/in/"]',
+            # FIXED: Use simple selectors that actually work
+            'profile_link': 'a[href*="/in/"]',
             'next_button': 'button[aria-label="Next"]'
         },
         'sales_navigator': {
@@ -320,7 +318,10 @@ class LinkedInScraper:
             return False
     
     def extract_lead_data(self, card_element) -> Optional[Dict]:
-        """Extract lead data from search result card"""
+        """
+        Extract lead data from search result card
+        FIXED VERSION - Uses text parsing approach from test script
+        """
         try:
             lead = {
                 'name': None,
@@ -337,73 +338,100 @@ class LinkedInScraper:
             
             # Choose selectors based on mode
             if self.stats['using_sales_nav']:
+                # Sales Nav extraction (old way still works)
                 selectors = self.SELECTORS['sales_navigator']
-            else:
-                selectors = self.SELECTORS['regular_linkedin']
-            
-            # Extract name
-            try:
-                if self.stats['using_sales_nav']:
-                    name_elem = card_element.find_element(By.CSS_SELECTOR, selectors['name'])
-                    lead['name'] = name_elem.text.strip()
-                else:
-                    name_elem = card_element.find_element(By.CSS_SELECTOR, selectors['name'])
-                    lead['name'] = name_elem.text.strip()
-            except Exception as e:
-                print(f"  ⚠️ Cannot extract name: {str(e)}")
-                return None
-            
-            # Extract title
-            try:
-                title_elem = card_element.find_element(By.CSS_SELECTOR, selectors['title'])
-                title_text = title_elem.text.strip()
                 
-                if self.stats['using_sales_nav']:
-                    lead['title'] = title_text
-                else:
-                    # Regular LinkedIn format: "Title at Company"
-                    if ' at ' in title_text:
-                        parts = title_text.split(' at ', 1)
-                        lead['title'] = parts[0].strip()
-                        lead['company'] = parts[1].strip()
-                    else:
-                        lead['title'] = title_text
-            except:
-                pass
-            
-            # Extract company (Sales Nav only)
-            if self.stats['using_sales_nav']:
+                try:
+                    name_elem = card_element.find_element(By.CSS_SELECTOR, selectors['name'])
+                    lead['name'] = name_elem.text.strip()
+                except:
+                    return None
+                
+                try:
+                    title_elem = card_element.find_element(By.CSS_SELECTOR, selectors['title'])
+                    lead['title'] = title_elem.text.strip()
+                except:
+                    pass
+                
                 try:
                     company_elem = card_element.find_element(By.CSS_SELECTOR, selectors['company'])
                     lead['company'] = company_elem.text.strip()
                 except:
                     pass
-            
-            # Extract location
-            if not self.stats['using_sales_nav']:
+                
                 try:
-                    location_elem = card_element.find_element(By.CSS_SELECTOR, selectors['location'])
-                    lead['location'] = location_elem.text.strip()
+                    link_elem = card_element.find_element(By.CSS_SELECTOR, selectors['profile_link'])
+                    profile_url = link_elem.get_attribute('href')
+                    if '?' in profile_url:
+                        profile_url = profile_url.split('?')[0]
+                    lead['profile_url'] = profile_url
                 except:
-                    pass
+                    return None
             
-            # Extract profile URL
-            try:
-                link_elem = card_element.find_element(By.CSS_SELECTOR, selectors['profile_link'])
-                profile_url = link_elem.get_attribute('href')
+            else:
+                # FIXED: Regular LinkedIn extraction using text parsing
+                selectors = self.SELECTORS['regular_linkedin']
                 
-                # Clean URL - remove query parameters
-                if '?' in profile_url:
-                    profile_url = profile_url.split('?')[0]
+                # Get profile link and URL
+                try:
+                    link = card_element.find_element(By.CSS_SELECTOR, selectors['profile_link'])
+                    profile_url = link.get_attribute('href')
+                    
+                    # Clean URL
+                    if '?' in profile_url:
+                        profile_url = profile_url.split('?')[0]
+                    
+                    lead['profile_url'] = profile_url
+                    
+                    # Get name from link text
+                    name_text = link.text.strip()
+                    if name_text:
+                        lead['name'] = name_text
+                    
+                except Exception as e:
+                    print(f"  ⚠️ Cannot extract profile link: {str(e)}")
+                    return None
                 
-                lead['profile_url'] = profile_url
-            except Exception as e:
-                print(f"  ⚠️ Cannot extract profile URL: {str(e)}")
-                return None
+                # Parse the full card text to get title, company, location
+                try:
+                    full_text = card_element.text.strip()
+                    if full_text:
+                        lines = [l.strip() for l in full_text.split('\n') if l.strip()]
+                        
+                        # Usually structure is:
+                        # Line 0: Name
+                        # Line 1: Title at Company
+                        # Line 2: Location or other info
+                        
+                        if len(lines) >= 2:
+                            # Parse title and company from line 1
+                            title_line = lines[1]
+                            
+                            if ' at ' in title_line:
+                                parts = title_line.split(' at ', 1)
+                                lead['title'] = parts[0].strip()
+                                lead['company'] = parts[1].strip()
+                            elif ' · ' in title_line:
+                                parts = title_line.split(' · ', 1)
+                                lead['title'] = parts[0].strip()
+                            else:
+                                lead['title'] = title_line
+                        
+                        if len(lines) >= 3:
+                            # Line 2 might be location
+                            location_line = lines[2]
+                            if not any(word in location_line.lower() for word in ['connect', 'message', 'follow']):
+                                lead['location'] = location_line
+                
+                except Exception as e:
+                    print(f"  ⚠️ Error parsing text: {str(e)}")
             
             # Validate minimum requirements
             if not lead['name'] or not lead['profile_url']:
-                print("  ⚠️ Missing required fields")
+                return None
+            
+            # Skip if profile URL is invalid
+            if '/in/' not in lead['profile_url']:
                 return None
             
             return lead
@@ -433,10 +461,32 @@ class LinkedInScraper:
                 print("  ⚠️ No results found on page")
                 return leads
             
-            print(f"  → Found {len(cards)} potential leads")
+            print(f"  → Found {len(cards)} potential cards")
+            
+            # Filter out tracking pixels and invalid cards + deduplicate
+            seen_urls = set()
+            valid_cards = []
+            for card in cards:
+                try:
+                    # Check if card has a profile link (real person card)
+                    link = card.find_element(By.CSS_SELECTOR, 'a[href*="/in/"]')
+                    href = link.get_attribute('href')
+                    
+                    # Clean URL for comparison
+                    if href and '/in/' in href and 'linkedin.com/in/' in href:
+                        clean_url = href.split('?')[0]  # Remove query params
+                        
+                        # Only add if we haven't seen this profile yet
+                        if clean_url not in seen_urls:
+                            seen_urls.add(clean_url)
+                            valid_cards.append(card)
+                except:
+                    continue
+            
+            print(f"  → {len(valid_cards)} unique person cards (filtered out tracking pixels & duplicates)")
             
             # Extract each lead
-            for i, card in enumerate(cards, 1):
+            for i, card in enumerate(valid_cards, 1):
                 try:
                     # Scroll into view
                     self.driver.execute_script("arguments[0].scrollIntoView(true);", card)
@@ -446,15 +496,15 @@ class LinkedInScraper:
                     
                     if lead_data:
                         leads.append(lead_data)
-                        print(f"  ✅ [{i}/{len(cards)}] {lead_data['name']}")
+                        print(f"  ✅ [{i}/{len(valid_cards)}] {lead_data['name']}")
                         self.stats['leads_scraped'] += 1
                     else:
-                        print(f"  ⚠️ [{i}/{len(cards)}] Skipped - incomplete data")
+                        print(f"  ⚠️ [{i}/{len(valid_cards)}] Skipped - incomplete data")
                     
                     self.human_delay(0.2, 0.5)
                 
                 except Exception as e:
-                    print(f"  ❌ [{i}/{len(cards)}] Error: {str(e)}")
+                    print(f"  ❌ [{i}/{len(valid_cards)}] Error: {str(e)}")
                     self.stats['errors'] += 1
                     continue
             
@@ -518,7 +568,7 @@ class LinkedInScraper:
         
         try:
             print("\n" + "="*70)
-            print("🚀 LINKEDIN LEAD SCRAPER - STARTING")
+            print("🚀 LINKEDIN LEAD SCRAPER - STARTING (FIXED VERSION)")
             print("="*70)
             
             # Setup
@@ -654,13 +704,18 @@ class LinkedInScraper:
             print(f"📈 Avg per page: {avg_per_page:.1f}")
         
         print("="*70)
+    
+    def close(self):
+        """Close the browser"""
+        if self.driver:
+            self.driver.quit()
 
 
 # CLI Testing
 if __name__ == '__main__':
     import argparse
     
-    parser = argparse.ArgumentParser(description='LinkedIn Lead Scraper')
+    parser = argparse.ArgumentParser(description='LinkedIn Lead Scraper - FIXED VERSION')
     parser.add_argument('--email', required=True, help='LinkedIn email')
     parser.add_argument('--password', required=True, help='LinkedIn password')
     parser.add_argument('--keywords', default='business professional', help='Search keywords')
