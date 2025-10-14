@@ -49,4 +49,10 @@ Thumbs.db
 
 # ChromeDriver
 chromedriver.exe
-chromedriver
+chromedriver# Secrets
+data/secret.key
+*.key
+
+# Temporary files
+SELECTOR_UPDATE_INSTRUCTIONS.txt
+browser_inspect.js
