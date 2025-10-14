@@ -16,7 +16,9 @@ from backend.ai_engine.message_generator_abc import ABCMessageGenerator
 from backend.automation.scheduler import scheduler as message_scheduler
 sys.path.append(str(Path(__file__).parent.parent))
 from backend.config import Config, get_config
+from backend.api.missing_endpoints import register_missing_endpoints
 from backend.database.db_manager import db_manager
+
 from backend.credentials_manager import credentials_manager
 from backend.scraping_cooldown_manager import get_cooldown_manager
 
@@ -33,7 +35,8 @@ bot_status = {
     'leads_scraped': 0,
     'progress': 0
 }
-
+# Register missing endpoints to fix frontend integration
+register_missing_endpoints(app, db_manager, credentials_manager)
 current_personas = []
 scraper_thread = None
 

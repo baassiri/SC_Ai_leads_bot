@@ -880,7 +880,28 @@ class DatabaseManager:
                     'sent_at': message.sent_at.isoformat() if message.sent_at else None,
                     'created_at': message.created_at.isoformat() if message.created_at else None
                 }
-
+    def delete_lead(self, lead_id):
+            """
+            Delete a lead from database
+            
+            Args:
+                lead_id: ID of lead to delete
+                
+            Returns:
+                bool: True if deleted, False if not found
+            """
+            try:
+                with self.get_session() as session:
+                    from backend.database.models import Lead
+                    lead = session.query(Lead).filter_by(id=lead_id).first()
+                    if lead:
+                        session.delete(lead)
+                        session.commit()
+                        return True
+                    return False
+            except Exception as e:
+                print(f"Error deleting lead: {e}")
+                return False
 
 # Singleton instance
 db_manager = DatabaseManager()
