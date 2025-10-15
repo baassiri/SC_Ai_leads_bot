@@ -224,9 +224,17 @@ def upload_targets():
         
         for persona_data in personas_from_ai:
             try:
+                # ✅ Convert lists to strings for database storage
                 goals_str = '\n'.join(persona_data.get('goals', [])) if isinstance(persona_data.get('goals'), list) else str(persona_data.get('goals', ''))
                 pain_points_str = '\n'.join(persona_data.get('pain_points', [])) if isinstance(persona_data.get('pain_points'), list) else str(persona_data.get('pain_points', ''))
-                keywords_str = ', '.join(persona_data.get('keywords', [])[:5]) if isinstance(persona_data.get('keywords'), list) else str(persona_data.get('keywords', ''))
+                
+                # ✅ NEW: Extract enhanced fields
+                job_titles_str = '\n'.join(persona_data.get('job_titles', [])) if isinstance(persona_data.get('job_titles'), list) else ''
+                decision_makers_str = '\n'.join(persona_data.get('decision_maker_roles', [])) if isinstance(persona_data.get('decision_maker_roles'), list) else ''
+                company_types_str = '\n'.join(persona_data.get('company_types', [])) if isinstance(persona_data.get('company_types'), list) else ''
+                solutions_str = '\n'.join(persona_data.get('solutions', [])) if isinstance(persona_data.get('solutions'), list) else ''
+                linkedin_keywords_str = '\n'.join(persona_data.get('linkedin_keywords', [])) if isinstance(persona_data.get('linkedin_keywords'), list) else ''
+                message_hooks_str = '\n'.join(persona_data.get('message_hooks', [])) if isinstance(persona_data.get('message_hooks'), list) else ''
                 
                 existing = db_manager.get_persona_by_name(persona_data.get('name', 'Unknown'))
                 
@@ -236,7 +244,18 @@ def upload_targets():
                         description=persona_data.get('description', ''),
                         goals=goals_str,
                         pain_points=pain_points_str,
-                        message_tone=keywords_str
+                        key_message=persona_data.get('key_message'),
+                        message_tone=persona_data.get('message_tone'),
+                        # ✅ NEW: Enhanced fields
+                        job_titles=job_titles_str,
+                        decision_maker_roles=decision_makers_str,
+                        company_types=company_types_str,
+                        solutions=solutions_str,
+                        linkedin_keywords=linkedin_keywords_str,
+                        smart_search_query=persona_data.get('smart_search_query'),
+                        message_hooks=message_hooks_str,
+                        seniority_level=persona_data.get('seniority_level'),
+                        industry_focus=analysis.get('industry_focus')
                     )
                     
                     if persona_id:
@@ -427,27 +446,36 @@ def start_bot():
                 bot_status['progress'] = 40
                 
                 # Use target profile from UI if provided
+                # ✅ Use target profile from UI if provided
                 if target_profile_from_ui:
                     search_keyword = target_profile_from_ui
-                    print(f"Using target profile from UI: {target_profile_from_ui}")
+                    print(f"🎯 Using target profile from UI: {target_profile_from_ui}")
                 elif personas and len(personas) > 0:
-                    # Use persona data
+                    # ✅ NEW: Use smart_search_query from persona analyzer
                     persona = personas[0]
-                    persona_name = persona.get('name', '').lower()
                     
-                    if 'founder' in persona_name or 'sme' in persona_name:
-                        search_keyword = 'CEO founder'
-                    elif 'consultant' in persona_name or 'coach' in persona_name:
-                        search_keyword = 'consultant coach advisor'
-                    elif 'marketing' in persona_name:
-                        search_keyword = 'marketing director'
+                    # Try to get smart_search_query first (enhanced field)
+                    search_keyword = persona.get('smart_search_query')
+                    
+                    if search_keyword:
+                        print(f"🤖 Using AI-generated search: {search_keyword}")
                     else:
-                        search_keyword = 'CEO founder director'
-                    
-                    print(f"Using persona: {search_keyword}")
+                        # Fallback to old logic if smart_search_query not available
+                        persona_name = persona.get('name', '').lower()
+                        
+                        if 'founder' in persona_name or 'sme' in persona_name:
+                            search_keyword = 'CEO founder'
+                        elif 'consultant' in persona_name or 'coach' in persona_name:
+                            search_keyword = 'consultant coach advisor'
+                        elif 'marketing' in persona_name:
+                            search_keyword = 'marketing director'
+                        else:
+                            search_keyword = 'CEO founder director'
+                        
+                        print(f"📋 Using persona fallback: {search_keyword}")
                 else:
                     search_keyword = 'CEO founder'
-                    print(f"Using default: {search_keyword}")
+                    print(f"⚠️ Using default: {search_keyword}")
                 
                 bot_status['current_activity'] = f'Searching: {search_keyword}'
                 bot_status['progress'] = 50
@@ -1124,7 +1152,7 @@ def update_scraping_limit():
     """Update weekly scraping limit"""
     try:
         data = request.json
-        new_limit = data.get('weekly_limit', 1)
+        new_limit = data.get('weekly_limit', 10)
         
         cooldown_manager = get_cooldown_manager()
         success = cooldown_manager.update_weekly_limit(new_limit)

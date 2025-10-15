@@ -1,296 +1,579 @@
 """
-SC AI Lead Generation System - AI Persona Analyzer (IMPROVED)
-Uses OpenAI to analyze uploaded documents - with fallback if API fails
+Enhanced Persona Analyzer - Extracts EVERYTHING from target documents
+Uses OpenAI GPT-4 to deeply understand persona documents and generate smart targeting
+IMPROVED: Better error handling and fallback parsing
 """
 
-import sys
-from pathlib import Path
-from typing import List, Dict, Optional
+from openai import OpenAI
+import os
+import re
 import json
-
-from docx import Document
-
-# Try to import OpenAI - gracefully handle if not available
-try:
-    from openai import OpenAI
-    OPENAI_AVAILABLE = True
-except ImportError:
-    print("⚠️  OpenAI library not installed")
-    OPENAI_AVAILABLE = False
-
-# Add parent directory to path
-sys.path.append(str(Path(__file__).parent.parent))
-
-from backend.config import Config
+from typing import Dict, List, Any
 
 
-class PersonaAnalyzer:
-    """Analyze target persona documents using OpenAI (with fallback)"""
+class EnhancedPersonaAnalyzer:
+    """
+    Advanced persona extraction that captures:
+    - Job titles and decision-maker roles
+    - Pain points and challenges
+    - Solutions offered
+    - Key messaging
+    - LinkedIn search keywords
+    """
     
-    def __init__(self, openai_api_key: str = None):
+    def __init__(self, api_key: str = None):
+        self.api_key = api_key or os.environ.get('OPENAI_API_KEY')
+        if not self.api_key:
+            raise ValueError("OPENAI_API_KEY required")
+        self.client = OpenAI(api_key=self.api_key)
+    
+    def analyze_document(self, file_path: str) -> Dict[str, Any]:
         """
-        Initialize persona analyzer
-        
-        Args:
-            openai_api_key: OpenAI API key (defaults to config)
+        Deep analysis of persona document
+        Returns structured data ready for scraping and messaging
         """
-        self.api_key = openai_api_key or Config.OPENAI_API_KEY
-        self.client = None
         
-        if not OPENAI_AVAILABLE:
-            print("⚠️  OpenAI library not available - using fallback parser")
-            return
+        # Read document
+        text = self._read_document(file_path)
         
-        if not self.api_key or self.api_key == '' or self.api_key == 'sk-your-openai-api-key-here':
-            print("⚠️  WARNING: No valid OpenAI API key configured!")
-            print("   Using fallback rule-based persona extraction")
-            print("   💡 Add your API key at: http://localhost:5000/")
-        else:
-            try:
-                self.client = OpenAI(api_key=self.api_key)
-                print(f"🔑 OpenAI client initialized (key: ...{self.api_key[-4:]})")
-            except Exception as e:
-                print(f"⚠️  Error initializing OpenAI: {str(e)}")
-                print("   Using fallback parser instead")
-    
-    def extract_text_from_docx(self, docx_path: str) -> str:
-        """Extract all text from a .docx file"""
-        try:
-            doc = Document(docx_path)
-            
-            text_content = []
-            for paragraph in doc.paragraphs:
-                if paragraph.text.strip():
-                    text_content.append(paragraph.text.strip())
-            
-            for table in doc.tables:
-                for row in table.rows:
-                    for cell in row.cells:
-                        if cell.text.strip():
-                            text_content.append(cell.text.strip())
-            
-            full_text = '\n'.join(text_content)
-            print(f"✅ Extracted {len(full_text)} characters from document")
-            
-            return full_text
-            
-        except Exception as e:
-            print(f"❌ Error extracting text: {str(e)}")
-            return ""
-    
-    def analyze_personas_with_ai(self, document_text: str) -> Dict:
-        """Use OpenAI to analyze the document"""
-        print("\n🤖 Asking OpenAI to analyze the document...")
+        print(f"📄 Document length: {len(text)} characters")
         
-        prompt = f"""
-You are an expert at analyzing target customer personas and extracting LinkedIn search criteria.
+        prompt = f"""You are an expert at analyzing target customer documents for B2B lead generation.
 
-Analyze this document and identify ALL personas/customer types mentioned.
+Analyze this document and extract detailed information about target personas.
 
-**Document:**
-{document_text[:3000]}
+Document Content:
+{text}
 
-**Respond with valid JSON only:**
+Extract and return a JSON object with this EXACT structure:
+
 {{
   "personas": [
     {{
-      "name": "Persona name",
-      "description": "Brief description",
-      "job_titles": ["Title 1", "Title 2"],
-      "industries": ["Industry 1"],
-      "pain_points": ["Pain 1"],
-      "goals": ["Goal 1"],
-      "keywords": ["keyword1", "keyword2"]
+      "name": "Clear persona name (e.g. 'Agency Owner', 'Plastic Surgeon')",
+      "description": "Brief 1-2 sentence description",
+      
+      "job_titles": [
+        "Exact job titles to search on LinkedIn (e.g. 'CEO', 'Founder', 'Marketing Director')",
+        "Include 5-10 specific titles that would appear on LinkedIn profiles"
+      ],
+      
+      "decision_maker_roles": [
+        "Roles that make purchasing decisions",
+        "Include c-suite and management titles"
+      ],
+      
+      "company_types": [
+        "Types of companies they work at (e.g. 'Marketing Agency', 'SaaS Startup')",
+        "Include industry categories"
+      ],
+      
+      "pain_points": [
+        "Specific problems they face",
+        "Business challenges they need to solve",
+        "Include 3-7 pain points"
+      ],
+      
+      "solutions": [
+        "Solutions/services that address their pain points",
+        "Value propositions",
+        "Include 3-7 solutions"
+      ],
+      
+      "key_message": "Single powerful value proposition for this persona",
+      
+      "message_tone": "Professional tone description (e.g. 'Direct and data-driven', 'Warm and consultative')",
+      
+      "linkedin_keywords": [
+        "Smart LinkedIn search keywords",
+        "Combine job titles, industries, and role indicators",
+        "Format for LinkedIn search (e.g. 'CEO founder startup', 'marketing director agency')",
+        "Include 5-10 keyword combinations"
+      ],
+      
+      "age_range": "Typical age range (e.g. '30-55')",
+      
+      "seniority_level": "Typical seniority (e.g. 'C-Suite', 'Director-level', 'Manager')"
     }}
   ],
-  "linkedin_search_query": "job title OR job title OR job title",
-  "primary_titles": ["Most important titles"],
-  "primary_industries": ["Industries"]
+  
+  "industry_focus": "Primary industry or vertical from document",
+  
+  "service_offerings": [
+    "Core services mentioned in document",
+    "What is being sold to these personas"
+  ],
+  
+  "common_hooks": [
+    "Universal value propositions that work across personas",
+    "Common pain points that all personas share"
+  ]
 }}
 
-Return ONLY valid JSON, no explanation.
-"""
-        
+IMPORTANT RULES:
+1. Extract REAL job titles that exist on LinkedIn
+2. Make linkedin_keywords SPECIFIC - combine role + industry
+3. Extract pain points verbatim when possible
+4. Include key_message from document if present
+5. If document has multiple personas, create separate entries for each
+6. Be precise with job_titles - these will be used for LinkedIn searches
+
+Return ONLY the JSON object, no other text."""
+
         try:
+            print("🤖 Calling OpenAI GPT-4...")
+            
             response = self.client.chat.completions.create(
                 model="gpt-4",
                 messages=[
-                    {"role": "system", "content": "You are a LinkedIn lead generation expert. Respond with valid JSON only."},
+                    {"role": "system", "content": "You are an expert at analyzing target customer documents and extracting structured persona data. Always return valid JSON."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.3,
-                max_tokens=2000
+                temperature=0.7,
+                max_tokens=4000
             )
             
-            ai_response = response.choices[0].message.content.strip()
+            content = response.choices[0].message.content.strip()
             
-            # Clean response
-            if ai_response.startswith('```'):
-                ai_response = ai_response.split('```')[1]
-                if ai_response.startswith('json'):
-                    ai_response = ai_response[4:]
-                ai_response = ai_response.strip()
+            print(f"📥 Received response ({len(content)} chars)")
+            print(f"First 200 chars: {content[:200]}")
             
-            result = json.loads(ai_response)
+            # Try multiple JSON extraction methods
+            result = self._extract_json_from_response(content)
             
-            print(f"✅ AI analyzed successfully! Found {len(result.get('personas', []))} personas")
+            if not result:
+                print("⚠️ No valid JSON found, trying fallback extraction...")
+                result = self._fallback_extraction(text)
+            
+            # Validate we have personas
+            if not result.get('personas'):
+                print("⚠️ No personas in result, trying fallback...")
+                result = self._fallback_extraction(text)
+            
+            # Enrich personas with computed fields
+            for persona in result.get('personas', []):
+                # Generate smart search query
+                persona['smart_search_query'] = self._generate_smart_search_query(persona)
+                
+                # Generate message hooks
+                persona['message_hooks'] = self._generate_message_hooks(persona)
+            
+            print(f"✅ Successfully extracted {len(result.get('personas', []))} personas")
             
             return result
-            
+        
         except Exception as e:
-            print(f"❌ OpenAI error: {str(e)}")
-            return None
+            print(f"❌ Persona analysis error: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            
+            # Try fallback extraction
+            print("🔄 Attempting fallback extraction...")
+            try:
+                result = self._fallback_extraction(text)
+                print(f"✅ Fallback successful: {len(result.get('personas', []))} personas")
+                return result
+            except Exception as fallback_error:
+                print(f"❌ Fallback also failed: {str(fallback_error)}")
+                raise e
     
-    def analyze_personas_fallback(self, document_text: str) -> Dict:
-        """Fallback rule-based persona extraction"""
-        print("\n📋 Using rule-based persona extraction...")
+    def _extract_json_from_response(self, content: str) -> Dict[str, Any]:
+        """Try multiple methods to extract JSON from GPT response"""
         
-        text_lower = document_text.lower()
+        # Method 1: Direct JSON parse
+        try:
+            return json.loads(content)
+        except:
+            pass
         
-        # Define common healthcare/aesthetics personas
-        persona_keywords = {
-            'Plastic Surgeon': ['plastic surgeon', 'cosmetic surgeon', 'aesthetic surgeon'],
-            'Dermatologist': ['dermatologist', 'dermatology', 'skin doctor'],
-            'Med Spa Owner': ['med spa', 'medspa', 'medical spa', 'aesthetic clinic'],
-            'Aesthetic Nurse': ['aesthetic nurse', 'cosmetic nurse', 'injector', 'nurse practitioner'],
-            'Day Spa Owner': ['day spa', 'wellness spa', 'beauty spa'],
-            'Wellness Center': ['wellness center', 'holistic health', 'integrative medicine']
-        }
+        # Method 2: Find JSON in markdown code blocks
+        json_match = re.search(r'```json\s*(\{.*?\})\s*```', content, re.DOTALL)
+        if json_match:
+            try:
+                return json.loads(json_match.group(1))
+            except:
+                pass
         
-        # Detect which personas are mentioned
-        found_personas = []
-        all_titles = []
+        # Method 3: Find any JSON object
+        json_match = re.search(r'\{.*\}', content, re.DOTALL)
+        if json_match:
+            try:
+                return json.loads(json_match.group())
+            except:
+                pass
         
-        for persona_name, keywords in persona_keywords.items():
-            for keyword in keywords:
-                if keyword in text_lower:
-                    found_personas.append({
-                        "name": persona_name,
-                        "description": f"Healthcare professional in {persona_name.lower()} field",
-                        "job_titles": [persona_name, keywords[0].title()],
-                        "industries": ["Medical Practice", "Healthcare", "Wellness & Fitness"],
-                        "pain_points": ["Need more clients", "Competition", "Marketing challenges"],
-                        "goals": ["Grow practice", "Increase revenue", "Build reputation"],
-                        "keywords": keywords[:3]
-                    })
-                    all_titles.extend([persona_name, keywords[0].title()])
-                    break  # Only add once
+        # Method 4: Clean and retry
+        try:
+            # Remove markdown code blocks
+            cleaned = re.sub(r'```json\s*', '', content)
+            cleaned = re.sub(r'```\s*', '', cleaned)
+            return json.loads(cleaned.strip())
+        except:
+            pass
         
-        # If no specific personas found, use generic healthcare
-        if not found_personas:
-            print("⚠️  No specific personas detected, using generic healthcare professionals")
-            found_personas = [
-                {
-                    "name": "Healthcare Professional",
-                    "description": "General medical or wellness practitioner",
-                    "job_titles": ["Doctor", "Physician", "Medical Director", "Practice Owner"],
-                    "industries": ["Medical Practice", "Healthcare"],
-                    "pain_points": ["Marketing challenges", "Patient acquisition"],
-                    "goals": ["Grow practice", "Increase revenue"],
-                    "keywords": ["doctor", "physician", "medical", "healthcare"]
+        return None
+    
+    def _fallback_extraction(self, text: str) -> Dict[str, Any]:
+        """
+        Fallback: Extract personas using regex patterns
+        When GPT fails to return proper JSON
+        """
+        print("🔍 Using pattern-based extraction...")
+        
+        personas = []
+        
+        # Look for persona sections
+        persona_patterns = [
+            r'(?:^|\n)(?:\d+\.\s*)?([A-Z][^:\n]+(?:Persona|Owner|Manager|Director|Surgeon|Consultant)[^:\n]*)',
+            r'(?:^|\n)##?\s*(\d+\.\s*[A-Z][^\n]+Persona[^\n]*)',
+        ]
+        
+        persona_names = []
+        for pattern in persona_patterns:
+            matches = re.findall(pattern, text, re.MULTILINE)
+            persona_names.extend(matches)
+        
+        # If we found persona headers, extract details for each
+        if persona_names:
+            print(f"   Found {len(persona_names)} persona headers")
+            
+            for name in persona_names[:10]:  # Limit to 10 personas
+                # Clean the name
+                name = re.sub(r'^\d+\.\s*', '', name).strip()
+                name = re.sub(r'\s*--.*$', '', name).strip()  # Remove "-- The Something"
+                
+                # Extract job titles (look for titles near this persona)
+                job_titles = self._extract_job_titles_near(text, name)
+                
+                # Extract pain points
+                pain_points = self._extract_pain_points(text)
+                
+                # Extract solutions
+                solutions = self._extract_solutions(text)
+                
+                persona = {
+                    'name': name,
+                    'description': f'Target persona from document: {name}',
+                    'job_titles': job_titles or [name.split()[0]],  # Use first word as fallback
+                    'decision_maker_roles': job_titles[:3] if job_titles else [name],
+                    'company_types': [],
+                    'pain_points': pain_points,
+                    'solutions': solutions,
+                    'key_message': f'Targeted solutions for {name}',
+                    'message_tone': 'Professional and direct',
+                    'linkedin_keywords': [name.replace(' Persona', '').replace(' Owner', '').strip()],
+                    'age_range': '30-55',
+                    'seniority_level': 'Executive'
                 }
-            ]
-            all_titles = ["Doctor", "Physician", "Medical Director"]
+                
+                personas.append(persona)
         
-        # Build LinkedIn search query
-        linkedin_query = " OR ".join(f'"{title}"' for title in set(all_titles[:5]))
+        # If still no personas, create generic ones
+        if not personas:
+            print("   No personas found, using document structure")
+            personas = [{
+                'name': 'Business Professional',
+                'description': 'Target business professional from document',
+                'job_titles': ['CEO', 'Founder', 'Director'],
+                'decision_maker_roles': ['CEO', 'Founder'],
+                'company_types': [],
+                'pain_points': self._extract_pain_points(text),
+                'solutions': self._extract_solutions(text),
+                'key_message': 'Professional business solutions',
+                'message_tone': 'Professional and direct',
+                'linkedin_keywords': ['CEO', 'Founder', 'Director'],
+                'age_range': '30-55',
+                'seniority_level': 'Executive'
+            }]
         
         result = {
-            "personas": found_personas,
-            "linkedin_search_query": linkedin_query,
-            "primary_titles": list(set(all_titles[:8])),
-            "primary_industries": ["Medical Practice", "Healthcare", "Wellness & Fitness"]
+            'personas': personas,
+            'industry_focus': 'Professional Services',
+            'service_offerings': self._extract_solutions(text),
+            'common_hooks': []
         }
-        
-        print(f"✅ Found {len(found_personas)} personas using fallback")
         
         return result
     
-    def analyze_personas(self, document_text: str) -> Dict:
-        """Analyze document - try AI first, fall back to rules"""
-        # Try AI if available
-        if self.client:
-            result = self.analyze_personas_with_ai(document_text)
-            if result and len(result.get('personas', [])) > 0:
-                return result
+    def _extract_job_titles_near(self, text: str, persona_name: str) -> List[str]:
+        """Extract job titles mentioned near a persona name"""
+        titles = []
+        
+        # Common job title patterns
+        title_patterns = [
+            r'\b(CEO|CTO|CMO|CFO|COO)\b',
+            r'\b(Founder|Co-Founder)\b',
+            r'\b(Director|Manager|Head|Lead)\b',
+            r'\b(Owner|Partner|Principal)\b',
+            r'\b(Surgeon|Doctor|Physician)\b',
+            r'\b(Consultant|Advisor|Coach)\b',
+        ]
+        
+        # Find section with this persona
+        persona_section = ''
+        sections = text.split('\n\n')
+        for i, section in enumerate(sections):
+            if persona_name in section:
+                # Get this section and next few
+                persona_section = '\n'.join(sections[i:i+3])
+                break
+        
+        if not persona_section:
+            persona_section = text
+        
+        # Extract titles
+        for pattern in title_patterns:
+            matches = re.findall(pattern, persona_section, re.IGNORECASE)
+            titles.extend([m.title() for m in matches])
+        
+        # Deduplicate
+        return list(dict.fromkeys(titles))[:10]
+    
+    def _extract_pain_points(self, text: str) -> List[str]:
+        """Extract pain points from document"""
+        pain_points = []
+        
+        # Look for pain point sections
+        pain_section_match = re.search(r'Pain\s+Points?\s*:?\s*\n(.*?)(?:\n\n|\n[A-Z]|\Z)', text, re.DOTALL | re.IGNORECASE)
+        
+        if pain_section_match:
+            section = pain_section_match.group(1)
+            # Extract bullet points or lines
+            lines = re.findall(r'[-•·*]\s*(.+)', section)
+            pain_points.extend([line.strip() for line in lines if len(line.strip()) > 10])
+        
+        return pain_points[:7]
+    
+    def _extract_solutions(self, text: str) -> List[str]:
+        """Extract solutions from document"""
+        solutions = []
+        
+        # Look for solution sections
+        solution_patterns = [
+            r'Solutions?\s+(?:You\s+)?Offer(?:ed)?\s*:?\s*\n(.*?)(?:\n\n|\n[A-Z]|\Z)',
+            r'Services?\s*:?\s*\n(.*?)(?:\n\n|\n[A-Z]|\Z)',
+            r'Key\s+Message\s*:?\s*\n(.*?)(?:\n\n|\Z)'
+        ]
+        
+        for pattern in solution_patterns:
+            match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
+            if match:
+                section = match.group(1)
+                lines = re.findall(r'[-•·*]\s*(.+)', section)
+                solutions.extend([line.strip() for line in lines if len(line.strip()) > 10])
+        
+        return solutions[:7]
+    
+    def _read_document(self, file_path: str) -> str:
+        """Read document content from file"""
+        try:
+            # Handle Word documents
+            if file_path.endswith('.docx'):
+                from docx import Document
+                doc = Document(file_path)
+                text = '\n'.join([para.text for para in doc.paragraphs if para.text.strip()])
+                return text
+            
+            # Handle text files
+            elif file_path.endswith('.txt') or file_path.endswith('.md'):
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    return f.read()
+            
+            # Handle PDF
+            elif file_path.endswith('.pdf'):
+                import PyPDF2
+                with open(file_path, 'rb') as f:
+                    reader = PyPDF2.PdfReader(f)
+                    text = ''
+                    for page in reader.pages:
+                        text += page.extract_text() + '\n'
+                    return text
+            
             else:
-                print("⚠️  AI returned empty results, trying fallback...")
+                raise ValueError(f"Unsupported file type: {file_path}")
         
-        # Fall back to rule-based
-        return self.analyze_personas_fallback(document_text)
+        except Exception as e:
+            print(f"Error reading document: {str(e)}")
+            raise
     
-    def analyze_document(self, docx_path: str) -> Dict:
-        """Main method: Analyze a document and return targeting criteria"""
-        print("\n" + "="*60)
-        print("🎯 AI PERSONA ANALYZER - Starting Analysis")
-        print("="*60)
+    def _generate_smart_search_query(self, persona: Dict) -> str:
+        """
+        Generate optimized LinkedIn search query from persona data
         
-        # Extract text
-        document_text = self.extract_text_from_docx(docx_path)
+        LinkedIn search works best with:
+        - Job titles (CEO, founder, director)
+        - Role indicators (marketing, operations, sales)
+        - Industry terms (agency, startup, clinic)
+        """
         
-        if not document_text:
-            print("❌ No text extracted from document")
-            return self.analyze_personas_fallback("")
+        # Get top job titles (most specific)
+        job_titles = persona.get('job_titles', [])[:3]
         
-        # Analyze with AI or fallback
-        analysis = self.analyze_personas(document_text)
+        # Get company types
+        company_types = persona.get('company_types', [])[:2]
         
-        # Display results
-        self.print_analysis(analysis)
+        # Combine intelligently
+        # Format: "title1 title2 OR title3 industry"
+        if job_titles:
+            query_parts = []
+            
+            # Add primary titles
+            if len(job_titles) >= 2:
+                query_parts.append(f"{job_titles[0]} {job_titles[1]}")
+            elif len(job_titles) == 1:
+                query_parts.append(job_titles[0])
+            
+            # Add industry context
+            if company_types:
+                # Extract key industry words (remove common words)
+                industry_words = []
+                for company_type in company_types:
+                    words = company_type.lower().split()
+                    meaningful_words = [w for w in words if len(w) > 3 and w not in ['company', 'companies', 'business']]
+                    industry_words.extend(meaningful_words[:2])
+                
+                if industry_words:
+                    query_parts.append(industry_words[0])
+            
+            return ' '.join(query_parts)
         
-        return analysis
+        # Fallback to linkedin_keywords
+        keywords = persona.get('linkedin_keywords', [])
+        if keywords:
+            return keywords[0]
+        
+        # Last resort
+        return persona.get('name', 'professional')
     
-    def print_analysis(self, analysis: Dict):
-        """Print analysis results"""
-        print("\n" + "="*60)
-        print("📊 ANALYSIS RESULTS")
-        print("="*60)
+    def _generate_message_hooks(self, persona: Dict) -> List[str]:
+        """
+        Generate message hooks by pairing pain points with solutions
+        """
+        hooks = []
         
-        personas = analysis.get('personas', [])
+        pain_points = persona.get('pain_points', [])[:3]
+        solutions = persona.get('solutions', [])[:3]
+        
+        # Create pain → solution hooks
+        for i, pain in enumerate(pain_points):
+            if i < len(solutions):
+                hook = f"Struggling with {pain.lower()}? {solutions[i]}"
+                hooks.append(hook)
+        
+        # Add key message as primary hook
+        if persona.get('key_message'):
+            hooks.insert(0, persona['key_message'])
+        
+        return hooks[:5]  # Max 5 hooks
+    
+    def extract_for_scraping(self, personas: List[Dict]) -> Dict[str, Any]:
+        """
+        Prepare persona data specifically for LinkedIn scraping
+        Returns optimized search parameters
+        """
         
         if not personas:
-            print("⚠️  No personas found")
-            return
+            return {
+                'keywords': 'professional',
+                'job_titles': [],
+                'industries': []
+            }
         
-        print(f"\n🎯 Found {len(personas)} Target Personas:\n")
+        # Aggregate all search data
+        all_keywords = []
+        all_job_titles = []
+        all_industries = []
         
-        for i, persona in enumerate(personas, 1):
-            print(f"{i}. {persona.get('name', 'Unknown')}")
-            print(f"   Description: {persona.get('description', 'N/A')}")
-            print(f"   Job Titles: {', '.join(persona.get('job_titles', [])[:3])}")
-            print(f"   Keywords: {', '.join(persona.get('keywords', [])[:5])}")
-            print()
+        for persona in personas:
+            # Get smart search queries
+            if persona.get('smart_search_query'):
+                all_keywords.append(persona['smart_search_query'])
+            
+            # Get job titles
+            all_job_titles.extend(persona.get('job_titles', [])[:5])
+            
+            # Get industries
+            all_industries.extend(persona.get('company_types', [])[:3])
         
-        print("\n🔍 LinkedIn Search Query:")
-        print(f"   {analysis.get('linkedin_search_query', 'N/A')}")
+        # Deduplicate and prioritize
+        unique_keywords = list(dict.fromkeys(all_keywords))[:5]
+        unique_titles = list(dict.fromkeys(all_job_titles))[:10]
+        unique_industries = list(dict.fromkeys(all_industries))[:5]
         
-        print("\n" + "="*60)
+        return {
+            'keywords': ' OR '.join(unique_keywords) if unique_keywords else unique_titles[0] if unique_titles else 'professional',
+            'job_titles': unique_titles,
+            'industries': unique_industries,
+            'search_queries': unique_keywords
+        }
+    
+    def extract_for_messaging(self, personas: List[Dict]) -> Dict[str, Any]:
+        """
+        Prepare persona data specifically for AI message generation
+        Returns context for GPT prompts
+        """
+        
+        messaging_context = {
+            'personas': [],
+            'universal_pain_points': [],
+            'universal_solutions': [],
+            'tone_guidelines': []
+        }
+        
+        for persona in personas:
+            persona_context = {
+                'name': persona.get('name'),
+                'pain_points': persona.get('pain_points', []),
+                'solutions': persona.get('solutions', []),
+                'key_message': persona.get('key_message'),
+                'message_hooks': persona.get('message_hooks', []),
+                'tone': persona.get('message_tone', 'Professional')
+            }
+            messaging_context['personas'].append(persona_context)
+            
+            # Aggregate universal elements
+            messaging_context['universal_pain_points'].extend(persona.get('pain_points', [])[:2])
+            messaging_context['universal_solutions'].extend(persona.get('solutions', [])[:2])
+            
+            if persona.get('message_tone'):
+                messaging_context['tone_guidelines'].append(persona['message_tone'])
+        
+        # Deduplicate
+        messaging_context['universal_pain_points'] = list(dict.fromkeys(messaging_context['universal_pain_points']))[:5]
+        messaging_context['universal_solutions'] = list(dict.fromkeys(messaging_context['universal_solutions']))[:5]
+        messaging_context['tone_guidelines'] = list(dict.fromkeys(messaging_context['tone_guidelines']))
+        
+        return messaging_context
 
 
 # Factory function
-def create_analyzer(api_key: str = None) -> PersonaAnalyzer:
-    """Create analyzer instance"""
-    return PersonaAnalyzer(openai_api_key=api_key)
+def create_analyzer(api_key: str = None) -> EnhancedPersonaAnalyzer:
+    """Create enhanced persona analyzer instance"""
+    return EnhancedPersonaAnalyzer(api_key=api_key)
 
 
+# CLI Test
 if __name__ == '__main__':
-    print("🧪 Testing Persona Analyzer")
-    print("="*60)
+    import sys
     
-    # Test with fallback (no API key)
-    analyzer = create_analyzer(api_key="")
+    if len(sys.argv) < 2:
+        print("Usage: python persona_analyzer.py <document.txt>")
+        sys.exit(1)
     
-    # Create a test document
-    test_text = """
-    Target Personas:
+    analyzer = create_analyzer()
+    result = analyzer.analyze_document(sys.argv[1])
     
-    1. Plastic Surgeons - High-end cosmetic surgery practices
-    2. Dermatologists - Medical and cosmetic dermatology
-    3. Med Spa Owners - Aesthetic treatment centers
-    """
+    import json
+    print(json.dumps(result, indent=2))
     
-    # Mock analyze
-    result = analyzer.analyze_personas_fallback(test_text)
-    analyzer.print_analysis(result)
+    print("\n" + "="*70)
+    print("SCRAPING DATA:")
+    print("="*70)
+    scraping_data = analyzer.extract_for_scraping(result['personas'])
+    print(json.dumps(scraping_data, indent=2))
     
-    print("\n✅ Test complete!")
+    print("\n" + "="*70)
+    print("MESSAGING DATA:")
+    print("="*70)
+    messaging_data = analyzer.extract_for_messaging(result['personas'])
+    print(json.dumps(messaging_data, indent=2))

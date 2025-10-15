@@ -2,6 +2,7 @@
 SC AI Lead Generation System - Database Models
 SQLAlchemy ORM models for all database tables
 UPDATED: Added ABTest model for A/B/C testing integration
+FIXED: Added enhanced persona fields for AI-powered targeting
 """
 
 from datetime import datetime
@@ -39,7 +40,7 @@ class User(Base):
 
 
 class Persona(Base):
-    """Store target persona profiles"""
+    """Store target persona profiles with enhanced AI-powered targeting"""
     __tablename__ = 'personas'
     
     id = Column(Integer, primary_key=True)
@@ -57,6 +58,18 @@ class Persona(Base):
     # Messaging
     key_message = Column(Text)
     message_tone = Column(String(100))  # e.g., "Consultative", "Growth-focused"
+    
+    # ✅ ENHANCED TARGETING FIELDS (AI-generated)
+    job_titles = Column(Text)  # Newline-separated job titles
+    decision_maker_roles = Column(Text)  # Key decision maker roles
+    company_types = Column(Text)  # Types of companies to target
+    solutions = Column(Text)  # Solutions this persona needs
+    linkedin_keywords = Column(Text)  # Keywords for LinkedIn search
+    smart_search_query = Column(String(500))  # AI-optimized search query
+    message_hooks = Column(Text)  # Proven message hooks
+    seniority_level = Column(String(100))  # e.g., "C-Level", "Director"
+    industry_focus = Column(String(200))  # Primary industries
+    document_source = Column(String(255))  # Source document filename
     
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow)

@@ -18,7 +18,7 @@ class ScrapingCooldownManager:
     - Cooldown resets every Monday at midnight
     """
     
-    def __init__(self, weekly_limit: int = 1):
+    def __init__(self, weekly_limit: int = 999):
         self.weekly_limit = weekly_limit
         self.db_path = Config.DATABASE_URL.replace('sqlite:///', '')
     
@@ -272,7 +272,7 @@ class ScrapingCooldownManager:
 # Singleton instance
 _cooldown_manager = None
 
-def get_cooldown_manager(weekly_limit: int = 1) -> ScrapingCooldownManager:
+def get_cooldown_manager(weekly_limit: int = 999) -> ScrapingCooldownManager:
     """Get singleton instance of cooldown manager"""
     global _cooldown_manager
     if _cooldown_manager is None:
@@ -286,7 +286,7 @@ if __name__ == '__main__':
     print("🧪 Testing Scraping Cooldown Manager")
     print("=" * 60)
     
-    manager = get_cooldown_manager(weekly_limit=1)
+    manager = get_cooldown_manager(weekly_limit=10)
     
     print("\n1️⃣ Checking if scraping is allowed...")
     can_scrape, message, details = manager.check_can_scrape()

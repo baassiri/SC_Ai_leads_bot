@@ -99,8 +99,12 @@ class DatabaseManager:
     # PERSONA OPERATIONS
     
     def create_persona(self, name, description=None, age_range=None, gender_distribution=None,
-                      goals=None, pain_points=None, key_message=None, message_tone=None):
-        """Create a new persona"""
+                    goals=None, pain_points=None, key_message=None, message_tone=None,
+                    # ✅ NEW: Enhanced fields
+                    job_titles=None, decision_maker_roles=None, company_types=None,
+                    solutions=None, linkedin_keywords=None, smart_search_query=None,
+                    message_hooks=None, seniority_level=None, industry_focus=None):
+        """Create a new persona with enhanced targeting data"""
         with self.session_scope() as session:
             persona = Persona(
                 name=name,
@@ -110,7 +114,17 @@ class DatabaseManager:
                 goals=goals,
                 pain_points=pain_points,
                 key_message=key_message,
-                message_tone=message_tone
+                message_tone=message_tone,
+                # ✅ NEW: Enhanced fields
+                job_titles=job_titles,
+                decision_maker_roles=decision_maker_roles,
+                company_types=company_types,
+                solutions=solutions,
+                linkedin_keywords=linkedin_keywords,
+                smart_search_query=smart_search_query,
+                message_hooks=message_hooks,
+                seniority_level=seniority_level,
+                industry_focus=industry_focus
             )
             session.add(persona)
             session.flush()
