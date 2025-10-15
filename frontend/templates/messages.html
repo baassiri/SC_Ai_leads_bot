@@ -4,258 +4,345 @@
 
 {% block page_title %}Messages{% endblock %}
 
-{% block extra_styles %}
-<style>
-.message-thread {
-    max-height: 500px;
-    overflow-y: auto;
-}
-.message-thread::-webkit-scrollbar {
-    width: 6px;
-}
-.message-thread::-webkit-scrollbar-thumb {
-    background-color: #bdc3c7;
-    border-radius: 3px;
-}
-@keyframes slide-in {
-    from {
-        transform: translateX(100%);
-        opacity: 0;
-    }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
-}
-.animate-slide-in {
-    animation: slide-in 0.3s ease-out;
-}
-
-/* ✅ NEW: Checkbox styles */
-.message-checkbox {
-    accent-color: #3b82f6;
-    cursor: pointer;
-}
-
-#select-all-messages {
-    accent-color: #3b82f6;
-    cursor: pointer;
-}
-
-#select-all-messages:indeterminate {
-    accent-color: #6b7280;
-}
-
-.message-card {
-    transition: opacity 0.3s ease, transform 0.3s ease;
-    position: relative;
-}
-
-.message-card.hiding {
-    opacity: 0;
-    transform: scale(0.95);
-}
-
-.btn:disabled {
-    opacity: 0.5 !important;
-    cursor: not-allowed !important;
-}
-
-.btn:not(:disabled):hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-}
-
-#auto-approve-all-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 12px rgba(16, 185, 129, 0.4);
-}
-</style>
-{% endblock %}
-
 {% block content %}
-<!-- Quick Stats Bar -->
-<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-    <div class="bg-white rounded-lg shadow p-4">
-        <div class="flex items-center">
-            <div class="p-3 rounded-full bg-gray-100 mr-3">
-                <i data-feather="edit-3" class="w-5 h-5 text-gray-600"></i>
+<!-- Connection Status Bar -->
+<div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg shadow-sm border-2 border-blue-200 p-4 mb-6">
+    <div class="flex items-center justify-between">
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2">
+                <i data-feather="linkedin" class="w-5 h-5"></i>
+                <span id="msg-linkedin-status" class="text-sm font-medium">
+                    <span class="animate-pulse">⏳ Checking LinkedIn...</span>
+                </span>
             </div>
-            <div>
-                <p class="text-sm text-gray-600">Draft</p>
-                <p class="text-2xl font-bold text-gray-800" id="stat-draft">0</p>
-            </div>
-        </div>
-    </div>
-    
-    <div class="bg-white rounded-lg shadow p-4">
-        <div class="flex items-center">
-            <div class="p-3 rounded-full bg-yellow-100 mr-3">
-                <i data-feather="check-circle" class="w-5 h-5 text-yellow-600"></i>
-            </div>
-            <div>
-                <p class="text-sm text-gray-600">Approved</p>
-                <p class="text-2xl font-bold text-yellow-600" id="stat-approved">0</p>
+            
+            <div style="width: 1px; height: 30px; background: #cbd5e1;"></div>
+            
+            <div class="flex items-center gap-2">
+                <i data-feather="cpu" class="w-5 h-5"></i>
+                <span id="msg-openai-status" class="text-sm font-medium">
+                    <span class="animate-pulse">⏳ Checking OpenAI...</span>
+                </span>
             </div>
         </div>
-    </div>
-    
-    <div class="bg-white rounded-lg shadow p-4">
-        <div class="flex items-center">
-            <div class="p-3 rounded-full bg-green-100 mr-3">
-                <i data-feather="send" class="w-5 h-5 text-green-600"></i>
-            </div>
-            <div>
-                <p class="text-sm text-gray-600">Sent</p>
-                <p class="text-2xl font-bold text-green-600" id="stat-sent">0</p>
-            </div>
-        </div>
-    </div>
-    
-    <div class="bg-white rounded-lg shadow p-4">
-        <div class="flex items-center">
-            <div class="p-3 rounded-full bg-blue-100 mr-3">
-                <i data-feather="message-circle" class="w-5 h-5 text-blue-600"></i>
-            </div>
-            <div>
-                <p class="text-sm text-gray-600">Total</p>
-                <p class="text-2xl font-bold text-blue-600" id="stat-total">0</p>
-            </div>
-        </div>
+        
+        <a href="/dashboard" class="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1">
+            <i data-feather="settings" class="w-4 h-4"></i>
+            Manage Connections
+        </a>
     </div>
 </div>
 
-<!-- Quick Actions Bar -->
-<div class="bg-white rounded-lg shadow p-4 mb-6">
-    <div class="flex flex-wrap gap-3 items-center justify-between">
-        <div class="flex flex-wrap gap-3 items-center">
-            <!-- ✅ NEW: Select All Checkbox -->
-            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 500; padding: 8px 12px; background: #f3f4f6; border-radius: 6px;">
-                <input type="checkbox" id="select-all-messages" style="width: 18px; height: 18px;">
-                <span>Select All</span>
-            </label>
-            
-            <!-- Divider -->
-            <div style="width: 1px; height: 30px; background: #e5e7eb;"></div>
-            
-            <!-- Filter Buttons -->
-            <button data-filter="draft" class="bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-md text-sm flex items-center transition ring-2 ring-blue-500">
-                <i data-feather="edit" class="w-4 h-4 mr-2"></i>
-                Draft Messages
-            </button>
-            <button data-filter="approved" class="bg-yellow-50 hover:bg-yellow-100 text-yellow-700 px-4 py-2 rounded-md text-sm flex items-center transition">
-                <i data-feather="check-circle" class="w-4 h-4 mr-2"></i>
-                Approved Messages
-            </button>
-            <button data-filter="sent" class="bg-green-50 hover:bg-green-100 text-green-700 px-4 py-2 rounded-md text-sm flex items-center transition">
-                <i data-feather="send" class="w-4 h-4 mr-2"></i>
-                Sent Messages
-            </button>
-            
-            <!-- Divider -->
-            <div style="width: 1px; height: 30px; background: #e5e7eb;"></div>
-            
-            <!-- ✅ NEW: Bulk Actions -->
-            <button id="bulk-approve-btn" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm flex items-center transition" disabled>
-                <i data-feather="check-square" class="w-4 h-4 mr-2"></i>
-                Approve Selected
-            </button>
-            
-            <button id="bulk-delete-btn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md text-sm flex items-center transition" disabled>
-                <i data-feather="trash-2" class="w-4 h-4 mr-2"></i>
-                Delete Selected
-            </button>
-            
-            <!-- Divider -->
-            <div style="width: 1px; height: 30px; background: #e5e7eb;"></div>
-            
-            <!-- ✅ NEW: Auto-Approve All Button -->
-            <button id="auto-approve-all-btn" 
-                    style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); 
-                           color: white;
-                           border: none; 
-                           padding: 10px 20px; 
-                           font-weight: 600;
-                           border-radius: 6px;
-                           box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
-                           cursor: pointer;
-                           transition: all 0.2s;
-                           display: flex;
-                           align-items: center;
-                           gap: 6px;">
-                <i data-feather="zap" class="w-4 h-4"></i>
-                ✨ Auto-Approve All
+<!-- LinkedIn Connection Card (Hidden by default, controlled by JS) -->
+<div id="linkedin-connection-card" style="display: none;" class="bg-white rounded-lg shadow p-6 mb-6">
+    <h3 class="text-lg font-bold mb-4">LinkedIn Connection</h3>
+    
+    <div id="linkedin-status" class="mb-4">
+        <p>Checking status...</p>
+    </div>
+    
+    <div class="flex gap-2">
+        <button id="linkedin-login-btn" class="btn btn-primary" style="display: none;">
+            🔐 Login to LinkedIn
+        </button>
+        <button id="linkedin-logout-btn" class="btn btn-secondary" style="display: none;">
+            🚪 Logout
+        </button>
+    </div>
+</div>
+
+<!-- Message Stats -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-sm font-medium text-gray-600 mb-2">📝 Draft</h3>
+        <p id="draft-count" class="text-3xl font-bold text-gray-900">0</p>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-sm font-medium text-gray-600 mb-2">✅ Approved</h3>
+        <p id="approved-count" class="text-3xl font-bold text-green-600">0</p>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-sm font-medium text-gray-600 mb-2">📨 Sent</h3>
+        <p id="sent-count" class="text-3xl font-bold text-blue-600">0</p>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-sm font-medium text-gray-600 mb-2">💬 Reply Rate</h3>
+        <p id="reply-rate" class="text-3xl font-bold text-purple-600">0%</p>
+    </div>
+</div>
+
+<!-- Actions Bar -->
+<div class="bg-white rounded-lg shadow p-6 mb-6">
+    <div class="flex flex-wrap items-center justify-between gap-4">
+        <div class="flex gap-2">
+            <button id="generate-messages-btn" class="btn btn-primary">
+                🎨 Generate Messages for Top Leads
             </button>
             
-            <button onclick="sendAllApprovedMessages()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md text-sm flex items-center transition">
-                <i data-feather="send" class="w-4 h-4 mr-2"></i>
-                Send All Approved
+            <button id="send-messages-btn" class="btn btn-success" disabled>
+                📨 Send Approved Messages
             </button>
         </div>
         
-        <div class="flex gap-2">
-            <select id="lead-filter" class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-secondary">
-                <option value="">All Leads</option>
+        <div class="flex gap-2 items-center">
+            <label for="status-filter" class="text-sm font-medium">Status:</label>
+            <select id="status-filter" class="border rounded px-3 py-2">
+                <option value="">All</option>
+                <option value="draft">Draft</option>
+                <option value="approved">Approved</option>
+                <option value="sent">Sent</option>
             </select>
-            <button onclick="loadMessages(currentFilter)" class="bg-gray-100 hover:bg-gray-200 p-2 rounded-md transition" title="Refresh">
-                <i data-feather="refresh-cw" class="w-5 h-5"></i>
+            
+            <button id="apply-filters-btn" class="btn btn-secondary">
+                🔍 Apply Filter
             </button>
         </div>
+    </div>
+    
+    <!-- Action Status -->
+    <div id="action-status" class="mt-4 p-4 bg-blue-50 rounded" style="display: none;">
+        <p id="action-message" class="text-sm"></p>
     </div>
 </div>
 
 <!-- Messages Container -->
-<div id="messages-container" class="space-y-6">
-    <div class="bg-white rounded-lg shadow p-8 text-center">
-        <i data-feather="loader" class="w-12 h-12 mx-auto animate-spin text-blue-500 mb-4"></i>
-        <p class="text-gray-500">Loading messages...</p>
+<div id="messages-container" class="bg-white rounded-lg shadow p-6">
+    <div class="loading">
+        <div class="spinner"></div>
+        <p>Loading messages...</p>
     </div>
 </div>
 
-<!-- Help Section -->
-<div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-    <div class="flex items-start">
-        <i data-feather="info" class="w-5 h-5 text-blue-600 mr-3 mt-1"></i>
-        <div>
-            <h3 class="text-blue-900 font-semibold mb-1">A/B/C Testing Guide</h3>
-            <ul class="text-sm text-blue-700 space-y-1">
-                <li><strong>Variant A:</strong> Direct and value-focused message</li>
-                <li><strong>Variant B:</strong> Curiosity-driven with questions</li>
-                <li><strong>Variant C:</strong> Social proof and authority</li>
-            </ul>
-            <p class="text-sm text-blue-600 mt-2">💡 Tip: Use Auto-Approve All to automatically pick Variant A for each lead!</p>
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 {% block extra_js %}
 <script src="/static/js/messages.js"></script>
-<script src="/static/js/schedule.js"></script>
 <script>
-    // Update stats after loading messages
-    function updateStats() {
-        fetch('/api/messages/stats')
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    document.getElementById('stat-draft').textContent = data.stats.draft || 0;
-                    document.getElementById('stat-approved').textContent = data.stats.approved || 0;
-                    document.getElementById('stat-sent').textContent = data.stats.sent || 0;
-                    document.getElementById('stat-total').textContent = data.stats.total || 0;
-                }
-            })
-            .catch(error => console.error('Error loading stats:', error));
+// Check Connection Status
+async function checkMessagesPageConnections() {
+    // Check LinkedIn
+    try {
+        const liRes = await fetch('/api/linkedin/status');
+        const liData = await liRes.json();
+        
+        const liStatus = document.getElementById('msg-linkedin-status');
+        
+        if (liData.logged_in) {
+            liStatus.innerHTML = '<span class="text-green-700">✅ LinkedIn: Connected</span>';
+        } else {
+            liStatus.innerHTML = '<span class="text-red-700">❌ LinkedIn: Not Connected → <a href="/dashboard" class="underline font-semibold">Connect on Dashboard</a></span>';
+        }
+    } catch (error) {
+        console.error('Error checking LinkedIn:', error);
     }
     
-    // Update stats every 10 seconds
-    setInterval(updateStats, 10000);
-    updateStats();
+    // Check OpenAI
+    try {
+        const aiRes = await fetch('/api/auth/test-connection', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ service: 'openai' })
+        });
+        const aiData = await aiRes.json();
+        
+        const aiStatus = document.getElementById('msg-openai-status');
+        
+        if (aiData.success) {
+            aiStatus.innerHTML = '<span class="text-green-700">✅ OpenAI: Connected</span>';
+        } else {
+            aiStatus.innerHTML = '<span class="text-red-700">❌ OpenAI: Not Configured → <a href="/settings" class="underline font-semibold">Configure in Settings</a></span>';
+        }
+    } catch (error) {
+        console.error('Error checking OpenAI:', error);
+    }
     
-    // Replace feather icons after page load
-    document.addEventListener('DOMContentLoaded', function() {
+    if (typeof feather !== 'undefined') {
         feather.replace();
-    });
+    }
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    checkMessagesPageConnections();
+    setInterval(checkMessagesPageConnections, 30000);
+});
 </script>
-<script src="{{ url_for('static', filename='js/schedule-ui.js') }}"></script>
+
+<style>
+.loading {
+    text-align: center;
+    padding: 40px;
+}
+
+.spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #3498db;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 20px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.message-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 16px;
+}
+
+.message-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    margin-bottom: 12px;
+}
+
+.message-meta h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.message-company {
+    color: #6b7280;
+    font-size: 0.9rem;
+}
+
+.message-badges {
+    display: flex;
+    gap: 8px;
+}
+
+.badge {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.badge-draft {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.badge-approved {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.badge-sent {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.badge-failed {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.badge-variant {
+    background: #e0e7ff;
+    color: #3730a3;
+}
+
+.message-content {
+    background: #f9fafb;
+    padding: 16px;
+    border-radius: 6px;
+    margin-bottom: 12px;
+}
+
+.message-content p {
+    margin: 0;
+    line-height: 1.6;
+}
+
+.message-actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.message-footer {
+    display: flex;
+    justify-content: space-between;
+    color: #9ca3af;
+    font-size: 0.85rem;
+}
+
+.btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background: #3b82f6;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #2563eb;
+}
+
+.btn-success {
+    background: #10b981;
+    color: white;
+}
+
+.btn-success:hover {
+    background: #059669;
+}
+
+.btn-secondary {
+    background: #6b7280;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: #4b5563;
+}
+
+.btn-danger {
+    background: #ef4444;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #dc2626;
+}
+
+.btn-sm {
+    padding: 6px 12px;
+    font-size: 0.875rem;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.empty-state, .error-state {
+    text-align: center;
+    padding: 60px 20px;
+}
+
+.empty-state p, .error-state p {
+    font-size: 1.1rem;
+    color: #6b7280;
+    margin-bottom: 20px;
+}
+</style>
 {% endblock %}

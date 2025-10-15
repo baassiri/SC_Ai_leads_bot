@@ -129,7 +129,25 @@ class DatabaseManager:
             session.add(persona)
             session.flush()
             return persona.id
-    
+    def get_messages_to_send(self):
+        """Get approved messages ready to send"""
+        with self.session_scope() as session:
+            messages = session.query(Message).join(Lead).filter(
+                Message.status == 'approved'
+            ).order_by(Message.created_at).all()
+            
+            messages_data = []
+            for msg in messages:
+                messages_data.append({
+                    'id': msg.id,
+                    'lead_id': msg.lead_id,
+                    'content': msg.content,
+                    'name': msg.lead.name if msg.lead else 'Unknown',
+                    'profile_url': msg.lead.profile_url if msg.lead else ''
+                })
+            
+            return messages_data
+        
     def get_all_personas(self):
         """Get all personas"""
         with self.session_scope() as session:

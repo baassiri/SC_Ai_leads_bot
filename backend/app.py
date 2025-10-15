@@ -21,7 +21,7 @@ from backend.database.db_manager import db_manager
 
 from backend.credentials_manager import credentials_manager
 from backend.scraping_cooldown_manager import get_cooldown_manager
-
+from backend.linkedin.linkedin_sender import LinkedInSender
 app = Flask(__name__,
            template_folder='../frontend/templates',
            static_folder='../frontend/static')
@@ -898,34 +898,81 @@ def get_dashboard_stats():
 
 @app.route('/api/messages/<int:message_id>/send', methods=['POST'])
 def send_single_message(message_id):
-    """Queue a single message for immediate sending"""
+    """Send a single message immediately to LinkedIn"""
+    global linkedin_sender
+    
     try:
-        from backend.automation.scheduler import scheduler
+        # Check if logged in
+        if not linkedin_sender or not linkedin_sender.driver:
+            return jsonify({
+                'success': False,
+                'message': 'Please login to LinkedIn first'
+            }), 400
         
-        schedule_id = scheduler.schedule_message(
-            message_id=message_id,
-            scheduled_time=None
-        )
+        # Get the message
+        message = db_manager.get_message_by_id(message_id)
         
-        if schedule_id:
+        if not message:
+            return jsonify({
+                'success': False,
+                'message': 'Message not found'
+            }), 404
+        
+        # Get lead info
+        lead = db_manager.get_lead_by_id(message['lead_id'])
+        
+        if not lead:
+            return jsonify({
+                'success': False,
+                'message': 'Lead not found'
+            }), 404
+        
+        lead_name = lead['name']
+        profile_url = lead['profile_url']
+        content = message['content']
+        
+        print(f"\n📤 Sending to: {lead_name}")
+        print(f"💬 Message: {content}")
+        
+        # Send the message NOW via LinkedIn
+        result = linkedin_sender.send_connection_request(profile_url, content)
+        
+        if result["success"]:
+            # Update message status to 'sent'
+            db_manager.update_message_status(message_id, 'sent')
+            
+            # Update lead status
+            db_manager.update_lead_status(lead['id'], 'contacted', 'pending')
+            
             db_manager.log_activity(
-                activity_type='message_scheduled',
-                description=f'Message {message_id} queued for sending',
+                activity_type='message_sent',
+                description=f'✅ Sent message to {lead_name}',
                 status='success'
             )
             
             return jsonify({
                 'success': True,
-                'message': 'Message queued for sending',
-                'schedule_id': schedule_id
+                'message': f'Message sent to {lead_name}!'
             })
-        
-        return jsonify({
-            'success': False,
-            'message': 'Failed to schedule message'
-        }), 500
+        else:
+            # Mark as failed
+            db_manager.update_message_status(message_id, 'failed')
+            
+            db_manager.log_activity(
+                activity_type='message_failed',
+                description=f'❌ Failed to send to {lead_name}: {result.get("error")}',
+                status='failed',
+                error_message=result.get("error")
+            )
+            
+            return jsonify({
+                'success': False,
+                'message': f'Failed to send: {result.get("error")}'
+            }), 500
         
     except Exception as e:
+        import traceback
+        print(f"Error sending message: {traceback.format_exc()}")
         return jsonify({
             'success': False,
             'message': f'Error: {str(e)}'
@@ -1176,10 +1223,213 @@ def update_scraping_limit():
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
+# LinkedIn Automation Routes
+linkedin_sender = None
 
+@app.route('/api/linkedin/login', methods=['POST'])
+def linkedin_login():
+    """Initiate LinkedIn login"""
+    global linkedin_sender
+    try:
+        linkedin_sender = LinkedInSender()
+        linkedin_sender.init_driver()
+        
+        # Try loading saved cookies first
+        if linkedin_sender.load_cookies():
+            return jsonify({"success": True, "message": "Logged in using saved session"})
+        
+        # If cookies don't work, do manual login
+        success = linkedin_sender.login_manual()
+        if success:
+            return jsonify({"success": True, "message": "Login successful"})
+        else:
+            return jsonify({"success": False, "error": "Login failed"}), 400
+            
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/linkedin/send-messages', methods=['POST'])
+def send_linkedin_messages():
+    """Send approved messages to LinkedIn"""
+    global linkedin_sender
+    
+    if not linkedin_sender:
+        return jsonify({"success": False, "error": "Please login to LinkedIn first"}), 400
+    
+    try:
+        # Get approved messages that haven't been sent yet
+        messages_to_send = db_manager.get_messages_to_send()
+        
+        if not messages_to_send:
+            return jsonify({"success": False, "error": "No approved messages to send"}), 400
+        
+        results = []
+        sent_count = 0
+        failed_count = 0
+        
+        for msg in messages_to_send:
+            msg_id = msg['id']
+            lead_id = msg['lead_id']
+            content = msg['content']
+            lead_name = msg['name']
+            profile_url = msg['profile_url']
+            
+            # Check daily limit
+            if linkedin_sender.sent_today >= linkedin_sender.daily_limit:
+                results.append({
+                    "lead": lead_name,
+                    "status": "skipped",
+                    "reason": "Daily limit reached (100 messages)"
+                })
+                continue
+            
+            print(f"\n📤 Sending to: {lead_name}")
+            print(f"💬 Message: {content}")
+            # Skip the pre-check - let LinkedIn automation handle connection status naturally
+            # Check if already connected
+            # if linkedin_sender.check_if_connected(profile_url):
+            #     print(f"⚠️ Already connected to {lead_name}, skipping...")
+            #     results.append({
+            #         "lead": lead_name,
+            #         "status": "skipped",
+            #         "reason": "Already connected"
+            #     })
+                
+            #     # Update lead status
+            #     db_manager.update_lead_status(lead_id, 'contacted', 'connected')
+            #     continue
+            
+            # Send connection request
+            result = linkedin_sender.send_connection_request(profile_url, content)
+            
+            if result["success"]:
+                # Update message status to 'sent'
+                db_manager.update_message_status(msg_id, 'sent')
+                
+                # Update lead status to 'pending'
+                db_manager.update_lead_status(lead_id, 'contacted', 'pending')
+                
+                sent_count += 1
+                
+                results.append({
+                    "lead": lead_name,
+                    "status": "sent",
+                    "message": result["message"]
+                })
+                
+            else:
+                # Mark as failed
+                db_manager.update_message_status(msg_id, 'failed')
+                failed_count += 1
+                
+                results.append({
+                    "lead": lead_name,
+                    "status": "failed",
+                    "error": result["error"]
+                })
+            
+            # Random delay between sends (2-5 minutes)
+            if sent_count < len(messages_to_send) - 1:
+                delay = random.randint(120, 300)
+                print(f"⏳ Waiting {delay//60} minutes before next message...")
+                time.sleep(delay)
+        
+        return jsonify({
+            "success": True,
+            "sent": sent_count,
+            "failed": failed_count,
+            "skipped": len(messages_to_send) - sent_count - failed_count,
+            "results": results
+        })
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/linkedin/close', methods=['POST'])
+def linkedin_close():
+    """Close LinkedIn browser"""
+    global linkedin_sender
+    if linkedin_sender:
+        linkedin_sender.close()
+        linkedin_sender = None
+    return jsonify({"success": True, "message": "LinkedIn browser closed"})
 # ============================================================================
 # RUN APPLICATION
 # ============================================================================
+"""
+Additional Flask Routes for LinkedIn Integration
+Add these routes to your app.py file
+"""
+
+# ============================================================================
+# LINKEDIN STATUS ROUTE (ADD THIS TO APP.PY)
+# ============================================================================
+
+# ============================================================================
+# ADD THESE 2 ROUTES TO YOUR app.py (after the existing LinkedIn routes)
+# ============================================================================
+
+@app.route('/api/linkedin/status', methods=['GET'])
+def get_linkedin_status():
+    """Check if user is logged into LinkedIn"""
+    global linkedin_sender
+    
+    try:
+        if linkedin_sender and linkedin_sender.driver:
+            try:
+                # Check if we're still on LinkedIn
+                current_url = linkedin_sender.driver.current_url
+                
+                if 'linkedin.com' in current_url:
+                    # Try to get user name
+                    try:
+                        linkedin_sender.driver.get('https://www.linkedin.com/in/me/')
+                        time.sleep(1)
+                        
+                        page_title = linkedin_sender.driver.title
+                        user_name = page_title.split('|')[0].strip() if '|' in page_title else 'LinkedIn User'
+                        
+                        return jsonify({
+                            'success': True,
+                            'logged_in': True,
+                            'user_name': user_name
+                        })
+                    except:
+                        return jsonify({
+                            'success': True,
+                            'logged_in': True,
+                            'user_name': 'LinkedIn User'
+                        })
+                else:
+                    return jsonify({'success': True, 'logged_in': False})
+            except:
+                linkedin_sender = None
+                return jsonify({'success': True, 'logged_in': False})
+        else:
+            return jsonify({'success': True, 'logged_in': False})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e), 'logged_in': False}), 500
+
+
+@app.route('/api/messages/<int:message_id>/status', methods=['PATCH'])
+def update_message_status_route(message_id):
+    """Update message status"""
+    try:
+        data = request.json
+        new_status = data.get('status')
+        
+        if not new_status:
+            return jsonify({'success': False, 'message': 'Status is required'}), 400
+        
+        success = db_manager.update_message_status(message_id, new_status)
+        
+        if success:
+            return jsonify({'success': True, 'message': f'Message status updated to {new_status}'})
+        else:
+            return jsonify({'success': False, 'message': 'Message not found'}), 404
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Error: {str(e)}'}), 500
+
 
 if __name__ == '__main__':
     print("=" * 60)
