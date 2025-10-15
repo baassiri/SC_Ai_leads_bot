@@ -419,15 +419,19 @@ def start_bot():
                 api_key = credentials_manager.get_openai_key()
                 personas = db_manager.get_all_personas()
                 
+                # ✅ FIX: Verify credentials exist
+                if not linkedin_creds:
+                    raise Exception("LinkedIn credentials not found. Please configure in Settings.")
+                
                 bot_status['current_activity'] = 'Connecting to LinkedIn...'
                 bot_status['progress'] = 10
                 
-                # Initialize REAL scraper
+                # ✅ FIX: Use credentials from credentials_manager
                 scraper = LinkedInScraper(
                     email=linkedin_creds['email'],
                     password=linkedin_creds['password'],
                     headless=False,
-                    sales_nav_preference=linkedin_creds.get('sales_nav_enabled', False)
+                    sales_nav_preference=False  # Prevents hanging
                 )
                 
                 bot_status['current_activity'] = 'Setting up Chrome...'

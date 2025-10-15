@@ -1,6 +1,6 @@
 """
 SC AI Lead Generation System - A/B/C Message Generator
-Generates 3 message variants (A, B, C) for each lead for testing
+✅ FIXED VERSION - Generates natural, human-sounding messages
 """
 
 import sys
@@ -27,7 +27,7 @@ class ABCMessageGenerator:
     
     def generate_variants(self, lead: Dict) -> Dict[str, str]:
         """
-        Generate 3 message variants (A, B, C) for a single lead
+        Generate 3 natural-sounding message variants (A, B, C) for a single lead
         
         Args:
             lead: Dict with lead information (name, title, company, persona)
@@ -36,67 +36,60 @@ class ABCMessageGenerator:
             Dict with keys: variant_a, variant_b, variant_c
         """
         
-        prompt = f"""You are an expert LinkedIn outreach specialist. Generate 3 DIFFERENT message variants for this lead:
+        first_name = lead.get('name', '').split()[0] if lead.get('name') else 'there'
+        title = lead.get('title', 'Professional')
+        company = lead.get('company', 'your company')
+        
+        prompt = f"""You are writing LinkedIn connection requests. Write naturally like a real human, NOT like AI or a salesperson.
 
-**Lead Information:**
+**Lead Info:**
 - Name: {lead.get('name', 'Professional')}
-- Title: {lead.get('title', 'Professional')}
-- Company: {lead.get('company', 'their company')}
-- Persona: {lead.get('persona_name', 'Business Professional')}
-- AI Score: {lead.get('ai_score', 'N/A')}/100
+- First Name: {first_name}
+- Title: {title}
+- Company: {company}
 
-**Generate 3 variants with different approaches:**
+**CRITICAL RULES:**
+1. Under 200 characters (LinkedIn connection request limit)
+2. Sound like a REAL person texting a colleague
+3. NO corporate buzzwords: "solutions", "value", "partnership", "synergy", "leverage"
+4. NO AI phrases: "I noticed", "I came across", "I saw", "reaching out"
+5. Be casual, direct, and friendly
+6. Get to the point quickly
+7. NO emojis
+8. NO long introductions
 
-**Variant A - Direct Value:**
-- Lead with specific value proposition
-- Mention their role/company directly
-- Clear call-to-action
-- Professional but warm
-- 250-300 characters max
+**BAD Examples (DON'T write like this):**
+❌ "Dear {first_name}, As the {title} of {company}, you're surely on the lookout for..."
+❌ "Hi {first_name}, I noticed your impressive work at {company}. I'd love to discuss how our solutions..."
+❌ "Hi {first_name}, I came across your profile and thought we could create synergy..."
 
-**Variant B - Curiosity/Question:**
-- Start with engaging question
-- Reference their industry/challenges
-- Create curiosity gap
-- More conversational tone
-- 250-300 characters max
+**GOOD Examples (Write like THIS):**
+✅ "Hey {first_name}, fellow {title} here - would love to connect and swap notes"
+✅ "Hi {first_name}, I help {title}s with [specific problem]. Worth a quick chat?"
+✅ "{first_name}, respect what you're building at {company}. Let's connect?"
+✅ "Hey {first_name}, working on something for {title}s. Can I pick your brain?"
 
-**Variant C - Social Proof:**
-- Reference similar clients/results
-- Use credibility indicators
-- Show expertise
-- Confidence-building
-- 250-300 characters max
+**Generate 3 DIFFERENT casual messages:**
 
-**CRITICAL REQUIREMENTS:**
-1. Each variant MUST be genuinely different (not just word swaps)
-2. All under 300 characters (LinkedIn connection request limit)
-3. Personalized to their role and company
-4. No generic templates
-5. Professional but human
-6. No emojis unless absolutely natural
+VARIANT A - Direct approach (like a quick intro at a conference):
 
-**Format your response EXACTLY like this:**
 
-VARIANT A:
-[Your variant A message here]
+VARIANT B - Question-based (like asking for advice):
 
-VARIANT B:
-[Your variant B message here]
 
-VARIANT C:
-[Your variant C message here]
+VARIANT C - Compliment-based (like genuine respect):
+
 """
         
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "You are an expert B2B LinkedIn outreach specialist."},
+                    {"role": "system", "content": "You write natural, human-sounding LinkedIn messages. No corporate speak. Be brief and casual like texting a friend."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.8,  # Higher for more variety
-                max_tokens=800
+                temperature=0.9,  # Higher for natural variation
+                max_tokens=300
             )
             
             content = response.choices[0].message.content.strip()
@@ -160,7 +153,7 @@ VARIANT C:
             
             elif current_variant and line:
                 # Skip lines that are just formatting
-                if not line.startswith('**') and not line.startswith('---'):
+                if not line.startswith('**') and not line.startswith('---') and not line.startswith('❌') and not line.startswith('✅'):
                     current_message.append(line)
         
         # Add last variant
@@ -170,23 +163,23 @@ VARIANT C:
         # Clean up variants (remove extra quotes, trim)
         for key in variants:
             variants[key] = variants[key].strip('"\'').strip()
-            # Enforce character limit
-            if len(variants[key]) > 300:
-                variants[key] = variants[key][:297] + "..."
+            # Enforce character limit (200 for LinkedIn connection requests)
+            if len(variants[key]) > 200:
+                variants[key] = variants[key][:197] + "..."
         
         return variants
     
     def _get_fallback_variants(self, lead: Dict) -> Dict[str, str]:
-        """Fallback variants if API fails"""
+        """Natural fallback variants if API fails"""
         
-        name = lead.get('name', 'there')
+        first_name = lead.get('name', '').split()[0] if lead.get('name') else 'there'
         title = lead.get('title', 'your role')
         company = lead.get('company', 'your company')
         
         return {
-            'variant_a': f"Hi {name}, I help {title}s at companies like {company} streamline their lead generation. Would love to connect and share some insights that could be valuable.",
-            'variant_b': f"Hi {name}, curious - how are you currently handling lead generation at {company}? I work with {title}s to automate their outreach and would love to exchange ideas.",
-            'variant_c': f"Hi {name}, we've helped several {title}s increase their qualified leads by 300%+. Given your work at {company}, thought you might find our approach interesting. Connect?"
+            'variant_a': f"Hey {first_name}, fellow {title} here - would love to connect and swap notes",
+            'variant_b': f"Hi {first_name}, I help {title}s with lead gen. Worth a quick chat?",
+            'variant_c': f"{first_name}, respect what you're building at {company}. Let's connect?"
         }
     
     def batch_generate(self, lead_ids: List[int], max_leads: int = 20) -> Dict:

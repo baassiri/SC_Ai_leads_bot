@@ -30,6 +30,46 @@
 .animate-slide-in {
     animation: slide-in 0.3s ease-out;
 }
+
+/* ✅ NEW: Checkbox styles */
+.message-checkbox {
+    accent-color: #3b82f6;
+    cursor: pointer;
+}
+
+#select-all-messages {
+    accent-color: #3b82f6;
+    cursor: pointer;
+}
+
+#select-all-messages:indeterminate {
+    accent-color: #6b7280;
+}
+
+.message-card {
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    position: relative;
+}
+
+.message-card.hiding {
+    opacity: 0;
+    transform: scale(0.95);
+}
+
+.btn:disabled {
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
+}
+
+.btn:not(:disabled):hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+#auto-approve-all-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(16, 185, 129, 0.4);
+}
 </style>
 {% endblock %}
 
@@ -88,7 +128,17 @@
 <!-- Quick Actions Bar -->
 <div class="bg-white rounded-lg shadow p-4 mb-6">
     <div class="flex flex-wrap gap-3 items-center justify-between">
-        <div class="flex flex-wrap gap-3">
+        <div class="flex flex-wrap gap-3 items-center">
+            <!-- ✅ NEW: Select All Checkbox -->
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 500; padding: 8px 12px; background: #f3f4f6; border-radius: 6px;">
+                <input type="checkbox" id="select-all-messages" style="width: 18px; height: 18px;">
+                <span>Select All</span>
+            </label>
+            
+            <!-- Divider -->
+            <div style="width: 1px; height: 30px; background: #e5e7eb;"></div>
+            
+            <!-- Filter Buttons -->
             <button data-filter="draft" class="bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-md text-sm flex items-center transition ring-2 ring-blue-500">
                 <i data-feather="edit" class="w-4 h-4 mr-2"></i>
                 Draft Messages
@@ -101,16 +151,48 @@
                 <i data-feather="send" class="w-4 h-4 mr-2"></i>
                 Sent Messages
             </button>
-            <button onclick="approveAllDrafts()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm flex items-center transition">
-                <i data-feather="check-square" class="w-4 h-4 mr-2"></i>
-                Approve All Drafts
-            </button>
-            <button onclick="sendAllApprovedMessages()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md text-sm flex items-center transition">
-    <i data-feather="send" class="w-4 h-4 mr-2"></i>
-    Send All Approved
-</button>
             
+            <!-- Divider -->
+            <div style="width: 1px; height: 30px; background: #e5e7eb;"></div>
+            
+            <!-- ✅ NEW: Bulk Actions -->
+            <button id="bulk-approve-btn" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm flex items-center transition" disabled>
+                <i data-feather="check-square" class="w-4 h-4 mr-2"></i>
+                Approve Selected
+            </button>
+            
+            <button id="bulk-delete-btn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md text-sm flex items-center transition" disabled>
+                <i data-feather="trash-2" class="w-4 h-4 mr-2"></i>
+                Delete Selected
+            </button>
+            
+            <!-- Divider -->
+            <div style="width: 1px; height: 30px; background: #e5e7eb;"></div>
+            
+            <!-- ✅ NEW: Auto-Approve All Button -->
+            <button id="auto-approve-all-btn" 
+                    style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); 
+                           color: white;
+                           border: none; 
+                           padding: 10px 20px; 
+                           font-weight: 600;
+                           border-radius: 6px;
+                           box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+                           cursor: pointer;
+                           transition: all 0.2s;
+                           display: flex;
+                           align-items: center;
+                           gap: 6px;">
+                <i data-feather="zap" class="w-4 h-4"></i>
+                ✨ Auto-Approve All
+            </button>
+            
+            <button onclick="sendAllApprovedMessages()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md text-sm flex items-center transition">
+                <i data-feather="send" class="w-4 h-4 mr-2"></i>
+                Send All Approved
+            </button>
         </div>
+        
         <div class="flex gap-2">
             <select id="lead-filter" class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-secondary">
                 <option value="">All Leads</option>
@@ -141,7 +223,7 @@
                 <li><strong>Variant B:</strong> Curiosity-driven with questions</li>
                 <li><strong>Variant C:</strong> Social proof and authority</li>
             </ul>
-            <p class="text-sm text-blue-600 mt-2">💡 Tip: Approve all 3 variants and the system will track which performs best!</p>
+            <p class="text-sm text-blue-600 mt-2">💡 Tip: Use Auto-Approve All to automatically pick Variant A for each lead!</p>
         </div>
     </div>
 </div>

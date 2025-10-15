@@ -1,10 +1,11 @@
 /**
  * SC AI Lead Generation System - Messages Page JavaScript
- * Handles message generation, approval, scheduling, and SENDING
+ * ✅ FIXED VERSION with Select All, Auto-Approve, and Hide Variants
  */
 
 // Global state
 let currentFilter = 'draft';
+let selectedMessages = new Set();
 
 /**
  * Initialize page
@@ -13,6 +14,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loadMessages(currentFilter);
     loadMessageStats();
     setupEventListeners();
+    setupSelectAll();
     
     // Auto-refresh every 30 seconds
     setInterval(() => {
@@ -20,6 +22,266 @@ document.addEventListener('DOMContentLoaded', function() {
         loadMessageStats();
     }, 30000);
 });
+
+/**
+ * ✅ NEW: Setup Select All functionality
+ */
+function setupSelectAll() {
+    const selectAllCheckbox = document.getElementById('select-all-messages');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', function() {
+            const checkboxes = document.querySelectorAll('.message-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = this.checked;
+                const messageId = parseInt(checkbox.dataset.messageId);
+                if (this.checked) {
+                    selectedMessages.add(messageId);
+                } else {
+                    selectedMessages.delete(messageId);
+                }
+            });
+            updateBulkActionButtons();
+        });
+    }
+    
+    // Setup Auto-Approve All button
+    const autoApproveBtn = document.getElementById('auto-approve-all-btn');
+    if (autoApproveBtn) {
+        autoApproveBtn.addEventListener('click', autoApproveAll);
+    }
+    
+    // Setup Bulk Approve button
+    const bulkApproveBtn = document.getElementById('bulk-approve-btn');
+    if (bulkApproveBtn) {
+        bulkApproveBtn.addEventListener('click', bulkApproveMessages);
+    }
+    
+    // Setup Bulk Delete button
+    const bulkDeleteBtn = document.getElementById('bulk-delete-btn');
+    if (bulkDeleteBtn) {
+        bulkDeleteBtn.addEventListener('click', bulkDeleteMessages);
+    }
+}
+
+/**
+ * ✅ NEW: Setup individual message checkboxes
+ */
+function setupMessageCheckboxes() {
+    document.querySelectorAll('.message-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const messageId = parseInt(this.dataset.messageId);
+            if (this.checked) {
+                selectedMessages.add(messageId);
+            } else {
+                selectedMessages.delete(messageId);
+            }
+            updateSelectAllCheckbox();
+            updateBulkActionButtons();
+        });
+    });
+}
+
+/**
+ * ✅ NEW: Update Select All checkbox state
+ */
+function updateSelectAllCheckbox() {
+    const selectAll = document.getElementById('select-all-messages');
+    const checkboxes = document.querySelectorAll('.message-checkbox');
+    if (selectAll && checkboxes.length > 0) {
+        const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+        const someChecked = Array.from(checkboxes).some(cb => cb.checked);
+        selectAll.checked = allChecked;
+        selectAll.indeterminate = someChecked && !allChecked;
+    }
+}
+
+/**
+ * ✅ NEW: Enable/disable bulk action buttons
+ */
+function updateBulkActionButtons() {
+    const bulkApproveBtn = document.getElementById('bulk-approve-btn');
+    const bulkDeleteBtn = document.getElementById('bulk-delete-btn');
+    
+    if (bulkApproveBtn) {
+        bulkApproveBtn.disabled = selectedMessages.size === 0;
+    }
+    if (bulkDeleteBtn) {
+        bulkDeleteBtn.disabled = selectedMessages.size === 0;
+    }
+}
+
+/**
+ * ✅ NEW: Auto-approve all drafts (picks Variant A for each lead)
+ */
+async function autoApproveAll() {
+    const draftMessages = document.querySelectorAll('[data-status="draft"]');
+    
+    if (draftMessages.length === 0) {
+        showNotification('No draft messages to approve', 'warning');
+        return;
+    }
+    
+    // Group by lead - only approve best variant (Variant A by default)
+    const leadVariants = new Map();
+    
+    draftMessages.forEach(card => {
+        const leadId = card.dataset.leadId;
+        const variant = card.dataset.variant;
+        const messageId = parseInt(card.dataset.messageId);
+        
+        if (!leadVariants.has(leadId)) {
+            leadVariants.set(leadId, []);
+        }
+        leadVariants.get(leadId).push({ messageId, variant, card });
+    });
+    
+    let successCount = 0;
+    
+    // For each lead, approve Variant A (or first available)
+    for (const [leadId, variants] of leadVariants) {
+        // Find Variant A, or take first variant
+        const bestVariant = variants.find(v => v.variant === 'A') || variants[0];
+        
+        try {
+            const response = await fetch(`/api/messages/${bestVariant.messageId}/approve`, {
+                method: 'POST'
+            });
+            
+            if (response.ok) {
+                successCount++;
+                hideOtherVariants(leadId, bestVariant.messageId);
+            }
+        } catch (error) {
+            console.error(`Error auto-approving message ${bestVariant.messageId}:`, error);
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    
+    showNotification(`✅ Auto-approved ${successCount} messages!`, 'success');
+    
+    // Switch to approved tab
+    setTimeout(() => {
+        const approvedBtn = document.querySelector('[data-filter="approved"]');
+        if (approvedBtn) approvedBtn.click();
+    }, 1000);
+}
+
+/**
+ * ✅ NEW: Bulk approve selected messages
+ */
+async function bulkApproveMessages() {
+    if (selectedMessages.size === 0) {
+        showNotification('No messages selected', 'warning');
+        return;
+    }
+    
+    const confirmMessage = `Approve ${selectedMessages.size} message(s)?`;
+    if (!confirm(confirmMessage)) return;
+    
+    let successCount = 0;
+    let errorCount = 0;
+    
+    // Group messages by lead to only keep one per lead
+    const leadMessages = new Map();
+    
+    for (const messageId of selectedMessages) {
+        const messageCard = document.querySelector(`[data-message-id="${messageId}"]`);
+        if (messageCard) {
+            const leadId = messageCard.dataset.leadId;
+            if (!leadMessages.has(leadId)) {
+                leadMessages.set(leadId, messageId);
+            }
+        }
+    }
+    
+    // Approve one message per lead
+    for (const [leadId, messageId] of leadMessages) {
+        try {
+            const response = await fetch(`/api/messages/${messageId}/approve`, {
+                method: 'POST'
+            });
+            
+            if (response.ok) {
+                successCount++;
+                hideOtherVariants(leadId, messageId);
+            } else {
+                errorCount++;
+            }
+        } catch (error) {
+            console.error(`Error approving message ${messageId}:`, error);
+            errorCount++;
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
+    showNotification(`Approved ${successCount} message(s)`, 'success');
+    
+    if (errorCount > 0) {
+        showNotification(`${errorCount} failed`, 'error');
+    }
+    
+    // Reload and clear selection
+    selectedMessages.clear();
+    loadMessages(currentFilter);
+}
+
+/**
+ * ✅ NEW: Bulk delete selected messages
+ */
+async function bulkDeleteMessages() {
+    if (selectedMessages.size === 0) {
+        showNotification('No messages selected', 'warning');
+        return;
+    }
+    
+    if (!confirm(`Delete ${selectedMessages.size} message(s)?`)) return;
+    
+    let successCount = 0;
+    
+    for (const messageId of selectedMessages) {
+        try {
+            const response = await fetch(`/api/messages/${messageId}`, {
+                method: 'DELETE'
+            });
+            
+            if (response.ok) {
+                successCount++;
+            }
+        } catch (error) {
+            console.error(`Error deleting message ${messageId}:`, error);
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    
+    showNotification(`Deleted ${successCount} message(s)`, 'success');
+    
+    selectedMessages.clear();
+    loadMessages(currentFilter);
+}
+
+/**
+ * ✅ NEW: Hide other variants after approving one
+ */
+function hideOtherVariants(leadId, approvedMessageId) {
+    const messageCards = document.querySelectorAll(`[data-lead-id="${leadId}"]`);
+    
+    messageCards.forEach(card => {
+        const cardMessageId = parseInt(card.dataset.messageId);
+        
+        // Hide variants that aren't the approved one
+        if (cardMessageId !== approvedMessageId) {
+            card.style.opacity = '0';
+            card.style.transition = 'opacity 0.3s ease-out';
+            
+            setTimeout(() => {
+                card.remove();
+            }, 300);
+        }
+    });
+}
 
 /**
  * Setup event listeners
@@ -42,40 +304,6 @@ function setupEventListeners() {
 }
 
 /**
- * Approve all draft messages
- */
-async function approveAllDrafts() {
-    if (!confirm('Approve all draft messages?')) return;
-    
-    try {
-        const response = await fetch('/api/messages?status=draft');
-        const data = await response.json();
-        
-        if (!data.success || !data.messages.length) {
-            alert('No draft messages found');
-            return;
-        }
-        
-        let approved = 0;
-        for (const msg of data.messages) {
-            const approveRes = await fetch(`/api/messages/${msg.id}/approve`, {
-                method: 'POST'
-            });
-            const approveData = await approveRes.json();
-            if (approveData.success) approved++;
-        }
-        
-        alert(`✅ Approved ${approved} messages!`);
-        loadMessages(currentFilter);
-        loadMessageStats();
-        
-    } catch (error) {
-        alert('Error approving messages');
-        console.error(error);
-    }
-}
-
-/**
  * Send all approved messages
  */
 async function sendAllApprovedMessages() {
@@ -91,7 +319,7 @@ async function sendAllApprovedMessages() {
         }
         
         // Schedule all approved messages
-        const scheduleRes = await fetch('/api/schedule/batch', {
+        const scheduleRes = await fetch('/api/messages/schedule-batch', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -167,6 +395,12 @@ async function loadMessages(status = 'draft') {
         
         displayMessages(data.messages, status);
         
+        // ✅ NEW: Setup checkboxes after messages load
+        setTimeout(() => {
+            setupMessageCheckboxes();
+            updateSelectAllCheckbox();
+        }, 100);
+        
     } catch (error) {
         console.error('Error loading messages:', error);
         container.innerHTML = `
@@ -190,19 +424,16 @@ function displayMessages(messages, status) {
             'draft': {
                 title: 'No Draft Messages',
                 desc: 'Generate A/B/C message variants to get started',
-                action: 'Generate Messages',
                 icon: 'edit'
             },
             'approved': {
                 title: 'No Approved Messages',
                 desc: 'Approve draft messages to queue them for sending',
-                action: 'View Drafts',
                 icon: 'check-circle'
             },
             'sent': {
                 title: 'No Sent Messages',
                 desc: 'Send approved messages to see them here',
-                action: 'View Approved',
                 icon: 'send'
             }
         };
@@ -244,7 +475,9 @@ function displayMessages(messages, status) {
         const firstStatus = data.variants[0].status;
         
         html += `
-            <div class="message-card bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 animate-slide-in">
+            <div class="message-card bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 animate-slide-in"
+                 data-lead-id="${leadId}"
+                 data-status="${firstStatus}">
                 <div class="flex justify-between items-start mb-4">
                     <div>
                         <h3 class="text-lg font-semibold text-gray-800">${data.lead_name}</h3>
@@ -269,12 +502,24 @@ function displayMessages(messages, status) {
             const variantColor = getVariantColor(msg.variant);
             
             html += `
-                <div class="variant-card border-l-4 ${variantColor} bg-gray-50 p-4 rounded">
-                    <div class="flex justify-between items-start mb-2">
+                <div class="variant-card border-l-4 ${variantColor} bg-gray-50 p-4 rounded relative"
+                     data-message-id="${msg.id}"
+                     data-lead-id="${leadId}"
+                     data-variant="${msg.variant}"
+                     data-status="${msg.status}">
+                    
+                    ${status === 'draft' ? `
+                        <input type="checkbox" 
+                               class="message-checkbox absolute top-4 left-4" 
+                               data-message-id="${msg.id}"
+                               style="width: 18px; height: 18px; cursor: pointer;">
+                    ` : ''}
+                    
+                    <div class="flex justify-between items-start mb-2" style="margin-left: ${status === 'draft' ? '35px' : '0'};">
                         <span class="font-semibold text-gray-700">Variant ${msg.variant}</span>
                         <div class="flex space-x-2">
                             ${msg.status === 'draft' ? `
-                                <button onclick="approveMessage(${msg.id})" 
+                                <button onclick="approveMessage(${msg.id}, ${leadId})" 
                                         class="text-green-600 hover:text-green-700"
                                         title="Approve">
                                     <i data-feather="check-circle" class="w-5 h-5"></i>
@@ -298,8 +543,8 @@ function displayMessages(messages, status) {
                             ` : ''}
                         </div>
                     </div>
-                    <p class="text-gray-700 leading-relaxed whitespace-pre-wrap">${msg.content}</p>
-                    <div class="text-xs text-gray-500 mt-2">
+                    <p class="text-gray-700 leading-relaxed whitespace-pre-wrap" style="margin-left: ${status === 'draft' ? '35px' : '0'};">${msg.content}</p>
+                    <div class="text-xs text-gray-500 mt-2" style="margin-left: ${status === 'draft' ? '35px' : '0'};">
                         ${msg.content.length} characters
                         ${msg.sent_at ? ` • Sent ${getTimeAgo(msg.sent_at)}` : ''}
                         ${msg.scheduled_time ? ` • Scheduled for ${new Date(msg.scheduled_time).toLocaleString()}` : ''}
@@ -334,13 +579,13 @@ async function sendAllVariantsForLead(leadId) {
         }
         
         // Schedule all variants
-        const scheduleRes = await fetch('/api/schedule/batch', {
+        const scheduleRes = await fetch('/api/messages/schedule-batch', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 message_ids: data.messages.map(m => m.id),
                 start_time: null,
-                spread_hours: 1 // Spread over 1 hour
+                spread_hours: 1
             })
         });
         
@@ -360,9 +605,9 @@ async function sendAllVariantsForLead(leadId) {
 }
 
 /**
- * Approve a single message
+ * ✅ UPDATED: Approve a single message and hide other variants
  */
-async function approveMessage(messageId) {
+async function approveMessage(messageId, leadId) {
     try {
         const response = await fetch(`/api/messages/${messageId}/approve`, {
             method: 'POST'
@@ -372,8 +617,15 @@ async function approveMessage(messageId) {
         
         if (data.success) {
             showNotification('✅ Message approved!', 'success');
-            loadMessages(currentFilter);
-            loadMessageStats();
+            
+            // ✅ FIX: Hide all other variants for this lead
+            hideOtherVariants(leadId, messageId);
+            
+            // Reload messages
+            setTimeout(() => {
+                loadMessages(currentFilter);
+                loadMessageStats();
+            }, 500);
         } else {
             alert('Error: ' + data.message);
         }
@@ -468,7 +720,8 @@ function showNotification(message, type = 'info') {
     const notification = document.createElement('div');
     notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white ${
         type === 'success' ? 'bg-green-500' : 
-        type === 'error' ? 'bg-red-500' : 
+        type === 'error' ? 'bg-red-500' :
+        type === 'warning' ? 'bg-yellow-500' :
         'bg-blue-500'
     } z-50 animate-slide-in`;
     notification.textContent = message;
