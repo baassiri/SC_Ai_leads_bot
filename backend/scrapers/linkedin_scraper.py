@@ -501,7 +501,7 @@ class LinkedInScraper:
             return False
     
     def search_leads(self, keywords: str) -> bool:
-        """Search for leads using keywords"""
+        """Search for leads using keywords - FIXED USA FILTER"""
         try:
             if not self.ensure_driver_alive():
                 print("❌ Driver died before search")
@@ -522,61 +522,34 @@ class LinkedInScraper:
             
             print(f"\n🎯 Search target: {clean_keywords}")
             
-            if self.sales_nav_preference:
-                has_sales_nav = self.detect_sales_nav_access()
-                
-                if has_sales_nav:
-                    print(f"\n🔎 Searching Sales Navigator for: {clean_keywords}")
-                    
-                    url_keywords = clean_keywords.replace(' ', '%20')
-                    search_url = f"https://www.linkedin.com/sales/search/people?keywords={url_keywords}"
-                    
-                    print(f"   Navigating to: {search_url}")
-                    self.driver.get(search_url)
-                    self.human_delay(4, 6)
-                    
-                    if 'sales/search/people' in self.driver.current_url:
-                        print("✅ Sales Navigator search loaded!")
-                        self.stats['using_sales_nav'] = True
-                        
-                        if USE_DATABASE:
-                            db_manager.log_activity(
-                                activity_type='search',
-                                description=f'🎯 Sales Nav search: {clean_keywords}',
-                                status='success'
-                            )
-                        return True
-                    else:
-                        print(f"⚠️ Sales Nav redirect failed, current URL: {self.driver.current_url[:60]}")
-            
+            # Skip Sales Nav - go straight to regular LinkedIn
             print(f"\n🔎 Searching Regular LinkedIn for: {clean_keywords}")
             url_keywords = clean_keywords.replace(' ', '%20')
-            search_url = f"https://www.linkedin.com/search/results/people/?keywords={url_keywords}"
             
-            print(f"   Navigating to: {search_url}")
+            # Use BOTH geo filter AND origin filter
+            search_url = f"https://www.linkedin.com/search/results/people/?keywords={url_keywords}&origin=SWITCH_SEARCH_VERTICAL&geoUrn=%5B%22103644278%22%5D"
+            
+            print(f"   🇺🇸 Location Filter: USA ONLY (enforced)")
             self.driver.get(search_url)
-            self.human_delay(3, 5)
+            self.human_delay(5, 7)  # Longer wait for filter to apply
             
             final_url = self.driver.current_url
-            print(f"   Final URL: {final_url[:80]}")
+            print(f"   Final URL: {final_url[:100]}")
             
+            # Verify we're on search page
             if 'search/results/people' in final_url:
-                print("✅ Regular LinkedIn search loaded!")
+                print("✅ USA-filtered search loaded!")
                 self.stats['using_sales_nav'] = False
                 
                 if USE_DATABASE:
                     db_manager.log_activity(
                         activity_type='search',
-                        description=f'🎯 LinkedIn search: {clean_keywords}',
+                        description=f'🎯 LinkedIn search: {clean_keywords} (USA only)',
                         status='success'
                     )
                 return True
             else:
                 print(f"❌ Search failed! Current URL: {final_url}")
-                
-                if not self.is_logged_in():
-                    print("❌ Got logged out or hit security checkpoint!")
-                
                 return False
         
         except Exception as e:
@@ -704,6 +677,14 @@ class LinkedInScraper:
                             lead['title'] = parts[0].strip()
                         lead['company'] = parts[1].strip()
                         print(f"      Company (from line3): {lead['company']}")
+                                    # After line 680 (in extract_lead_data), add this check:
+            if lead['location']:
+                # Filter out Lebanon leads
+                lebanon_indicators = ['lebanon', 'beirut', 'governorate', 'liban']
+                location_lower = lead['location'].lower()
+                if any(indicator in location_lower for indicator in lebanon_indicators):
+                    print(f"      ⏭️ Skipped - Lebanon location: {lead['location']}")
+                    return None
             
             # Check line 4 for location if we haven't found it yet
             if not lead['location'] and len(filtered_lines) >= 4:
@@ -799,6 +780,25 @@ class LinkedInScraper:
                     lead_data = self.extract_lead_data(card)
                     
                     if lead_data:
+                        # ✅ FIX #2: Check for duplicates before adding
+                        profile_url = lead_data.get('profile_url')
+                        
+                        if profile_url:
+                            # Check if already in current batch
+                            if any(lead.get('profile_url') == profile_url for lead in leads):
+                                print(f"  [{i}/{len(cards_found)}] ⏭️  Skipped - duplicate in current batch")
+                                continue
+                            
+                            # Check if already in database
+                            if USE_DATABASE:
+                                try:
+                                    existing = db_manager.get_lead_by_profile_url(profile_url)
+                                    if existing:
+                                        print(f"  [{i}/{len(cards_found)}] ⏭️  Skipped - already in database")
+                                        continue
+                                except:
+                                    pass  # Database check failed, continue anyway
+                        
                         leads.append(lead_data)
                         self.stats['leads_scraped'] += 1
                         print(f"  [{i}/{len(cards_found)}] ✅ {lead_data['name']}")
@@ -819,45 +819,101 @@ class LinkedInScraper:
             return leads
     
     def go_to_next_page(self) -> bool:
-        """Navigate to next page"""
+        """Navigate to next page - FIXED VERSION"""
         try:
             print("\n➡️ Going to next page...")
             
-            # Find next button (try multiple selectors)
-            next_selectors = [
-                'button[aria-label="Next"]',
-                'button[aria-label="View next page"]',
-                '.artdeco-pagination__button--next',
-                'button.artdeco-pagination__button.artdeco-pagination__button--next'
-            ]
+            # Scroll to bottom to make pagination visible
+            self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            self.human_delay(2, 3)
             
-            next_btn = None
-            for selector in next_selectors:
-                try:
-                    btn = self.driver.find_element(By.CSS_SELECTOR, selector)
-                    if btn.is_enabled():
-                        next_btn = btn
-                        break
-                except:
-                    continue
+            # METHOD 1: Find "Next" button by aria-label (MOST RELIABLE)
+            try:
+                next_buttons = self.driver.find_elements(By.CSS_SELECTOR, 'button[aria-label="Next page"]')
+                for btn in next_buttons:
+                    if btn.is_displayed() and btn.is_enabled():
+                        print(f"  ✅ Found Next button by aria-label")
+                        self.driver.execute_script("arguments[0].scrollIntoView(true);", btn)
+                        self.human_delay(0.5, 1.0)
+                        
+                        try:
+                            btn.click()
+                        except:
+                            self.driver.execute_script("arguments[0].click();", btn)
+                        
+                        print("  ✅ Clicked Next button")
+                        self.human_delay(4, 6)
+                        return True
+            except Exception as e:
+                print(f"  ⚠️ Method 1 failed: {str(e)[:50]}")
             
-            if not next_btn:
-                print("  ⚠️ No next page available")
-                return False
+            # METHOD 2: Find page number buttons (Page 2, Page 3, etc.)
+            try:
+                # Detect current page
+                current_page = 1
+                page_buttons = self.driver.find_elements(By.CSS_SELECTOR, 'button[aria-label^="Page "]')
+                
+                for btn in page_buttons:
+                    aria_label = btn.get_attribute('aria-label')
+                    if aria_label:
+                        # Check if this is the current page (look for active styling)
+                        classes = btn.get_attribute('class')
+                        if '_36a35880' in classes or '_38aef408' in classes:  # Active page classes from debug
+                            try:
+                                current_page = int(aria_label.split()[-1])
+                                print(f"  📍 Current page detected: {current_page}")
+                            except:
+                                pass
+                
+                next_page = current_page + 1
+                print(f"  🔢 Looking for Page {next_page} button...")
+                
+                # Find and click the next page button
+                for btn in page_buttons:
+                    aria_label = btn.get_attribute('aria-label')
+                    if aria_label == f"Page {next_page}":
+                        if btn.is_displayed() and btn.is_enabled():
+                            print(f"  ✅ Found Page {next_page} button")
+                            self.driver.execute_script("arguments[0].scrollIntoView(true);", btn)
+                            self.human_delay(0.5, 1.0)
+                            
+                            try:
+                                btn.click()
+                            except:
+                                self.driver.execute_script("arguments[0].click();", btn)
+                            
+                            print(f"  ✅ Clicked Page {next_page} button")
+                            self.human_delay(4, 6)
+                            return True
             
-            self.driver.execute_script("arguments[0].scrollIntoView(true);", next_btn)
-            self.human_delay(0.5, 1.0)
-            next_btn.click()
+            except Exception as e:
+                print(f"  ⚠️ Method 2 failed: {str(e)[:50]}")
             
-            print("  ✅ Navigated to next page")
-            self.human_delay(3, 5)
-            return True
+            # METHOD 3: Find any button with text "Next"
+            try:
+                all_buttons = self.driver.find_elements(By.TAG_NAME, 'button')
+                for btn in all_buttons:
+                    if btn.text.strip() == "Next" and btn.is_displayed() and btn.is_enabled():
+                        print(f"  ✅ Found Next button by text")
+                        self.driver.execute_script("arguments[0].scrollIntoView(true);", btn)
+                        self.human_delay(0.5, 1.0)
+                        btn.click()
+                        print("  ✅ Clicked Next button")
+                        self.human_delay(4, 6)
+                        return True
+            except Exception as e:
+                print(f"  ⚠️ Method 3 failed: {str(e)[:50]}")
+            
+            print("  ❌ Could not find pagination button")
+            return False
         
         except Exception as e:
-            print(f"  ⚠️ Cannot go to next page: {str(e)}")
+            print(f"  ❌ Error: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return False
     
-    def scrape_leads(self, filters: Dict, max_pages: int = 3) -> List[Dict]:
+    def scrape_leads(self, filters: Dict, max_pages: int = 10) -> List[Dict]:
         """Main scraping function"""
         all_leads = []
         self.stats['start_time'] = datetime.now()

@@ -62,7 +62,8 @@ async function startBot() {
         
         const response = await fetch('/api/bot/start', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})  // ✅ FIX: Send empty JSON object
         });
         
         const data = await response.json();

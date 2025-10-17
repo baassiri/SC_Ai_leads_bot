@@ -12,13 +12,14 @@ import time
 import random
 from pathlib import Path
 import sys
+# Fix import paths - add project root to path FIRST
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from backend.ai_engine.message_generator_abc import ABCMessageGenerator
 from backend.automation.scheduler import scheduler as message_scheduler
-sys.path.append(str(Path(__file__).parent.parent))
 from backend.config import Config, get_config
 from backend.api.missing_endpoints import register_missing_endpoints
 from backend.database.db_manager import db_manager
-
 from backend.credentials_manager import credentials_manager
 from backend.scraping_cooldown_manager import get_cooldown_manager
 from backend.linkedin.linkedin_sender import LinkedInSender
@@ -487,7 +488,7 @@ def start_bot():
                 # REAL SCRAPING
                 scraped_leads = scraper.scrape_leads(
                     filters={'keywords': search_keyword},
-                    max_pages=2
+                    max_pages=10
                 )
                 
                 if not scraped_leads:
