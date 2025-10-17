@@ -167,9 +167,9 @@ class ProductionConfig(Config):
     DEBUG = False
     TESTING = False
     
-    # Use PostgreSQL in production
-    if not os.getenv('DATABASE_URL'):
-        raise ValueError("DATABASE_URL must be set in production")
+    # Use default SQLite if DATABASE_URL not set
+    DATABASE_URL = os.getenv('DATABASE_URL', f'sqlite:///{Config.BASE_DIR}/data/database.db')
+    SQLALCHEMY_DATABASE_URI = DATABASE_URL
 
 
 class TestingConfig(Config):
