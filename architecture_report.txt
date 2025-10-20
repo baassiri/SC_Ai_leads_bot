@@ -1,0 +1,55 @@
+======================================================================
+?? ARCHITECTURE ANALYSIS REPORT
+======================================================================
+
+?? FRONTEND LAYER
+   HTML Templates: 0
+
+⚡ JAVASCRIPT LAYER
+   JS Files: 6
+   • ab_winner_ui.js
+   • analytics.js
+   • dashboard.js
+   • lead_timeline_ui.js
+   • leads.js
+   • messages.js
+
+?? BACKEND LAYER
+   Python Modules: 12
+   • add_ab_tests_table.py
+   • add_message_schedule_table.py
+   • add_sales_nav_support.py
+   • add_scraping_cooldown.py
+   • advanced_selector_finder.py
+   • ai_enhanced_scraper.py
+   • analytics_routes.py
+   • app.py
+   • auth.py
+   • bot_controller.py
+   • lead_routes.py
+   • schedule_routes.py
+
+?? DATABASE LAYER
+   Tables: 15
+   • ab_tests
+   • abtests
+   • activitylogs
+   • buyer_intent_signals
+   • campaigns
+   • inmail_messages
+   • lead_list_members
+   • lead_lists
+   • lead_timeline
+   • leads
+   • message_schedule
+   • messages
+   • messagetemplates
+   • personas
+   • responses
+
+?? EXTERNAL SERVICES
+   • LinkedIn API
+   • OpenAI/Claude API
+   • Gmail API
+
+======================================================================

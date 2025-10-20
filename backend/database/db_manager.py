@@ -100,7 +100,6 @@ class DatabaseManager:
     
     def create_persona(self, name, description=None, age_range=None, gender_distribution=None,
                     goals=None, pain_points=None, key_message=None, message_tone=None,
-                    # ✅ NEW: Enhanced fields
                     job_titles=None, decision_maker_roles=None, company_types=None,
                     solutions=None, linkedin_keywords=None, smart_search_query=None,
                     message_hooks=None, seniority_level=None, industry_focus=None):
@@ -115,7 +114,6 @@ class DatabaseManager:
                 pain_points=pain_points,
                 key_message=key_message,
                 message_tone=message_tone,
-                # ✅ NEW: Enhanced fields
                 job_titles=job_titles,
                 decision_maker_roles=decision_maker_roles,
                 company_types=company_types,
@@ -129,6 +127,7 @@ class DatabaseManager:
             session.add(persona)
             session.flush()
             return persona.id
+    
     def get_messages_to_send(self):
         """Get approved messages ready to send"""
         with self.session_scope() as session:
@@ -612,9 +611,7 @@ class DatabaseManager:
                 'reply_rate': round(reply_rate, 2)
             }
     
-    # =============================================================================
     # AB TEST OPERATIONS
-    # =============================================================================
     
     def create_ab_test(self, test_name, campaign_id=None, lead_persona=None, min_sends=20):
         """Create a new A/B/C test"""
@@ -894,46 +891,148 @@ class DatabaseManager:
         return comparison
     
     def get_message_by_id(self, message_id: int):
-            """Get a single message by ID with lead information"""
-            with self.session_scope() as session:
-                message = session.query(Message).filter(Message.id == message_id).first()
-                
-                if not message:
-                    return None
-                
-                return {
-                    'id': message.id,
-                    'lead_id': message.lead_id,
-                    'lead_name': message.lead.name if message.lead else None,
-                    'message_type': message.message_type,
-                    'content': message.content,
-                    'variant': message.variant,
-                    'status': message.status,
-                    'sent_at': message.sent_at.isoformat() if message.sent_at else None,
-                    'created_at': message.created_at.isoformat() if message.created_at else None
-                }
-    def delete_lead(self, lead_id):
-            """
-            Delete a lead from database
+        """Get a single message by ID with lead information"""
+        with self.session_scope() as session:
+            message = session.query(Message).filter(Message.id == message_id).first()
             
-            Args:
-                lead_id: ID of lead to delete
-                
-            Returns:
-                bool: True if deleted, False if not found
-            """
-            try:
-                with self.get_session() as session:
-                    from backend.database.models import Lead
-                    lead = session.query(Lead).filter_by(id=lead_id).first()
-                    if lead:
-                        session.delete(lead)
-                        session.commit()
-                        return True
-                    return False
-            except Exception as e:
-                print(f"Error deleting lead: {e}")
+            if not message:
+                return None
+            
+            return {
+                'id': message.id,
+                'lead_id': message.lead_id,
+                'lead_name': message.lead.name if message.lead else None,
+                'message_type': message.message_type,
+                'content': message.content,
+                'variant': message.variant,
+                'status': message.status,
+                'sent_at': message.sent_at.isoformat() if message.sent_at else None,
+                'created_at': message.created_at.isoformat() if message.created_at else None
+            }
+    
+    def delete_lead(self, lead_id):
+        """Delete a lead from database"""
+        try:
+            with self.session_scope() as session:
+                lead = session.query(Lead).filter_by(id=lead_id).first()
+                if lead:
+                    session.delete(lead)
+                    return True
                 return False
+        except Exception as e:
+            print(f"Error deleting lead: {e}")
+            return False
+    
+    # MESSAGE TEMPLATE OPERATIONS
+    
+    def save_message_template(self, template_text):
+        """Save a message template"""
+        try:
+            with self.session_scope() as session:
+                from backend.database.models import MessageTemplate
+                
+                template = MessageTemplate(
+                    template=template_text,
+                    created_at=datetime.utcnow()
+                )
+                session.add(template)
+                session.flush()
+                
+                print(f"✅ Template saved (ID: {template.id})")
+                return template.id
+                
+        except Exception as e:
+            print(f"❌ Error saving template: {str(e)}")
+            return None
+
+    def get_all_message_templates(self):
+        """Get all message templates"""
+        try:
+            with self.session_scope() as session:
+                from backend.database.models import MessageTemplate
+                
+                templates = session.query(MessageTemplate).order_by(
+                    desc(MessageTemplate.created_at)
+                ).all()
+                
+                templates_data = []
+                for t in templates:
+                    templates_data.append({
+                        'id': t.id,
+                        'template': t.template,
+                        'created_at': t.created_at.isoformat() if t.created_at else None
+                    })
+                
+                return templates_data
+                
+        except Exception as e:
+            print(f"❌ Error getting templates: {str(e)}")
+            return []
+
+    def get_message_template(self, template_id):
+        """Get a single message template"""
+        try:
+            with self.session_scope() as session:
+                from backend.database.models import MessageTemplate
+                
+                template = session.query(MessageTemplate).filter(
+                    MessageTemplate.id == template_id
+                ).first()
+                
+                if template:
+                    return {
+                        'id': template.id,
+                        'template': template.template,
+                        'created_at': template.created_at.isoformat() if template.created_at else None
+                    }
+                
+                return None
+                
+        except Exception as e:
+            print(f"❌ Error getting template: {str(e)}")
+            return None
+
+    def delete_message_template(self, template_id):
+        """Delete a message template"""
+        try:
+            with self.session_scope() as session:
+                from backend.database.models import MessageTemplate
+                
+                template = session.query(MessageTemplate).filter(
+                    MessageTemplate.id == template_id
+                ).first()
+                
+                if template:
+                    session.delete(template)
+                    return True
+                
+                return False
+                
+        except Exception as e:
+            print(f"❌ Error deleting template: {str(e)}")
+            return False
+
+    def update_message_content(self, message_id, new_content):
+        """Update a message's content"""
+        try:
+            with self.session_scope() as session:
+                message = session.query(Message).filter(
+                    Message.id == message_id
+                ).first()
+                
+                if message:
+                    message.content = new_content
+                    message.updated_at = datetime.utcnow()
+                    print(f"✅ Message {message_id} content updated")
+                    return True
+                else:
+                    print(f"❌ Message {message_id} not found")
+                    return False
+                
+        except Exception as e:
+            print(f"❌ Error updating message content: {str(e)}")
+            return False
+
 
 # Singleton instance
 db_manager = DatabaseManager()

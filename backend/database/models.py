@@ -324,4 +324,18 @@ class ActivityLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     def __repr__(self):
-        return f"<ActivityLog(id={self.id}, type='{self.activity_type}', status='{self.status}')>"
+        return f"<ActivityLog(id={self.id}, type='{self.activity_type}', status='{self.status}')>"# ============================================================================
+# ADD THIS MODEL TO backend/database/models.py
+# Add it after the other model classes (around line 200+)
+# ============================================================================
+
+class MessageTemplate(Base):
+    """Message template for reusable message patterns"""
+    __tablename__ = 'message_templates'
+    
+    id = Column(Integer, primary_key=True)
+    template = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    def __repr__(self):
+        return f"<MessageTemplate(id={self.id}, template='{self.template[:50]}...')>"

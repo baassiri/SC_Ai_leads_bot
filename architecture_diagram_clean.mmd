@@ -1,0 +1,87 @@
+graph TB
+
+    subgraph "?? Frontend Layer"
+        analytics_html["analytics"]
+        base_html["base"]
+        dashboard_html["dashboard"]
+        index_html["index"]
+        leads_html["leads"]
+    end
+
+    subgraph "⚡ JavaScript Layer"
+        ab_winner_ui_js["ab-winner-ui.js"]
+        analytics_js["analytics.js"]
+        dashboard_js["dashboard.js"]
+        lead_timeline_ui_js["lead-timeline-ui.js"]
+        leads_js["leads.js"]
+        messages_js["messages.js"]
+    end
+
+    subgraph "?? Backend API Layer"
+        add_scraping_cooldown_py["add_scraping_cooldown.py"]
+        analytics_routes_py["analytics_routes.py"]
+        auth_py["auth.py"]
+        bot_controller_py["bot_controller.py"]
+        lead_routes_py["lead_routes.py"]
+        schedule_routes_py["schedule_routes.py"]
+    end
+
+    subgraph "⚙️ Core Services"
+        Gmail["Gmail API"]
+        LinkedIn["LinkedIn API"]
+        OpenAI["OpenAI API"]
+        add_ab_tests_table_py["add_ab_tests_table.py"]
+        add_message_schedule_table_py["add_message_schedule_table.py"]
+        add_sales_nav_support_py["add_sales_nav_support.py"]
+        advanced_selector_finder_py["advanced_selector_finder.py"]
+        ai_enhanced_scraper_py["ai_enhanced_scraper.py"]
+    end
+
+    subgraph "?? Database - SQLite"
+        ab_tests_table[("ab_tests")]
+        abtests_table[("abtests")]
+        activitylogs_table[("activitylogs")]
+        buyer_intent_signals_table[("buyer_intent_signals")]
+        campaigns_table[("campaigns")]
+        inmail_messages_table[("inmail_messages")]
+        lead_list_members_table[("lead_list_members")]
+        lead_lists_table[("lead_lists")]
+        lead_timeline_table[("lead_timeline")]
+        leads_table[("leads")]
+        message_schedule_table[("message_schedule")]
+        messages_table[("messages")]
+    end
+
+    subgraph "?? External Services"
+        LinkedIn["LinkedIn API"]
+        OpenAI["OpenAI/Claude API"]
+        Gmail["Gmail API"]
+    end
+
+    %% Key Connections
+    leads_html --> leads_js
+    leads_html --> lead_timeline_ui_js
+    analytics_html --> analytics_js
+    dashboard_html --> dashboard_js
+
+    leads_js -->|"API Calls"| lead_routes_py
+    analytics_js -->|"API Calls"| analytics_routes_py
+    dashboard_js -->|"API Calls"| auth_py
+
+    lead_routes_py --> app_py
+    analytics_routes_py --> app_py
+    bot_controller_py --> app_py
+
+    lead_routes_py -->|"CRUD"| leads_table
+    lead_routes_py -->|"Timeline"| lead_timeline_table
+    bot_controller_py -->|"Messages"| messages_table
+    analytics_routes_py -->|"A/B Tests"| ab_tests_table
+
+    bot_controller_py --> LinkedIn
+    app_py --> OpenAI
+
+    %% Styling
+    classDef frontend fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    classDef backend fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef database fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    classDef external fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px

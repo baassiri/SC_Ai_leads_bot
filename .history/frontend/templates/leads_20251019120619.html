@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lead Management - LinkedIn Automation</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <style>
+        .leads-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .filter-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .filter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .filter-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .filter-item label {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        .filter-item select,
+        .filter-item input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .filter-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 28px;
+            font-weight: bold;
+            color: #0077b5;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+        }
+
+        .leads-table-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .leads-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .leads-table thead {
+            background: #f8f9fa;
+            border-bottom: 2px solid #dee2e6;
+        }
+
+        .leads-table th {
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .leads-table td {
+            padding: 12px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+        }
+
+        .leads-table tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        .lead-profile {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .lead-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #0077b5;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .lead-info {
+            flex: 1;
+        }
+
+        .lead-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 2px;
+        }
+
+        .lead-title {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-new { background: #e3f2fd; color: #1976d2; }
+        .status-contacted { background: #fff3e0; color: #f57c00; }
+        .status-replied { background: #e8f5e9; color: #388e3c; }
+        .status-interested { background: #f3e5f5; color: #7b1fa2; }
+        .status-not-interested { background: #ffebee; color: #c62828; }
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-icon {
+            padding: 6px 10px;
+            background: #f0f0f0;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        .btn-icon:hover {
+            background: #e0e0e0;
+        }
+
+        .btn-primary {
+            background: #0077b5;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #005885;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .btn-timeline {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-timeline:hover {
+            background: #5a6268;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            padding: 20px;
+        }
+
+        .pagination button {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .pagination button:hover:not(:disabled) {
+            background: #f0f0f0;
+        }
+
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pagination .page-info {
+            font-size: 14px;
+            color: #666;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            color: #333;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .timeline-container {
+            position: relative;
+            padding-left: 40px;
+        }
+
+        .timeline-item {
+            position: relative;
+            padding-bottom: 30px;
+        }
+
+        .timeline-item:before {
+            content: '';
+            position: absolute;
+            left: -28px;
+            top: 8px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #0077b5;
+            border: 3px solid white;
+            box-shadow: 0 0 0 2px #0077b5;
+        }
+
+        .timeline-item:after {
+            content: '';
+            position: absolute;
+            left: -23px;
+            top: 20px;
+            width: 2px;
+            height: calc(100% - 20px);
+            background: #ddd;
+        }
+
+        .timeline-item:last-child:after {
+            display: none;
+        }
+
+        .timeline-content {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 3px solid #0077b5;
+        }
+
+        .timeline-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .timeline-action {
+            font-weight: 600;
+            color: #0077b5;
+        }
+
+        .timeline-date {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .timeline-message {
+            color: #333;
+            line-height: 1.5;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <h2>LinkedIn Automation</h2>
+        </div>
+        <ul class="nav-menu">
+            <li><a href="/dashboard">Dashboard</a></li>
+            <li><a href="/leads" class="active">Leads</a></li>
+            <li><a href="/campaigns">Campaigns</a></li>
+            <li><a href="/analytics">Analytics</a></li>
+            <li><a href="/settings">Settings</a></li>
+        </ul>
+    </nav>
+
+    <div class="leads-container">
+        <div class="page-header">
+            <h1>Lead Management</h1>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-success" onclick="exportLeads()">
+                    📊 Export
+                </button>
+                <button class="btn btn-primary" onclick="showImportModal()">
+                    📥 Import Leads
+                </button>
+            </div>
+        </div>
+
+        <!-- Stats Bar -->
+        <div class="stats-bar">
+            <div class="stat-card">
+                <div class="stat-number" id="totalLeads">0</div>
+                <div class="stat-label">Total Leads</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="newLeads">0</div>
+                <div class="stat-label">New</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="contactedLeads">0</div>
+                <div class="stat-label">Contacted</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="repliedLeads">0</div>
+                <div class="stat-label">Replied</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="interestedLeads">0</div>
+                <div class="stat-label">Interested</div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filter-section">
+            <div class="filter-grid">
+                <div class="filter-item">
+                    <label>Status</label>
+                    <select id="filterStatus">
+                        <option value="">All Statuses</option>
+                        <option value="new">New</option>
+                        <option value="contacted">Contacted</option>
+                        <option value="replied">Replied</option>
+                        <option value="interested">Interested</option>
+                        <option value="not_interested">Not Interested</option>
+                    </select>
+                </div>
+                <div class="filter-item">
+                    <label>Campaign</label>
+                    <select id="filterCampaign">
+                        <option value="">All Campaigns</option>
+                    </select>
+                </div>
+                <div class="filter-item">
+                    <label>Search</label>
+                    <input type="text" id="searchLeads" placeholder="Name, email, company...">
+                </div>
+                <div class="filter-item">
+                    <label>Date Added</label>
+                    <input type="date" id="filterDate">
+                </div>
+            </div>
+            <div class="filter-actions">
+                <button class="btn btn-primary" onclick="applyFilters()">Apply Filters</button>
+                <button class="btn" onclick="clearFilters()">Clear</button>
+            </div>
+        </div>
+
+        <!-- Leads Table -->
+        <div class="leads-table-container">
+            <table class="leads-table">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="selectAll"></th>
+                        <th>Lead</th>
+                        <th>Company</th>
+                        <th>Status</th>
+                        <th>Campaign</th>
+                        <th>Last Contact</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="leadsTableBody">
+                    <tr>
+                        <td colspan="7" class="loading">
+                            Loading leads...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <!-- Pagination -->
+            <div class="pagination">
+                <button id="prevPage" onclick="changePage(-1)">← Previous</button>
+                <span class="page-info">
+                    Page <span id="currentPage">1</span> of <span id="totalPages">1</span>
+                </span>
+                <button id="nextPage" onclick="changePage(1)">Next →</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Timeline Modal -->
+    <div id="timelineModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Lead Timeline - <span id="timelineLeadName"></span></h2>
+                <button class="modal-close" onclick="closeTimelineModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div id="timelineContent" class="timeline-container">
+                    <div class="loading">Loading timeline...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentPage = 1;
+        let totalPages = 1;
+        let allLeads = [];
+        let filteredLeads = [];
+
+        // Load leads on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadLeads();
+            loadCampaigns();
+        });
+
+        async function loadLeads() {
+            try {
+                const response = await fetch('/api/leads');
+                const data = await response.json();
+                
+                if (data.success) {
+                    allLeads = data.leads;
+                    filteredLeads = allLeads;
+                    updateStats(data.stats);
+                    displayLeads();
+                }
+            } catch (error) {
+                console.error('Error loading leads:', error);
+                showError('Failed to load leads');
+            }
+        }
+
+        async function loadCampaigns() {
+            try {
+                const response = await fetch('/api/campaigns');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const select = document.getElementById('filterCampaign');
+                    data.campaigns.forEach(campaign => {
+                        const option = document.createElement('option');
+                        option.value = campaign.id;
+                        option.textContent = campaign.name;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading campaigns:', error);
+            }
+        }
+
+        function updateStats(stats) {
+            document.getElementById('totalLeads').textContent = stats.total || 0;
+            document.getElementById('newLeads').textContent = stats.new || 0;
+            document.getElementById('contactedLeads').textContent = stats.contacted || 0;
+            document.getElementById('repliedLeads').textContent = stats.replied || 0;
+            document.getElementById('interestedLeads').textContent = stats.interested || 0;
+        }
+
+        function displayLeads() {
+            const tbody = document.getElementById('leadsTableBody');
+            const perPage = 25;
+            const start = (currentPage - 1) * perPage;
+            const end = start + perPage;
+            const pageLeads = filteredLeads.slice(start, end);
+
+            if (pageLeads.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="empty-state">
+                            <div class="empty-state-icon">📋</div>
+                            <h3>No leads found</h3>
+                            <p>Try adjusting your filters or import new leads</p>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = pageLeads.map(lead => `
+                <tr>
+                    <td><input type="checkbox" class="lead-checkbox" value="${lead.id}"></td>
+                    <td>
+                        <div class="lead-profile">
+                            <div class="lead-avatar">
+                                ${getInitials(lead.name)}
+                            </div>
+                            <div class="lead-info">
+                                <div class="lead-name">${lead.name}</div>
+                                <div class="lead-title">${lead.title || 'N/A'}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>${lead.company || 'N/A'}</td>
+                    <td>
+                        <span class="status-badge status-${lead.status}">
+                            ${lead.status.replace('_', ' ')}
+                        </span>
+                    </td>
+                    <td>${lead.campaign_name || 'N/A'}</td>
+                    <td>${formatDate(lead.last_contact)}</td>
+                    <td>
+                        <div class="action-buttons">
+                            <button class="btn-icon btn-timeline" onclick="showTimeline(${lead.id}, '${lead.name}')" title="View Timeline">
+                                📅
+                            </button>
+                            <button class="btn-icon" onclick="viewLead(${lead.id})" title="View Details">
+                                👁️
+                            </button>
+                            <button class="btn-icon btn-success" onclick="sendMessage(${lead.id})" title="Send Message">
+                                💬
+                            </button>
+                            <button class="btn-icon btn-primary" onclick="editLead(${lead.id})" title="Edit">
+                                ✏️
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+
+            updatePagination();
+        }
+
+        function updatePagination() {
+            const perPage = 25;
+            totalPages = Math.ceil(filteredLeads.length / perPage);
+            
+            document.getElementById('currentPage').textContent = currentPage;
+            document.getElementById('totalPages').textContent = totalPages;
+            
+            document.getElementById('prevPage').disabled = currentPage === 1;
+            document.getElementById('nextPage').disabled = currentPage === totalPages;
+        }
+
+        function changePage(direction) {
+            currentPage += direction;
+            if (currentPage < 1) currentPage = 1;
+            if (currentPage > totalPages) currentPage = totalPages;
+            displayLeads();
+        }
+
+        function applyFilters() {
+            const status = document.getElementById('filterStatus').value;
+            const campaign = document.getElementById('filterCampaign').value;
+            const search = document.getElementById('searchLeads').value.toLowerCase();
+            const date = document.getElementById('filterDate').value;
+
+            filteredLeads = allLeads.filter(lead => {
+                let matches = true;
+
+                if (status && lead.status !== status) matches = false;
+                if (campaign && lead.campaign_id != campaign) matches = false;
+                if (search) {
+                    const searchable = `${lead.name} ${lead.email} ${lead.company}`.toLowerCase();
+                    if (!searchable.includes(search)) matches = false;
+                }
+                if (date && !lead.created_at.startsWith(date)) matches = false;
+
+                return matches;
+            });
+
+            currentPage = 1;
+            displayLeads();
+        }
+
+        function clearFilters() {
+            document.getElementById('filterStatus').value = '';
+            document.getElementById('filterCampaign').value = '';
+            document.getElementById('searchLeads').value = '';
+            document.getElementById('filterDate').value = '';
+            
+            filteredLeads = allLeads;
+            currentPage = 1;
+            displayLeads();
+        }
+
+        async function showTimeline(leadId, leadName) {
+            const modal = document.getElementById('timelineModal');
+            const content = document.getElementById('timelineContent');
+            const nameSpan = document.getElementById('timelineLeadName');
+            
+            nameSpan.textContent = leadName;
+            modal.classList.add('active');
+            content.innerHTML = '<div class="loading">Loading timeline...</div>';
+
+            try {
+                const response = await fetch(`/api/leads/${leadId}/timeline`);
+                const data = await response.json();
+                
+                if (data.success && data.timeline.length > 0) {
+                    content.innerHTML = data.timeline.map(item => `
+                        <div class="timeline-item">
+                            <div class="timeline-content">
+                                <div class="timeline-header">
+                                    <span class="timeline-action">${item.action}</span>
+                                    <span class="timeline-date">${formatDateTime(item.timestamp)}</span>
+                                </div>
+                                ${item.message ? `<div class="timeline-message">${item.message}</div>` : ''}
+                                ${item.details ? `<div class="timeline-message" style="color: #666; font-size: 13px;">${item.details}</div>` : ''}
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    content.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📅</div>
+                            <h3>No timeline events yet</h3>
+                            <p>Timeline will appear as you interact with this lead</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading timeline:', error);
+                content.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">⚠️</div>
+                        <h3>Failed to load timeline</h3>
+                        <p>Please try again later</p>
+                    </div>
+                `;
+            }
+        }
+
+        function closeTimelineModal() {
+            document.getElementById('timelineModal').classList.remove('active');
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('timelineModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeTimelineModal();
+            }
+        });
+
+        function getInitials(name) {
+            return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return 'Never';
+            const date = new Date(dateString);
+            const now = new Date();
+            const diffTime = Math.abs(now - date);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            if (diffDays === 0) return 'Today';
+            if (diffDays === 1) return 'Yesterday';
+            if (diffDays < 7) return `${diffDays} days ago`;
+            return date.toLocaleDateString();
+        }
+
+        function formatDateTime(dateString) {
+            if (!dateString) return 'Unknown';
+            const date = new Date(dateString);
+            return date.toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            });
+        }
+
+        function viewLead(leadId) {
+            window.location.href = `/lead/${leadId}`;
+        }
+
+        function editLead(leadId) {
+            window.location.href = `/lead/${leadId}/edit`;
+        }
+
+        function sendMessage(leadId) {
+            window.location.href = `/message/${leadId}`;
+        }
+
+        function exportLeads() {
+            window.location.href = '/api/leads/export';
+        }
+
+        function showImportModal() {
+            // Implement import modal
+            alert('Import functionality coming soon!');
+        }
+
+        function showError(message) {
+            alert(message);
+        }
+
+        // Select all checkbox
+        document.getElementById('selectAll').addEventListener('change', function() {
+            const checkboxes = document.querySelectorAll('.lead-checkbox');
+            checkboxes.forEach(cb => cb.checked = this.checked);
+        });
+
+        // Search on enter key
+        document.getElementById('searchLeads').addEventListener('keyup', function(e) {
+            if (e.key === 'Enter') {
+                applyFilters();
+            }
+        });
+    </script>
+</body>
+</html>

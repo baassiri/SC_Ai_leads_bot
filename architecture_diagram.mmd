@@ -1,0 +1,150 @@
+graph TB
+
+    subgraph "?? Frontend Layer"
+        analytics_html["analytics"]
+        base_html["base"]
+        dashboard_html["dashboard"]
+        index_html["index"]
+        leads_html["leads"]
+        leads_20251018084128_html["leads_20251018084128"]
+        leads_20251019120401_html["leads_20251019120401"]
+        leads_20251019120408_html["leads_20251019120408"]
+        leads_20251019120619_html["leads_20251019120619"]
+        leads_20251019120637_html["leads_20251019120637"]
+    end
+
+    subgraph "⚡ JavaScript Layer"
+        ab_winner_ui_js["ab-winner-ui.js"]
+        analytics_js["analytics.js"]
+        dashboard_js["dashboard.js"]
+        lead_timeline_ui_js["lead-timeline-ui.js"]
+        lead_timeline_ui_20251013121839_js["lead-timeline-ui_20251013121839.js"]
+        lead_timeline_ui_20251019115832_js["lead-timeline-ui_20251019115832.js"]
+        leads_js["leads.js"]
+        leads_20251018084118_js["leads_20251018084118.js"]
+        leads_20251019121036_js["leads_20251019121036.js"]
+        messages_js["messages.js"]
+    end
+
+    subgraph "?? Backend API Layer"
+        add_scraping_cooldown_py["add_scraping_cooldown.py"]
+        analytics_routes_py["analytics_routes.py"]
+        auth_py["auth.py"]
+        bot_controller_py["bot_controller.py"]
+        lead_routes_py["lead_routes.py"]
+        lead_routes_20251019120748_py["lead_routes_20251019120748.py"]
+        lead_routes_20251019120756_py["lead_routes_20251019120756.py"]
+        schedule_routes_py["schedule_routes.py"]
+        schedule_routes_20251013040010_py["schedule_routes_20251013040010.py"]
+        schedule_routes_20251019114532_py["schedule_routes_20251019114532.py"]
+    end
+
+    subgraph "⚙️ Core Services"
+        add_ab_tests_table_py["add_ab_tests_table.py"]
+        add_message_schedule_table_py["add_message_schedule_table.py"]
+        add_sales_nav_support_py["add_sales_nav_support.py"]
+        advanced_selector_finder_py["advanced_selector_finder.py"]
+        ai_enhanced_scraper_py["ai_enhanced_scraper.py"]
+        app_py["app.py"]
+        app_20251018080108_py["app_20251018080108.py"]
+        app_20251019114834_py["app_20251019114834.py"]
+        app_20251019114900_py["app_20251019114900.py"]
+        app_20251019114903_py["app_20251019114903.py"]
+    end
+
+    subgraph "?? Database - SQLite"
+        ab_tests_table[("ab_tests")]
+        abtests_table[("abtests")]
+        activitylogs_table[("activitylogs")]
+        buyer_intent_signals_table[("buyer_intent_signals")]
+        campaigns_table[("campaigns")]
+        inmail_messages_table[("inmail_messages")]
+        lead_list_members_table[("lead_list_members")]
+        lead_lists_table[("lead_lists")]
+        lead_timeline_table[("lead_timeline")]
+        leads_table[("leads")]
+        message_schedule_table[("message_schedule")]
+        messages_table[("messages")]
+        messagetemplates_table[("messagetemplates")]
+        personas_table[("personas")]
+        responses_table[("responses")]
+    end
+
+    subgraph "?? External Services"
+        LinkedIn["LinkedIn API"]
+        OpenAI["OpenAI API"]
+        Gmail["Gmail API"]
+    end
+
+    %% Frontend to JavaScript connections
+    analytics_html --> ab_winner_ui_js
+    analytics_html --> analytics_js
+    analytics_html --> dashboard_js
+    analytics_html --> lead_timeline_ui_js
+    analytics_html --> leads_js
+    base_html --> ab_winner_ui_js
+    base_html --> analytics_js
+    base_html --> dashboard_js
+    base_html --> lead_timeline_ui_js
+    base_html --> leads_js
+    dashboard_html --> ab_winner_ui_js
+    dashboard_html --> analytics_js
+    dashboard_html --> dashboard_js
+    dashboard_html --> lead_timeline_ui_js
+    dashboard_html --> leads_js
+    index_html --> ab_winner_ui_js
+    index_html --> analytics_js
+    index_html --> dashboard_js
+    index_html --> lead_timeline_ui_js
+    index_html --> leads_js
+    leads_html --> ab_winner_ui_js
+    leads_html --> analytics_js
+    leads_html --> dashboard_js
+    leads_html --> lead_timeline_ui_js
+    leads_html --> leads_js
+
+    %% JavaScript to Backend API connections
+
+    %% Backend to Services connections
+    auth_py --> clear_db_py
+    auth_py --> init_db_py
+    auth_py --> app_py
+    bot_controller_py --> clear_db_py
+    bot_controller_py --> init_db_py
+    bot_controller_py --> app_py
+    scraping_cooldown_manager_py --> clear_db_py
+    scraping_cooldown_manager_py --> init_db_py
+    scraping_cooldown_manager_py --> app_py
+    analytics_routes_py --> clear_db_py
+    analytics_routes_py --> init_db_py
+    analytics_routes_py --> app_py
+    lead_routes_py --> clear_db_py
+    lead_routes_py --> init_db_py
+    lead_routes_py --> app_py
+
+    %% Services to Database connections
+    auth_py -->|CRUD| campaigns_table
+    auth_py -->|CRUD| activitylogs_table
+    auth_py -->|CRUD| leads_table
+    bot_controller_py -->|CRUD| campaigns_table
+    bot_controller_py -->|CRUD| activitylogs_table
+    bot_controller_py -->|CRUD| leads_table
+    scraping_cooldown_manager_py -->|CRUD| campaigns_table
+    scraping_cooldown_manager_py -->|CRUD| activitylogs_table
+    scraping_cooldown_manager_py -->|CRUD| leads_table
+    analytics_routes_py -->|CRUD| campaigns_table
+    analytics_routes_py -->|CRUD| activitylogs_table
+    analytics_routes_py -->|CRUD| leads_table
+    lead_routes_py -->|CRUD| campaigns_table
+    lead_routes_py -->|CRUD| activitylogs_table
+    lead_routes_py -->|CRUD| leads_table
+
+    %% Services to External APIs
+    linkedin_messenger_py --> LinkedIn
+    optimal_time_ai_py --> OpenAI
+
+    %% Styling
+    classDef frontend fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    classDef backend fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef database fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    classDef external fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px

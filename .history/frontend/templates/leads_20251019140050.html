@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lead Management - LinkedIn Automation</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <style>
+        .leads-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .filter-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .filter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .filter-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .filter-item label {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        .filter-item select,
+        .filter-item input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .filter-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .stat-card h3 {
+            margin: 0;
+            font-size: 14px;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .stat-card .value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #0077B5;
+            margin-top: 5px;
+        }
+
+        .leads-table {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: #f5f5f5;
+        }
+
+        th {
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #ddd;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+        }
+
+        tbody tr:hover {
+            background: #f9f9f9;
+        }
+
+        .score-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 12px;
+        }
+
+        .score-high {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .score-medium {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .score-low {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 12px;
+        }
+
+        .status-new {
+            background: #cce5ff;
+            color: #004085;
+        }
+
+        .status-contacted {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-replied {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .status-not-interested {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+        }
+
+        .btn-icon {
+            padding: 6px 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s;
+        }
+
+        .btn-view {
+            background: #0077B5;
+            color: white;
+        }
+
+        .btn-view:hover {
+            background: #005885;
+        }
+
+        .btn-timeline {
+            background: #6C63FF;
+            color: white;
+        }
+
+        .btn-timeline:hover {
+            background: #5850E6;
+        }
+
+        .btn-message {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-message:hover {
+            background: #218838;
+        }
+
+        .btn-skip {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-skip:hover {
+            background: #c82333;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            gap: 10px;
+        }
+
+        .pagination button {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .pagination button:hover:not(:disabled) {
+            background: #0077B5;
+            color: white;
+            border-color: #0077B5;
+        }
+
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pagination span {
+            font-weight: 600;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        /* Timeline Modal Styles */
+        .timeline-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .timeline-modal.active {
+            display: flex;
+        }
+
+        .timeline-content {
+            background: white;
+            width: 90%;
+            max-width: 900px;
+            max-height: 90vh;
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .timeline-header {
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .timeline-header h2 {
+            margin: 0;
+            color: #333;
+        }
+
+        .close-timeline {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .timeline-body {
+            padding: 20px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="leads-container">
+        <div class="page-header">
+            <h1>Lead Management</h1>
+            <div class="header-actions">
+                <button class="btn btn-primary" onclick="location.href='/dashboard'">Back to Dashboard</button>
+                <button class="btn btn-success" onclick="exportLeads()">Export Leads</button>
+            </div>
+        </div>
+
+        <!-- Filter Section -->
+        <div class="filter-section">
+            <h3 style="margin-top: 0;">Filter Leads</h3>
+            <div class="filter-grid">
+                <div class="filter-item">
+                    <label for="statusFilter">Status</label>
+                    <select id="statusFilter">
+                        <option value="">All Statuses</option>
+                        <option value="new">New</option>
+                        <option value="contacted">Contacted</option>
+                        <option value="replied">Replied</option>
+                        <option value="not_interested">Not Interested</option>
+                        <option value="pending">Pending</option>
+                    </select>
+                </div>
+                <div class="filter-item">
+                    <label for="scoreFilter">Minimum Score</label>
+                    <input type="number" id="scoreFilter" placeholder="e.g., 70" min="0" max="100">
+                </div>
+                <div class="filter-item">
+                    <label for="industryFilter">Industry</label>
+                    <input type="text" id="industryFilter" placeholder="e.g., Healthcare">
+                </div>
+                <div class="filter-item">
+                    <label for="searchFilter">Search</label>
+                    <input type="text" id="searchFilter" placeholder="Name, company, title...">
+                </div>
+            </div>
+            <div class="filter-actions">
+                <button class="btn btn-primary" onclick="applyFilters()">Apply Filters</button>
+                <button class="btn btn-secondary" onclick="clearFilters()">Clear</button>
+            </div>
+        </div>
+
+        <!-- Stats Bar -->
+        <div class="stats-bar">
+            <div class="stat-card">
+                <h3>Total Leads</h3>
+                <div class="value" id="totalLeads">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>New Leads</h3>
+                <div class="value" id="newLeads">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Contacted</h3>
+                <div class="value" id="contactedLeads">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Replied</h3>
+                <div class="value" id="repliedLeads">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Avg. Score</h3>
+                <div class="value" id="avgScore">0</div>
+            </div>
+        </div>
+
+        <!-- Leads Table -->
+        <div class="leads-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Title</th>
+                        <th>Company</th>
+                        <th>Industry</th>
+                        <th>Score</th>
+                        <th>Status</th>
+                        <th>Added</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="leadsTableBody">
+                    <tr>
+                        <td colspan="8" class="loading">Loading leads...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination">
+            <button id="prevPage" onclick="previousPage()" disabled>Previous</button>
+            <span id="pageInfo">Page 1 of 1</span>
+            <button id="nextPage" onclick="nextPage()" disabled>Next</button>
+        </div>
+    </div>
+
+    <!-- Timeline Modal -->
+    <div id="timelineModal" class="timeline-modal">
+        <div class="timeline-content">
+            <div class="timeline-header">
+                <h2>Lead Timeline</h2>
+                <button class="close-timeline" onclick="closeTimeline()">&times;</button>
+            </div>
+            <div class="timeline-body" id="timelineBody">
+                <div class="loading">Loading timeline...</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/lead-timeline-ui.js"></script>
+    <script>
+        let currentPage = 1;
+        let totalPages = 1;
+        const leadsPerPage = 20;
+
+        // Load leads on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadLeads();
+            loadStats();
+        });
+
+        async function loadLeads() {
+            try {
+                const params = new URLSearchParams();
+                params.append('page', currentPage);
+                params.append('per_page', leadsPerPage);
+                
+                // Add filters
+                const status = document.getElementById('statusFilter').value;
+                const score = document.getElementById('scoreFilter').value;
+                const industry = document.getElementById('industryFilter').value;
+                const search = document.getElementById('searchFilter').value;
+                
+                if (status) params.append('status', status);
+                if (score) params.append('min_score', score);
+                if (industry) params.append('industry', industry);
+                if (search) params.append('search', search);
+
+                const response = await fetch(`/api/leads?${params.toString()}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    displayLeads(data.leads);
+                    updatePagination(data.pagination);
+                } else {
+                    showError('Failed to load leads');
+                }
+            } catch (error) {
+                console.error('Error loading leads:', error);
+                showError('Error loading leads');
+            }
+        }
+
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/leads/stats');
+                const data = await response.json();
+
+                if (data.success) {
+                    document.getElementById('totalLeads').textContent = data.stats.total;
+                    document.getElementById('newLeads').textContent = data.stats.new;
+                    document.getElementById('contactedLeads').textContent = data.stats.contacted;
+                    document.getElementById('repliedLeads').textContent = data.stats.replied;
+                    document.getElementById('avgScore').textContent = data.stats.avg_score.toFixed(1);
+                }
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        function displayLeads(leads) {
+            const tbody = document.getElementById('leadsTableBody');
+            
+            if (leads.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="no-results">No leads found</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = leads.map(lead => `
+                <tr>
+                    <td><strong>${lead.name}</strong></td>
+                    <td>${lead.title || 'N/A'}</td>
+                    <td>${lead.company || 'N/A'}</td>
+                    <td>${lead.industry || 'N/A'}</td>
+                    <td>
+                        <span class="score-badge ${getScoreClass(lead.score)}">
+                            ${lead.score}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="status-badge status-${lead.status}">
+                            ${formatStatus(lead.status)}
+                        </span>
+                    </td>
+                    <td>${formatDate(lead.created_at)}</td>
+                    <td>
+                        <div class="action-buttons">
+                            <button class="btn-icon btn-view" onclick="viewLead(${lead.id})" title="View Details">
+                                👁️
+                            </button>
+                            <button class="btn-icon btn-timeline" onclick="openTimeline(${lead.id}, '${escapeHtml(lead.name)}')" title="View Timeline">
+                                📊
+                            </button>
+                            <button class="btn-icon btn-message" onclick="sendMessage(${lead.id})" title="Send Message">
+                                💬
+                            </button>
+                            <button class="btn-icon btn-skip" onclick="skipLead(${lead.id})" title="Mark as Not Interested">
+                                ⏭️
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function getScoreClass(score) {
+            if (score >= 70) return 'score-high';
+            if (score >= 40) return 'score-medium';
+            return 'score-low';
+        }
+
+        function formatStatus(status) {
+            return status.replace('_', ' ').toUpperCase();
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString();
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function updatePagination(pagination) {
+            currentPage = pagination.current_page;
+            totalPages = pagination.total_pages;
+
+            document.getElementById('pageInfo').textContent = 
+                `Page ${currentPage} of ${totalPages}`;
+            document.getElementById('prevPage').disabled = currentPage === 1;
+            document.getElementById('nextPage').disabled = currentPage === totalPages;
+        }
+
+        function previousPage() {
+            if (currentPage > 1) {
+                currentPage--;
+                loadLeads();
+            }
+        }
+
+        function nextPage() {
+            if (currentPage < totalPages) {
+                currentPage++;
+                loadLeads();
+            }
+        }
+
+        function applyFilters() {
+            currentPage = 1;
+            loadLeads();
+            loadStats();
+        }
+
+        function clearFilters() {
+            document.getElementById('statusFilter').value = '';
+            document.getElementById('scoreFilter').value = '';
+            document.getElementById('industryFilter').value = '';
+            document.getElementById('searchFilter').value = '';
+            applyFilters();
+        }
+
+        function viewLead(leadId) {
+            window.location.href = `/lead/${leadId}`;
+        }
+
+        async function sendMessage(leadId) {
+            if (confirm('Send a message to this lead?')) {
+                try {
+                    const response = await fetch(`/api/leads/${leadId}/message`, {
+                        method: 'POST'
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        alert('Message sent successfully!');
+                        loadLeads();
+                    } else {
+                        alert('Failed to send message: ' + data.message);
+                    }
+                } catch (error) {
+                    console.error('Error sending message:', error);
+                    alert('Error sending message');
+                }
+            }
+        }
+
+        async function skipLead(leadId) {
+            if (confirm('Mark this lead as not interested?')) {
+                try {
+                    const response = await fetch(`/api/leads/${leadId}/skip`, {
+                        method: 'POST'
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        loadLeads();
+                        loadStats();
+                    } else {
+                        alert('Failed to skip lead: ' + data.message);
+                    }
+                } catch (error) {
+                    console.error('Error skipping lead:', error);
+                    alert('Error skipping lead');
+                }
+            }
+        }
+
+        async function exportLeads() {
+            try {
+                const response = await fetch('/api/leads/export');
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `leads_export_${new Date().toISOString().split('T')[0]}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            } catch (error) {
+                console.error('Error exporting leads:', error);
+                alert('Error exporting leads');
+            }
+        }
+
+        function showError(message) {
+            const tbody = document.getElementById('leadsTableBody');
+            tbody.innerHTML = `<tr><td colspan="8" class="no-results">${message}</td></tr>`;
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,592 @@
+{% extends 'base.html' %}
+
+{% block title %}Messages - Aesthetic LinkWizard{% endblock %}
+
+{% block page_title %}Messages{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/messages.css">
+{% endblock %}
+
+{% block content %}
+<!-- Connection Status Bar -->
+<div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg shadow-sm border-2 border-blue-200 p-4 mb-6">
+    <div class="flex items-center justify-between">
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2">
+                <i data-feather="linkedin" class="w-5 h-5"></i>
+                <span id="msg-linkedin-status" class="text-sm font-medium">
+                    <span class="animate-pulse">⏳ Checking LinkedIn...</span>
+                </span>
+            </div>
+            
+            <div style="width: 1px; height: 30px; background: #cbd5e1;"></div>
+            
+            <div class="flex items-center gap-2">
+                <i data-feather="cpu" class="w-5 h-5"></i>
+                <span id="msg-openai-status" class="text-sm font-medium">
+                    <span class="animate-pulse">⏳ Checking OpenAI...</span>
+                </span>
+            </div>
+        </div>
+        
+        <a href="/dashboard" class="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1">
+            <i data-feather="settings" class="w-4 h-4"></i>
+            Manage Connections
+        </a>
+    </div>
+</div>
+
+<!-- Message Templates Section -->
+<div class="bg-white rounded-lg shadow p-6 mb-6">
+    <h3 class="text-lg font-bold mb-4">📝 Message Templates</h3>
+    
+    <div class="mb-3">
+        <label for="templateText" class="block text-sm font-medium mb-2">Enter Template Message:</label>
+        <textarea 
+            id="templateText" 
+            class="w-full border rounded px-3 py-2" 
+            rows="4" 
+            placeholder="Enter your template message here. Use {name}, {company}, {title} as placeholders..."
+        ></textarea>
+        <p class="text-xs text-gray-500 mt-1">Use placeholders: {name}, {company}, {title}, {industry}</p>
+    </div>
+    
+    <div class="flex gap-2">
+        <button class="btn btn-primary" onclick="saveTemplate()">💾 Save Template</button>
+        <button class="btn btn-secondary" onclick="loadTemplates()">📋 View Templates</button>
+    </div>
+    
+    <div id="savedTemplates" class="mt-4" style="display:none;">
+        <!-- Saved templates will appear here -->
+    </div>
+</div>
+
+<!-- LinkedIn Connection Card -->
+<div id="linkedin-connection-card" style="display: none;" class="bg-white rounded-lg shadow p-6 mb-6">
+    <h3 class="text-lg font-bold mb-4">LinkedIn Connection</h3>
+    
+    <div id="linkedin-status" class="mb-4">
+        <p>Checking status...</p>
+    </div>
+    
+    <div class="flex gap-2">
+        <button id="linkedin-login-btn" class="btn btn-primary" style="display: none;">
+            🔒 Login to LinkedIn
+        </button>
+        <button id="linkedin-logout-btn" class="btn btn-secondary" style="display: none;">
+            🚪 Logout
+        </button>
+    </div>
+</div>
+
+<!-- Message Stats -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-sm font-medium text-gray-600 mb-2">📝 Draft</h3>
+        <p id="draft-count" class="text-3xl font-bold text-gray-900">0</p>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-sm font-medium text-gray-600 mb-2">✅ Approved</h3>
+        <p id="approved-count" class="text-3xl font-bold text-green-600">0</p>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-sm font-medium text-gray-600 mb-2">📨 Sent</h3>
+        <p id="sent-count" class="text-3xl font-bold text-blue-600">0</p>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-sm font-medium text-gray-600 mb-2">💬 Reply Rate</h3>
+        <p id="reply-rate" class="text-3xl font-bold text-purple-600">0%</p>
+    </div>
+</div>
+
+<!-- Actions Bar -->
+<div class="bg-white rounded-lg shadow p-6 mb-6">
+    <div class="flex flex-wrap items-center justify-between gap-4">
+        <div class="flex gap-2">
+            <button id="generate-messages-btn" class="btn btn-primary">
+                🎨 Generate Messages for Top Leads
+            </button>
+            
+            <button id="send-messages-btn" class="btn btn-success" disabled>
+                📨 Send Approved Messages
+            </button>
+        </div>
+        
+        <div class="flex gap-2 items-center">
+            <label for="status-filter" class="text-sm font-medium">Status:</label>
+            <select id="status-filter" class="border rounded px-3 py-2">
+                <option value="">All</option>
+                <option value="draft">Draft</option>
+                <option value="approved">Approved</option>
+                <option value="sent">Sent</option>
+            </select>
+            
+            <button id="apply-filters-btn" class="btn btn-secondary">
+                🔍 Apply Filter
+            </button>
+        </div>
+    </div>
+    
+    <!-- Action Status -->
+    <div id="action-status" class="mt-4 p-4 bg-blue-50 rounded" style="display: none;">
+        <p id="action-message" class="text-sm"></p>
+    </div>
+</div>
+
+<!-- Messages Container -->
+<div id="messages-container" class="bg-white rounded-lg shadow p-6">
+    <div class="loading">
+        <div class="spinner"></div>
+        <p>Loading messages...</p>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/messages.js"></script>
+<script>
+// Check Connection Status
+async function checkMessagesPageConnections() {
+    // Check LinkedIn
+    try {
+        const liRes = await fetch('/api/linkedin/status');
+        const liData = await liRes.json();
+        
+        const liStatus = document.getElementById('msg-linkedin-status');
+        
+        if (liData.logged_in) {
+            liStatus.innerHTML = '<span class="text-green-700">✅ LinkedIn: Connected</span>';
+        } else {
+            liStatus.innerHTML = '<span class="text-red-700">❌ LinkedIn: Not Connected → <a href="/dashboard" class="underline font-semibold">Connect on Dashboard</a></span>';
+        }
+    } catch (error) {
+        console.error('Error checking LinkedIn:', error);
+    }
+    
+    // Check OpenAI
+    try {
+        const aiRes = await fetch('/api/auth/test-connection', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ service: 'openai' })
+        });
+        const aiData = await aiRes.json();
+        
+        const aiStatus = document.getElementById('msg-openai-status');
+        
+        if (aiData.success) {
+            aiStatus.innerHTML = '<span class="text-green-700">✅ OpenAI: Connected</span>';
+        } else {
+            aiStatus.innerHTML = '<span class="text-red-700">❌ OpenAI: Not Configured → <a href="/settings" class="underline font-semibold">Configure in Settings</a></span>';
+        }
+    } catch (error) {
+        console.error('Error checking OpenAI:', error);
+    }
+    
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    checkMessagesPageConnections();
+    setInterval(checkMessagesPageConnections, 30000);
+    loadTemplates(); // Load templates on page load
+});
+</script>
+
+<style>
+.loading {
+    text-align: center;
+    padding: 40px;
+}
+
+.spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #3498db;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 20px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.message-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 16px;
+}
+
+.message-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    margin-bottom: 12px;
+}
+
+.message-meta h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.message-company {
+    color: #6b7280;
+    font-size: 0.9rem;
+}
+
+.message-badges {
+    display: flex;
+    gap: 8px;
+}
+
+.badge {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.badge-draft {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.badge-approved {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.badge-sent {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.badge-failed {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.badge-variant {
+    background: #e0e7ff;
+    color: #3730a3;
+}
+
+.message-content {
+    background: #f9fafb;
+    padding: 16px;
+    border-radius: 6px;
+    margin-bottom: 12px;
+}
+
+.message-content p {
+    margin: 0;
+    line-height: 1.6;
+}
+
+.message-actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.message-footer {
+    display: flex;
+    justify-content: space-between;
+    color: #9ca3af;
+    font-size: 0.85rem;
+}
+
+.btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background: #3b82f6;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #2563eb;
+}
+
+.btn-success {
+    background: #10b981;
+    color: white;
+}
+
+.btn-success:hover {
+    background: #059669;
+}
+
+.btn-secondary {
+    background: #6b7280;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: #4b5563;
+}
+
+.btn-danger {
+    background: #ef4444;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #dc2626;
+}
+
+.btn-warning {
+    background: #f59e0b;
+    color: white;
+}
+
+.btn-warning:hover {
+    background: #d97706;
+}
+
+.btn-sm {
+    padding: 6px 12px;
+    font-size: 0.875rem;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.empty-state, .error-state {
+    text-align: center;
+    padding: 60px 20px;
+}
+
+.empty-state p, .error-state p {
+    font-size: 1.1rem;
+    color: #6b7280;
+    margin-bottom: 20px;
+}
+
+.template-item {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 8px;
+}
+
+.template-item p {
+    margin: 0 0 8px 0;
+    font-size: 0.9rem;
+}
+/* Beautiful Lead Message Group Styles */
+.lead-message-group {
+    margin-bottom: 24px;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s;
+}
+
+.lead-message-group:hover {
+    box-shadow: 0 4px 16px rgba(102, 126, 234, 0.15);
+}
+
+.lead-info-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    color: white;
+}
+
+.lead-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: 700;
+    color: white;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    flex-shrink: 0;
+}
+
+.lead-details {
+    flex: 1;
+}
+
+.lead-details h3 {
+    margin: 0 0 4px 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: white;
+}
+
+.lead-title {
+    margin: 0 0 8px 0;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 0.95rem;
+}
+
+.linkedin-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: rgba(255, 255, 255, 0.95);
+    text-decoration: none;
+    font-size: 0.85rem;
+    padding: 4px 12px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 20px;
+    transition: all 0.2s;
+}
+
+.linkedin-link:hover {
+    background: rgba(255, 255, 255, 0.25);
+    transform: translateY(-1px);
+}
+
+.message-actions-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.message-actions-top .badge {
+    background: white !important;
+    color: #667eea !important;
+    font-weight: 600;
+    padding: 6px 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.variant-count {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.message-variants {
+    background: white;
+    padding: 16px 24px 24px 24px;
+}
+
+.message-card {
+    background: #f8fafc;
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 12px;
+    transition: all 0.3s;
+}
+
+.message-card:hover {
+    border-color: #667eea;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+    transform: translateY(-2px);
+}
+
+.message-card.approved {
+    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+    border-color: #10b981;
+}
+
+.message-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.message-variant-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.variant-label {
+    background: #667eea;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.message-card.approved .variant-label {
+    background: #10b981;
+}
+
+.message-meta small {
+    color: #64748b;
+    font-size: 0.8rem;
+}
+
+.message-content {
+    background: white;
+    padding: 16px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    border: 1px solid #e2e8f0;
+}
+
+.message-content p {
+    margin: 0 0 12px 0;
+    line-height: 1.7;
+    color: #334155;
+}
+
+.message-stats {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.char-count {
+    font-size: 0.75rem;
+    color: #94a3b8;
+}
+
+.message-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.message-actions .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.message-actions .btn i {
+    font-size: 0.9rem;
+}
+</style>
+{% endblock %}

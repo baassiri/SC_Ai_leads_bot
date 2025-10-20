@@ -49,75 +49,17 @@ class ScrapingCooldownManager:
     def check_can_scrape(self, user_id: int = 1) -> Tuple[bool, str, Dict]:
         """
         Check if user can scrape based on cooldown rules
-        
-        Args:
-            user_id: User ID to check (default: 1)
-        
-        Returns:
-            Tuple of (can_scrape: bool, message: str, details: dict)
+        DEMO MODE - Always returns True
         """
-        try:
-            # Ensure user exists
-            self._ensure_user_exists(user_id)
-            
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            # Get start of current week (Monday 00:00)
-            now = datetime.now()
-            week_start = now - timedelta(days=now.weekday(), 
-                                        hours=now.hour,
-                                        minutes=now.minute,
-                                        seconds=now.second,
-                                        microseconds=now.microsecond)
-            
-            # Count scrapes this week
-            cursor.execute("""
-                SELECT COUNT(*) FROM scraping_cooldown
-                WHERE user_id = ? AND scrape_timestamp >= ?
-            """, (user_id, week_start.isoformat()))
-            
-            scrapes_this_week = cursor.fetchone()[0]
-            conn.close()
-            
-            scrapes_remaining = max(0, self.weekly_limit - scrapes_this_week)
-            
-            if scrapes_remaining > 0:
-                return (
-                    True,
-                    f"✅ Ready to scrape! {scrapes_remaining} of {self.weekly_limit} scrapes remaining this week.",
-                    {
-                        'scrapes_this_week': scrapes_this_week,
-                        'scrapes_remaining': scrapes_remaining,
-                        'weekly_limit': self.weekly_limit,
-                        'week_start': week_start.isoformat(),
-                        'next_reset': (week_start + timedelta(days=7)).isoformat()
-                    }
-                )
-            else:
-                next_reset = week_start + timedelta(days=7)
-                hours_until_reset = (next_reset - now).total_seconds() / 3600
-                
-                return (
-                    False,
-                    f"⏸️ Weekly scrape limit reached ({self.weekly_limit} scrapes/week). Resets in {hours_until_reset:.1f} hours.",
-                    {
-                        'scrapes_this_week': scrapes_this_week,
-                        'scrapes_remaining': 0,
-                        'weekly_limit': self.weekly_limit,
-                        'week_start': week_start.isoformat(),
-                        'next_reset': next_reset.isoformat(),
-                        'hours_until_reset': round(hours_until_reset, 1)
-                    }
-                )
-        
-        except Exception as e:
-            print(f"❌ Error checking cooldown: {str(e)}")
-            return (
-                False,
-                f"Error checking cooldown: {str(e)}",
-                {}
-            )
+        return (
+            True,
+            f"✅ Ready to scrape! Demo mode - no limits.",
+            {
+                'scrapes_this_week': 0,
+                'scrapes_remaining': 999,
+                'weekly_limit': 999,
+            }
+        )
     
     def record_scrape(self, user_id: int = 1, leads_scraped: int = 0) -> bool:
         """
