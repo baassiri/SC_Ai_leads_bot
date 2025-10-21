@@ -1,6 +1,5 @@
 let updateInterval = null;
 let activityInterval = null;
-let currentEditingPersona = null;
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Dashboard initializing...');
@@ -312,19 +311,13 @@ async function loadDetectedPersonas() {
         const personasHTML = data.personas.map(persona => `
             <div class="bg-white rounded-lg border-2 border-purple-200 p-5 hover:shadow-lg transition-shadow">
                 <div class="flex items-start justify-between mb-3">
-                    <div class="flex-1">
+                    <div>
                         <h4 class="text-lg font-bold text-gray-800 mb-1">${escapeHtml(persona.name)}</h4>
                         <p class="text-sm text-gray-600">${escapeHtml(persona.description || 'No description')}</p>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <span class="px-3 py-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded-full">
-                            ID: ${persona.id}
-                        </span>
-                        <button onclick="openEditModal(${persona.id})" class="px-3 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 text-xs font-semibold rounded-full flex items-center gap-1 transition-colors">
-                            <i data-feather="edit-3" class="w-3 h-3"></i>
-                            Edit
-                        </button>
-                    </div>
+                    <span class="px-3 py-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded-full">
+                        ID: ${persona.id}
+                    </span>
                 </div>
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
@@ -437,89 +430,6 @@ async function loadDetectedPersonas() {
                 feather.replace();
             }
         }
-    }
-}
-
-async function openEditModal(personaId) {
-    try {
-        const response = await fetch('/api/personas');
-        const data = await response.json();
-        
-        if (data.success && data.personas) {
-            const persona = data.personas.find(p => p.id === personaId);
-            
-            if (persona) {
-                currentEditingPersona = persona;
-                
-                document.getElementById('edit-persona-id').value = persona.id;
-                document.getElementById('edit-name').value = persona.name || '';
-                document.getElementById('edit-description').value = persona.description || '';
-                document.getElementById('edit-job-titles').value = persona.job_titles || '';
-                document.getElementById('edit-decision-makers').value = persona.decision_maker_roles || '';
-                document.getElementById('edit-company-types').value = persona.company_types || '';
-                document.getElementById('edit-linkedin-keywords').value = persona.linkedin_keywords || '';
-                document.getElementById('edit-search-query').value = persona.smart_search_query || '';
-                document.getElementById('edit-seniority').value = persona.seniority_level || '';
-                document.getElementById('edit-industry').value = persona.industry_focus || '';
-                
-                document.getElementById('edit-persona-modal').classList.remove('hidden');
-                
-                setTimeout(() => {
-                    if (typeof feather !== 'undefined') {
-                        feather.replace();
-                    }
-                }, 100);
-            }
-        }
-    } catch (error) {
-        console.error('Error opening edit modal:', error);
-        showNotification('Error loading persona details', 'error');
-    }
-}
-
-function closeEditModal() {
-    document.getElementById('edit-persona-modal').classList.add('hidden');
-    currentEditingPersona = null;
-}
-
-async function savePersona() {
-    try {
-        const personaId = document.getElementById('edit-persona-id').value;
-        
-        const updates = {
-            name: document.getElementById('edit-name').value.trim(),
-            description: document.getElementById('edit-description').value.trim(),
-            job_titles: document.getElementById('edit-job-titles').value.trim(),
-            decision_maker_roles: document.getElementById('edit-decision-makers').value.trim(),
-            company_types: document.getElementById('edit-company-types').value.trim(),
-            linkedin_keywords: document.getElementById('edit-linkedin-keywords').value.trim(),
-            smart_search_query: document.getElementById('edit-search-query').value.trim(),
-            seniority_level: document.getElementById('edit-seniority').value.trim(),
-            industry_focus: document.getElementById('edit-industry').value.trim()
-        };
-        
-        showNotification('Saving changes...', 'info');
-        
-        const response = await fetch(`/api/personas/${personaId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(updates)
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            showNotification('✅ Persona updated successfully!', 'success');
-            closeEditModal();
-            loadDetectedPersonas();
-        } else {
-            showNotification('❌ ' + (data.message || 'Failed to update persona'), 'error');
-        }
-    } catch (error) {
-        console.error('Error saving persona:', error);
-        showNotification('❌ Error saving changes', 'error');
     }
 }
 

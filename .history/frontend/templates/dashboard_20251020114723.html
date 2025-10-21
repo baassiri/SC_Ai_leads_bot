@@ -102,6 +102,10 @@
             <i data-feather="target" class="w-5 h-5 text-purple-600"></i>
             🎯 AI-Detected Personas & Targets
         </h3>
+        <button onclick="window.location.href='/settings'" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm font-medium flex items-center gap-2">
+            <i data-feather="upload" class="w-4 h-4"></i>
+            Upload New Document
+        </button>
     </div>
     
     <div id="personas-container" class="space-y-4">
@@ -410,7 +414,3 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 {% endblock %}
-            checkDashboardConnections();
-            setInterval(checkDashboardConnections, 30000);
-        });
-    </script>

@@ -1035,7 +1035,7 @@ class DatabaseManager:
 # ADD THIS METHOD TO backend/backend/database/db_manager.py in the DatabaseManager class
 
     def update_persona(self, persona_id: int, updates: dict) -> bool:
-        """app
+        """
         Update persona fields
         
         Args:

@@ -1034,33 +1034,33 @@ class DatabaseManager:
             return False
 # ADD THIS METHOD TO backend/backend/database/db_manager.py in the DatabaseManager class
 
-    def update_persona(self, persona_id: int, updates: dict) -> bool:
-        """app
-        Update persona fields
+def update_persona(self, persona_id: int, updates: dict) -> bool:
+    """
+    Update persona fields
+    
+    Args:
+        persona_id: ID of persona to update
+        updates: Dictionary of field names and new values
         
-        Args:
-            persona_id: ID of persona to update
-            updates: Dictionary of field names and new values
-            
-        Returns:
-            True if successful, False if persona not found
-        """
-        with self.session_scope() as session:
-            from backend.database.models import Persona
-            
-            persona = session.query(Persona).filter(Persona.id == persona_id).first()
-            
-            if not persona:
-                return False
-            
-            # Update fields
-            for field, value in updates.items():
-                if hasattr(persona, field):
-                    setattr(persona, field, value)
-            
-            persona.updated_at = datetime.utcnow()
-            
-            return True
+    Returns:
+        True if successful, False if persona not found
+    """
+    with self.session_scope() as session:
+        from backend.database.models import Persona
+        
+        persona = session.query(Persona).filter(Persona.id == persona_id).first()
+        
+        if not persona:
+            return False
+        
+        # Update fields
+        for field, value in updates.items():
+            if hasattr(persona, field):
+                setattr(persona, field, value)
+        
+        persona.updated_at = datetime.utcnow()
+        
+        return True
 
 # Singleton instance
 db_manager = DatabaseManager()
