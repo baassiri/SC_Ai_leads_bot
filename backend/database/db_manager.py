@@ -1,1095 +1,563 @@
 """
-SC AI Lead Generation System - Database Manager
-CRUD operations for all database models
-FIXED VERSION - AB test methods properly indented inside class
+SC AI Lead Generation System - Complete Database Manager
+All CRUD operations with proper session management and error handling
 """
 
-from sqlalchemy import create_engine, desc, func
-from sqlalchemy.orm import sessionmaker, scoped_session
+import sqlite3
+from datetime import datetime
+from typing import List, Dict, Optional, Any
 from contextlib import contextmanager
-from datetime import datetime, timedelta
-import sys
 from pathlib import Path
-
-sys.path.append(str(Path(__file__).parent.parent))
-
-from backend.config import Config
-from backend.database.models import Base, User, Persona, Lead, Message, Campaign, Response, ActivityLog
+import json
 
 
 class DatabaseManager:
-    """Manages all database operations"""
+    """Complete database manager with all required methods"""
     
-    def __init__(self, database_url=None):
-        """Initialize database connection"""
-        self.database_url = database_url or Config.DATABASE_URL
-        self.engine = create_engine(self.database_url, echo=Config.DEBUG)
-        self.Session = scoped_session(sessionmaker(bind=self.engine))
+    def __init__(self, db_path: str = None):
+        """Initialize database manager"""
+        if db_path:
+            self.db_path = db_path
+        else:
+            # Default path
+            self.db_path = Path(__file__).parent.parent.parent / 'data' / 'database.db'
+        
+        # Ensure database exists
+        self._ensure_database_exists()
+        print(f"✅ Database Manager initialized: {self.db_path}")
     
-    def create_tables(self):
-        """Create all database tables"""
-        Base.metadata.create_all(self.engine)
-        print("✅ All database tables created successfully!")
-    
-    def drop_tables(self):
-        """Drop all database tables (use with caution!)"""
-        Base.metadata.drop_all(self.engine)
-        print("⚠️  All database tables dropped!")
+    def _ensure_database_exists(self):
+        """Ensure database file and directory exist"""
+        db_dir = Path(self.db_path).parent
+        db_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Create database if it doesn't exist
+        if not Path(self.db_path).exists():
+            print(f"Creating database at {self.db_path}...")
+            # Touch the file
+            Path(self.db_path).touch()
     
     @contextmanager
-    def session_scope(self):
-        """Provide a transactional scope for database operations"""
-        session = self.Session()
+    def get_connection(self):
+        """Context manager for database connections"""
+        conn = sqlite3.connect(str(self.db_path))
+        conn.row_factory = sqlite3.Row  # Return rows as dictionaries
         try:
-            yield session
-            session.commit()
+            yield conn
+            conn.commit()
         except Exception as e:
-            session.rollback()
+            conn.rollback()
             raise e
         finally:
-            session.close()
+            conn.close()
     
-    # USER OPERATIONS
-    
-    def create_user(self, email, linkedin_email=None, linkedin_password=None, openai_api_key=None):
-        """Create a new user"""
-        with self.session_scope() as session:
-            user = User(
-                email=email,
-                linkedin_email=linkedin_email,
-                linkedin_password=linkedin_password,
-                openai_api_key=openai_api_key
-            )
-            session.add(user)
-            session.flush()
-            return user.id
-    
-    def get_user_by_email(self, email):
-        """Get user by email"""
-        with self.session_scope() as session:
-            user = session.query(User).filter(User.email == email).first()
-            
-            if not user:
-                return None
-            
-            user_data = {
-                'id': user.id,
-                'email': user.email,
-                'linkedin_email': user.linkedin_email,
-                'is_active': user.is_active,
-                'created_at': user.created_at.isoformat() if user.created_at else None
-            }
-            return user_data
-    
-    def update_user_credentials(self, user_id, linkedin_email=None, linkedin_password=None, openai_api_key=None):
-        """Update user credentials"""
-        with self.session_scope() as session:
-            user = session.query(User).filter(User.id == user_id).first()
-            if user:
-                if linkedin_email:
-                    user.linkedin_email = linkedin_email
-                if linkedin_password:
-                    user.linkedin_password = linkedin_password
-                if openai_api_key:
-                    user.openai_api_key = openai_api_key
-                user.updated_at = datetime.utcnow()
+    def test_connection(self) -> bool:
+        """Test database connection"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT 1")
                 return True
+        except Exception as e:
+            print(f"❌ Database connection failed: {str(e)}")
             return False
     
-    # PERSONA OPERATIONS
+    # ========================================================================
+    # PERSONA METHODS
+    # ========================================================================
     
-    def create_persona(self, name, description=None, age_range=None, gender_distribution=None,
-                    goals=None, pain_points=None, key_message=None, message_tone=None,
-                    job_titles=None, decision_maker_roles=None, company_types=None,
-                    company_size=None, seniority_level=None, industry_focus=None,
-                    solutions=None, linkedin_keywords=None, smart_search_query=None,
-                    message_hooks=None, location_data=None, document_source=None):
-        """Create a new persona with enhanced targeting data"""
-        with self.session_scope() as session:
-            persona = Persona(
-                name=name,
-                description=description,
-                age_range=age_range,
-                gender_distribution=gender_distribution,
-                goals=goals,
-                pain_points=pain_points,
-                key_message=key_message,
-                message_tone=message_tone,
-                job_titles=job_titles,
-                decision_maker_roles=decision_maker_roles,
-                company_types=company_types,
-                company_size=company_size,
-                seniority_level=seniority_level,
-                industry_focus=industry_focus,
-                solutions=solutions,
-                linkedin_keywords=linkedin_keywords,
-                smart_search_query=smart_search_query,
-                message_hooks=message_hooks,
-                location_data=location_data,
-                document_source=document_source
-            )
-            session.add(persona)
-            session.flush()
-            return persona.id
-    
-    def get_messages_to_send(self):
-        """Get approved messages ready to send"""
-        with self.session_scope() as session:
-            messages = session.query(Message).join(Lead).filter(
-                Message.status == 'approved'
-            ).order_by(Message.created_at).all()
-            
-            messages_data = []
-            for msg in messages:
-                messages_data.append({
-                    'id': msg.id,
-                    'lead_id': msg.lead_id,
-                    'content': msg.content,
-                    'name': msg.lead.name if msg.lead else 'Unknown',
-                    'profile_url': msg.lead.profile_url if msg.lead else ''
-                })
-            
-            return messages_data
-        
-    def get_all_personas(self):
-        """Get all personas"""
-        with self.session_scope() as session:
-            personas = session.query(Persona).all()
-            
-            personas_data = []
-            for p in personas:
-                personas_data.append({
-                    'id': p.id,
-                    'name': p.name,
-                    'description': p.description,
-                    'age_range': p.age_range,
-                    'gender_distribution': p.gender_distribution,
-                    'goals': p.goals,
-                    'pain_points': p.pain_points,
-                    'key_message': p.key_message,
-                    'message_tone': p.message_tone,
-                    'created_at': p.created_at.isoformat() if p.created_at else None,
-                    'updated_at': p.updated_at.isoformat() if p.updated_at else None
-                })
-            
-            return personas_data
-    
-    def get_persona_by_name(self, name):
-        """Get persona by name"""
-        with self.session_scope() as session:
-            return session.query(Persona).filter(Persona.name == name).first()
-    
-    def get_persona_by_id(self, persona_id):
-        """Get a single persona by ID"""
+    def create_persona(self, name: str, description: str = None, **kwargs) -> Optional[int]:
+        """Create a new persona"""
         try:
-            with self.session_scope() as session:
-                persona = session.query(Persona).filter(Persona.id == persona_id).first()
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
                 
-                if not persona:
-                    return None
+                # Build INSERT statement dynamically
+                fields = ['name', 'description', 'created_at', 'updated_at']
+                values = [name, description, datetime.now().isoformat(), datetime.now().isoformat()]
                 
-                return {
-                    'id': persona.id,
-                    'name': persona.name,
-                    'description': persona.description,
-                    'goals': persona.goals,
-                    'pain_points': persona.pain_points,
-                    'message_tone': persona.message_tone
-                }
+                # Add optional fields
+                optional_fields = [
+                    'age_range', 'gender_distribution', 'job_titles', 'decision_maker_roles',
+                    'company_types', 'company_size', 'seniority_level', 'industry_focus',
+                    'pain_points', 'goals', 'linkedin_keywords', 'smart_search_query',
+                    'message_hooks', 'solutions', 'document_source', 'location_data'
+                ]
+                
+                for field in optional_fields:
+                    if field in kwargs and kwargs[field] is not None:
+                        fields.append(field)
+                        values.append(kwargs[field])
+                
+                placeholders = ', '.join(['?' for _ in fields])
+                sql = f"INSERT INTO personas ({', '.join(fields)}) VALUES ({placeholders})"
+                
+                cursor.execute(sql, values)
+                return cursor.lastrowid
+        
         except Exception as e:
-            print(f"Error getting persona: {str(e)}")
+            print(f"❌ Error creating persona: {str(e)}")
             return None
     
-    # LEAD OPERATIONS
+    def get_all_personas(self) -> List[Dict]:
+        """Get all personas"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM personas ORDER BY created_at DESC")
+                return [dict(row) for row in cursor.fetchall()]
+        except Exception as e:
+            print(f"❌ Error getting personas: {str(e)}")
+            return []
     
-    def create_lead(self, name, profile_url, title=None, company=None, industry=None,
-                   location=None, headline=None, summary=None, company_size=None):
-        """Create a new lead"""
-        with self.session_scope() as session:
-            existing = session.query(Lead).filter(Lead.profile_url == profile_url).first()
-            if existing:
-                return existing.id
-            
-            lead = Lead(
-                name=name,
-                profile_url=profile_url,
-                title=title,
-                company=company,
-                industry=industry,
-                location=location,
-                headline=headline,
-                summary=summary,
-                company_size=company_size
-            )
-            session.add(lead)
-            session.flush()
-            return lead.id
+    def get_persona_by_id(self, persona_id: int) -> Optional[Dict]:
+        """Get persona by ID"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM personas WHERE id = ?", (persona_id,))
+                row = cursor.fetchone()
+                return dict(row) if row else None
+        except Exception as e:
+            print(f"❌ Error getting persona: {str(e)}")
+            return None
     
-    def get_lead_by_id(self, lead_id):
+    def get_persona_by_name(self, name: str) -> Optional[Dict]:
+        """Get persona by name"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM personas WHERE name = ?", (name,))
+                row = cursor.fetchone()
+                return dict(row) if row else None
+        except Exception as e:
+            print(f"❌ Error getting persona by name: {str(e)}")
+            return None
+    
+    def update_persona(self, persona_id: int, updates: Dict) -> bool:
+        """Update persona"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Build UPDATE statement
+                updates['updated_at'] = datetime.now().isoformat()
+                fields = ', '.join([f"{key} = ?" for key in updates.keys()])
+                values = list(updates.values()) + [persona_id]
+                
+                sql = f"UPDATE personas SET {fields} WHERE id = ?"
+                cursor.execute(sql, values)
+                
+                return cursor.rowcount > 0
+        except Exception as e:
+            print(f"❌ Error updating persona: {str(e)}")
+            return False
+    
+    def delete_persona(self, persona_id: int) -> bool:
+        """Delete persona"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM personas WHERE id = ?", (persona_id,))
+                return cursor.rowcount > 0
+        except Exception as e:
+            print(f"❌ Error deleting persona: {str(e)}")
+            return False
+    
+    # ========================================================================
+    # LEAD METHODS
+    # ========================================================================
+    
+    def save_lead(self, lead_data: Dict) -> Optional[int]:
+        """Save a new lead"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    INSERT INTO leads (
+                        name, title, company, industry, location, profile_url,
+                        headline, summary, company_size, ai_score, persona_id,
+                        status, connection_status, scraped_at, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    lead_data.get('name'),
+                    lead_data.get('title'),
+                    lead_data.get('company'),
+                    lead_data.get('industry'),
+                    lead_data.get('location'),
+                    lead_data.get('profile_url'),
+                    lead_data.get('headline'),
+                    lead_data.get('summary'),
+                    lead_data.get('company_size'),
+                    lead_data.get('ai_score', 0),
+                    lead_data.get('persona_id'),
+                    lead_data.get('status', 'new'),
+                    lead_data.get('connection_status', 'not_sent'),
+                    lead_data.get('scraped_at', datetime.now().isoformat()),
+                    datetime.now().isoformat(),
+                    datetime.now().isoformat()
+                ))
+                
+                return cursor.lastrowid
+        
+        except Exception as e:
+            print(f"❌ Error saving lead: {str(e)}")
+            return None
+    
+    def get_all_leads(self, limit: int = 1000) -> List[Dict]:
+        """Get all leads"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT l.*, p.name as persona_name
+                    FROM leads l
+                    LEFT JOIN personas p ON l.persona_id = p.id
+                    ORDER BY l.created_at DESC
+                    LIMIT ?
+                """, (limit,))
+                return [dict(row) for row in cursor.fetchall()]
+        except Exception as e:
+            print(f"❌ Error getting leads: {str(e)}")
+            return []
+    
+    def get_lead_by_id(self, lead_id: int) -> Optional[Dict]:
         """Get lead by ID"""
         try:
-            with self.session_scope() as session:
-                lead = session.query(Lead).filter(Lead.id == lead_id).first()
-                
-                if not lead:
-                    return None
-                
-                return {
-                    'id': lead.id,
-                    'name': lead.name,
-                    'title': lead.title,
-                    'company': lead.company,
-                    'industry': lead.industry,
-                    'location': lead.location,
-                    'profile_url': lead.profile_url,
-                    'headline': lead.headline,
-                    'summary': lead.summary,
-                    'company_size': lead.company_size,
-                    'ai_score': lead.ai_score,
-                    'status': lead.status,
-                    'connection_status': lead.connection_status,
-                    'persona_id': lead.persona_id,
-                    'persona_name': lead.persona.name if lead.persona else None,
-                    'score_reasoning': lead.score_reasoning,
-                    'scraped_at': lead.scraped_at.isoformat() if lead.scraped_at else None,
-                    'contacted_at': lead.contacted_at.isoformat() if lead.contacted_at else None,
-                    'replied_at': lead.replied_at.isoformat() if lead.replied_at else None
-                }
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT l.*, p.name as persona_name
+                    FROM leads l
+                    LEFT JOIN personas p ON l.persona_id = p.id
+                    WHERE l.id = ?
+                """, (lead_id,))
+                row = cursor.fetchone()
+                return dict(row) if row else None
         except Exception as e:
-            print(f"Error getting lead: {str(e)}")
+            print(f"❌ Error getting lead: {str(e)}")
             return None
     
-    def get_all_leads(self, status=None, min_score=None, persona_id=None, limit=None):
-        """Get all leads with optional filters"""
-        with self.session_scope() as session:
-            query = session.query(Lead)
-            
-            if status:
-                query = query.filter(Lead.status == status)
-            if min_score:
-                query = query.filter(Lead.ai_score >= min_score)
-            if persona_id:
-                query = query.filter(Lead.persona_id == persona_id)
-            
-            query = query.order_by(desc(Lead.ai_score))
-            
-            if limit:
-                query = query.limit(limit)
-            
-            leads = query.all()
-            
-            leads_data = []
-            for lead in leads:
-                leads_data.append({
-                    'id': lead.id,
-                    'name': lead.name,
-                    'title': lead.title,
-                    'company': lead.company,
-                    'industry': lead.industry,
-                    'location': lead.location,
-                    'profile_url': lead.profile_url,
-                    'headline': lead.headline,
-                    'ai_score': lead.ai_score,
-                    'status': lead.status,
-                    'connection_status': lead.connection_status,
-                    'persona_id': lead.persona_id,
-                    'persona_name': lead.persona.name if lead.persona else None,
-                    'scraped_at': lead.scraped_at.isoformat() if lead.scraped_at else None
-                })
-            
-            return leads_data
-        
-    def update_lead_score(self, lead_id, ai_score, persona_id=None, score_reasoning=None):
-        """Update lead AI score"""
-        with self.session_scope() as session:
-            lead = session.query(Lead).filter(Lead.id == lead_id).first()
-            if lead:
-                lead.ai_score = ai_score
-                if persona_id:
-                    lead.persona_id = persona_id
-                if score_reasoning:
-                    lead.score_reasoning = score_reasoning
-                lead.updated_at = datetime.utcnow()
-                return True
-            return False
-    
-    def update_lead_status(self, lead_id, status, connection_status=None):
-        """Update lead status"""
-        with self.session_scope() as session:
-            lead = session.query(Lead).filter(Lead.id == lead_id).first()
-            if lead:
-                lead.status = status
-                if connection_status:
-                    lead.connection_status = connection_status
-                
-                if status == 'contacted' and not lead.contacted_at:
-                    lead.contacted_at = datetime.utcnow()
-                elif status == 'replied' and not lead.replied_at:
-                    lead.replied_at = datetime.utcnow()
-                
-                lead.updated_at = datetime.utcnow()
-                return True
-            return False
-    
-    # MESSAGE OPERATIONS
-    
-    def create_message(self, lead_id, message_type, content, campaign_id=None, 
-                      variant=None, prompt_used=None, generated_by='gpt-4', status='draft'):
-        """Create a new message"""
+    def update_lead(self, lead_id: int, updates: Dict) -> bool:
+        """Update lead"""
         try:
-            with self.session_scope() as session:
-                message = Message(
-                    lead_id=lead_id,
-                    campaign_id=campaign_id,
-                    message_type=message_type,
-                    content=content,
-                    variant=variant,
-                    prompt_used=prompt_used,
-                    generated_by=generated_by,
-                    status=status
-                )
-                session.add(message)
-                session.flush()
-                return message.id
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                updates['updated_at'] = datetime.now().isoformat()
+                fields = ', '.join([f"{key} = ?" for key in updates.keys()])
+                values = list(updates.values()) + [lead_id]
+                
+                sql = f"UPDATE leads SET {fields} WHERE id = ?"
+                cursor.execute(sql, values)
+                
+                return cursor.rowcount > 0
         except Exception as e:
-            print(f"Error creating message: {str(e)}")
+            print(f"❌ Error updating lead: {str(e)}")
+            return False
+    
+    def update_lead_status(self, lead_id: int, new_status: str) -> bool:
+        """Update lead status"""
+        return self.update_lead(lead_id, {'status': new_status})
+    
+    def delete_lead(self, lead_id: int) -> bool:
+        """Delete lead"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM leads WHERE id = ?", (lead_id,))
+                return cursor.rowcount > 0
+        except Exception as e:
+            print(f"❌ Error deleting lead: {str(e)}")
+            return False
+    
+    def get_top_leads(self, limit: int = 20, min_score: int = 70) -> List[Dict]:
+        """Get top scoring leads"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT l.*, p.name as persona_name
+                    FROM leads l
+                    LEFT JOIN personas p ON l.persona_id = p.id
+                    WHERE l.ai_score >= ?
+                    ORDER BY l.ai_score DESC
+                    LIMIT ?
+                """, (min_score, limit))
+                return [dict(row) for row in cursor.fetchall()]
+        except Exception as e:
+            print(f"❌ Error getting top leads: {str(e)}")
+            return []
+    
+    # ========================================================================
+    # MESSAGE METHODS
+    # ========================================================================
+    
+    def save_message(self, message_data: Dict) -> Optional[int]:
+        """Save a generated message"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    INSERT INTO messages (
+                        lead_id, message_type, content, variant, prompt_used,
+                        generated_by, status, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    message_data.get('lead_id'),
+                    message_data.get('message_type', 'connection_request'),
+                    message_data.get('content'),
+                    message_data.get('variant', 'A'),
+                    message_data.get('prompt_used'),
+                    message_data.get('generated_by', 'gpt-4'),
+                    message_data.get('status', 'draft'),
+                    datetime.now().isoformat(),
+                    datetime.now().isoformat()
+                ))
+                
+                return cursor.lastrowid
+        
+        except Exception as e:
+            print(f"❌ Error saving message: {str(e)}")
             return None
     
-    def get_pending_messages(self, limit=50):
-        """Get messages that are approved and ready to send"""
-        with self.session_scope() as session:
-            messages = session.query(Message).join(Lead).filter(
-                Message.status == 'approved',
-                Message.sent_at == None
-            ).order_by(Message.created_at).limit(limit).all()
-            
-            messages_data = []
-            for msg in messages:
-                messages_data.append({
-                    'id': msg.id,
-                    'lead_id': msg.lead_id,
-                    'lead_name': msg.lead.name if msg.lead else None,
-                    'message_type': msg.message_type,
-                    'content': msg.content,
-                    'variant': msg.variant,
-                    'status': msg.status,
-                    'created_at': msg.created_at.isoformat() if msg.created_at else None
-                })
-            
-            return messages_data
+    def get_all_messages(self, status: str = None) -> List[Dict]:
+        """Get all messages, optionally filtered by status"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                if status:
+                    cursor.execute("""
+                        SELECT m.*, l.name as lead_name, l.title, l.company
+                        FROM messages m
+                        LEFT JOIN leads l ON m.lead_id = l.id
+                        WHERE m.status = ?
+                        ORDER BY m.created_at DESC
+                    """, (status,))
+                else:
+                    cursor.execute("""
+                        SELECT m.*, l.name as lead_name, l.title, l.company
+                        FROM messages m
+                        LEFT JOIN leads l ON m.lead_id = l.id
+                        ORDER BY m.created_at DESC
+                    """)
+                
+                return [dict(row) for row in cursor.fetchall()]
+        except Exception as e:
+            print(f"❌ Error getting messages: {str(e)}")
+            return []
     
-    def get_approved_messages_count(self):
-        """Get count of approved messages waiting to be sent"""
-        with self.session_scope() as session:
-            count = session.query(Message).filter(
-                Message.status == 'approved',
-                Message.sent_at == None
-            ).count()
-            return count
+    def get_message_by_id(self, message_id: int) -> Optional[Dict]:
+        """Get message by ID"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT m.*, l.name as lead_name, l.title, l.company, l.profile_url
+                    FROM messages m
+                    LEFT JOIN leads l ON m.lead_id = l.id
+                    WHERE m.id = ?
+                """, (message_id,))
+                row = cursor.fetchone()
+                return dict(row) if row else None
+        except Exception as e:
+            print(f"❌ Error getting message: {str(e)}")
+            return None
     
-    def get_messages_by_status(self, status, limit=100):
-        """Get messages by status"""
-        with self.session_scope() as session:
-            messages = session.query(Message).filter(
-                Message.status == status
-            ).order_by(desc(Message.created_at)).limit(limit).all()
-            
-            messages_data = []
-            for msg in messages:
-                messages_data.append({
-                    'id': msg.id,
-                    'lead_id': msg.lead_id,
-                    'lead_name': msg.lead.name if msg.lead else None,
-                    'message_type': msg.message_type,
-                    'content': msg.content[:100] + '...' if len(msg.content) > 100 else msg.content,
-                    'variant': msg.variant,
-                    'status': msg.status,
-                    'sent_at': msg.sent_at.isoformat() if msg.sent_at else None,
-                    'created_at': msg.created_at.isoformat() if msg.created_at else None
-                })
-            
-            return messages_data
-    
-    def get_messages_by_status_with_lead_info(self, status=None, lead_id=None, limit=100):
-        """Get messages by status with lead information included"""
-        with self.session_scope() as session:
-            query = session.query(Message).join(Lead)
-            
-            if status:
-                query = query.filter(Message.status == status)
-            
-            if lead_id:
-                query = query.filter(Message.lead_id == lead_id)
-            
-            messages = query.order_by(desc(Message.created_at)).limit(limit).all()
-            
-            messages_data = []
-            for msg in messages:
-                messages_data.append({
-                    'id': msg.id,
-                    'lead_id': msg.lead_id,
-                    'lead_name': msg.lead.name if msg.lead else 'Unknown',
-                    'lead_title': msg.lead.title if msg.lead else None,
-                    'lead_company': msg.lead.company if msg.lead else None,
-                    'message_type': msg.message_type,
-                    'content': msg.content,
-                    'variant': msg.variant,
-                    'status': msg.status,
-                    'generated_by': msg.generated_by,
-                    'sent_at': msg.sent_at.isoformat() if msg.sent_at else None,
-                    'created_at': msg.created_at.isoformat() if msg.created_at else None,
-                    'updated_at': msg.updated_at.isoformat() if msg.updated_at else None
-                })
-            return messages_data
-    
-    def get_message_stats(self):
-        """Get message statistics"""
-        with self.session_scope() as session:
-            stats = {
-                'draft': session.query(Message).filter(Message.status == 'draft').count(),
-                'approved': session.query(Message).filter(Message.status == 'approved').count(),
-                'sent': session.query(Message).filter(Message.status == 'sent').count(),
-                'total': session.query(Message).count()
-            }
-            return stats
-    
-    def delete_message(self, message_id):
-        """Delete a message"""
-        with self.session_scope() as session:
-            message = session.query(Message).filter(Message.id == message_id).first()
-            if message:
-                session.delete(message)
-                return True
-            return False
-
-    def get_messages_by_lead(self, lead_id):
+    def get_messages_by_lead(self, lead_id: int) -> List[Dict]:
         """Get all messages for a lead"""
         try:
-            with self.session_scope() as session:
-                messages = session.query(Message).filter(
-                    Message.lead_id == lead_id
-                ).order_by(Message.created_at.desc()).all()
-                
-                return messages
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT * FROM messages
+                    WHERE lead_id = ?
+                    ORDER BY created_at DESC
+                """, (lead_id,))
+                return [dict(row) for row in cursor.fetchall()]
         except Exception as e:
-            print(f"Error getting messages: {str(e)}")
+            print(f"❌ Error getting messages for lead: {str(e)}")
             return []
     
-    def update_message_status(self, message_id, status, sent_at=None):
+    def update_message_status(self, message_id: int, new_status: str) -> bool:
         """Update message status"""
-        with self.session_scope() as session:
-            message = session.query(Message).filter(Message.id == message_id).first()
-            if message:
-                message.status = status
-                if sent_at:
-                    message.sent_at = sent_at
-                elif status == 'sent':
-                    message.sent_at = datetime.utcnow()
-                message.updated_at = datetime.utcnow()
-                return True
-            return False
-    
-    # CAMPAIGN OPERATIONS
-    
-    def create_campaign(self, user_id, name, description=None, search_filters=None):
-        """Create a new campaign"""
-        with self.session_scope() as session:
-            campaign = Campaign(
-                user_id=user_id,
-                name=name,
-                description=description,
-                search_filters=search_filters
-            )
-            session.add(campaign)
-            session.flush()
-            return campaign.id
-    
-    def get_campaign_by_id(self, campaign_id):
-        """Get campaign by ID"""
-        with self.session_scope() as session:
-            return session.query(Campaign).filter(Campaign.id == campaign_id).first()
-    
-    def update_campaign_metrics(self, campaign_id, **metrics):
-        """Update campaign metrics"""
-        with self.session_scope() as session:
-            campaign = session.query(Campaign).filter(Campaign.id == campaign_id).first()
-            if campaign:
-                for key, value in metrics.items():
-                    if hasattr(campaign, key):
-                        setattr(campaign, key, value)
-                campaign.updated_at = datetime.utcnow()
-                return True
-            return False
-    
-    # RESPONSE OPERATIONS
-    
-    def create_response(self, lead_id, response_text, response_type, sentiment=None,
-                       intent=None, next_action=None):
-        """Create a new response"""
-        with self.session_scope() as session:
-            response = Response(
-                lead_id=lead_id,
-                response_text=response_text,
-                response_type=response_type,
-                sentiment=sentiment,
-                intent=intent,
-                next_action=next_action
-            )
-            session.add(response)
-            session.flush()
-            return response.id
-    
-    # ACTIVITY LOG OPERATIONS
-    
-    def log_activity(self, activity_type, description, status='success', 
-                    lead_id=None, campaign_id=None, error_message=None):
-        """Log an activity"""
-        with self.session_scope() as session:
-            log = ActivityLog(
-                activity_type=activity_type,
-                description=description,
-                status=status,
-                lead_id=lead_id,
-                campaign_id=campaign_id,
-                error_message=error_message
-            )
-            session.add(log)
-            session.flush()
-            return log.id
-    
-    def get_recent_activities(self, limit=50):
-        """Get recent activity logs"""
-        with self.session_scope() as session:
-            logs = session.query(ActivityLog).order_by(desc(ActivityLog.created_at)).limit(limit).all()
-            
-            logs_data = []
-            for log in logs:
-                logs_data.append({
-                    'id': log.id,
-                    'activity_type': log.activity_type,
-                    'description': log.description,
-                    'status': log.status,
-                    'error_message': log.error_message,
-                    'lead_id': log.lead_id,
-                    'campaign_id': log.campaign_id,
-                    'created_at': log.created_at.isoformat() if log.created_at else None
-                })
-            
-            return logs_data
-    
-    # ANALYTICS OPERATIONS
-    
-    def get_dashboard_stats(self):
-        """Get dashboard statistics"""
-        with self.session_scope() as session:
-            stats = {
-                'total_leads': session.query(Lead).count(),
-                'qualified_leads': session.query(Lead).filter(Lead.ai_score >= 70).count(),
-                'messages_sent': session.query(Message).filter(Message.status == 'sent').count(),
-                'replies_received': session.query(Response).count(),
-                'avg_score': session.query(func.avg(Lead.ai_score)).scalar() or 0,
-            }
-            return stats
-    
-    def get_leads_by_persona(self):
-        """Get lead count by persona"""
-        with self.session_scope() as session:
-            results = session.query(
-                Persona.name,
-                func.count(Lead.id).label('count')
-            ).join(Lead).group_by(Persona.name).all()
-            
-            return {name: count for name, count in results}
-    
-    def get_message_performance(self):
-        """Get message performance metrics"""
-        with self.session_scope() as session:
-            total_sent = session.query(Message).filter(Message.status == 'sent').count()
-            total_replied = session.query(Message).filter(Message.was_replied == True).count()
-            
-            reply_rate = (total_replied / total_sent * 100) if total_sent > 0 else 0
-            
-            return {
-                'total_sent': total_sent,
-                'total_replied': total_replied,
-                'reply_rate': round(reply_rate, 2)
-            }
-    
-    # AB TEST OPERATIONS
-    
-    def create_ab_test(self, test_name, campaign_id=None, lead_persona=None, min_sends=20):
-        """Create a new A/B/C test"""
-        with self.session_scope() as session:
-            from backend.database.models import ABTest
-            
-            ab_test = ABTest(
-                test_name=test_name,
-                campaign_id=campaign_id,
-                lead_persona=lead_persona,
-                min_sends_required=min_sends
-            )
-            session.add(ab_test)
-            session.flush()
-            
-            print(f"✅ Created A/B test: {test_name} (ID: {ab_test.id})")
-            return ab_test.id
-
-    def get_ab_test_by_id(self, test_id):
-        """Get AB test by ID with all statistics"""
-        with self.session_scope() as session:
-            from backend.database.models import ABTest
-            
-            test = session.query(ABTest).filter(ABTest.id == test_id).first()
-            
-            if not test:
-                return None
-            
-            return {
-                'id': test.id,
-                'test_name': test.test_name,
-                'campaign_id': test.campaign_id,
-                'lead_persona': test.lead_persona,
-                'status': test.status,
-                'winning_variant': test.winning_variant,
-                'variant_a': test.get_variant_stats('A'),
-                'variant_b': test.get_variant_stats('B'),
-                'variant_c': test.get_variant_stats('C'),
-                'min_sends_required': test.min_sends_required,
-                'confidence_threshold': test.confidence_threshold,
-                'created_at': test.created_at.isoformat() if test.created_at else None,
-                'completed_at': test.completed_at.isoformat() if test.completed_at else None
-            }
-
-    def get_all_ab_tests(self, status=None):
-        """Get all AB tests, optionally filtered by status"""
-        with self.session_scope() as session:
-            from backend.database.models import ABTest
-            
-            query = session.query(ABTest)
-            
-            if status:
-                query = query.filter(ABTest.status == status)
-            
-            tests = query.order_by(desc(ABTest.created_at)).all()
-            
-            tests_data = []
-            for test in tests:
-                total_sent = test.variant_a_sent + test.variant_b_sent + test.variant_c_sent
-                total_replies = test.variant_a_replies + test.variant_b_replies + test.variant_c_replies
-                
-                tests_data.append({
-                    'id': test.id,
-                    'test_name': test.test_name,
-                    'status': test.status,
-                    'winning_variant': test.winning_variant,
-                    'total_sent': total_sent,
-                    'total_replies': total_replies,
-                    'overall_reply_rate': (total_replies / total_sent * 100) if total_sent > 0 else 0,
-                    'created_at': test.created_at.isoformat() if test.created_at else None
-                })
-            
-            return tests_data
-
-    def get_active_ab_tests(self):
-        """Get all active AB tests"""
-        return self.get_all_ab_tests(status='active')
-
-    def get_next_variant_for_test(self, test_id):
-        """Get the next variant to assign using round-robin"""
-        with self.session_scope() as session:
-            from backend.database.models import ABTest
-            
-            test = session.query(ABTest).filter(ABTest.id == test_id).first()
-            
-            if not test:
-                return 'A'
-            
-            sends = {
-                'A': test.variant_a_sent,
-                'B': test.variant_b_sent,
-                'C': test.variant_c_sent
-            }
-            
-            return min(sends, key=sends.get)
-
-    def record_ab_test_message_sent(self, test_id, variant):
-        """Record that a message was sent for a specific variant"""
-        with self.session_scope() as session:
-            from backend.database.models import ABTest
-            
-            test = session.query(ABTest).filter(ABTest.id == test_id).first()
-            
-            if not test:
-                return False
-            
-            variant = variant.upper()
-            variant_lower = variant.lower()
-            
-            current_sent = getattr(test, f'variant_{variant_lower}_sent')
-            setattr(test, f'variant_{variant_lower}_sent', current_sent + 1)
-            
-            print(f"📧 Recorded send for Variant {variant} in test '{test.test_name}'")
-            return True
-
-    def record_ab_test_reply(self, test_id, variant, sentiment_score=0.5):
-        """Record a reply for a variant and recalculate metrics"""
-        with self.session_scope() as session:
-            from backend.database.models import ABTest
-            import statistics
-            
-            test = session.query(ABTest).filter(ABTest.id == test_id).first()
-            
-            if not test:
-                return False
-            
-            variant = variant.upper()
-            variant_lower = variant.lower()
-            
-            replies = getattr(test, f'variant_{variant_lower}_replies')
-            positive_replies = getattr(test, f'variant_{variant_lower}_positive_replies')
-            avg_sentiment = getattr(test, f'variant_{variant_lower}_avg_sentiment')
-            sent = getattr(test, f'variant_{variant_lower}_sent')
-            
-            new_replies = replies + 1
-            new_positive = positive_replies + (1 if sentiment_score > 0.6 else 0)
-            new_avg_sentiment = ((avg_sentiment * replies) + sentiment_score) / new_replies
-            new_reply_rate = (new_replies / sent * 100) if sent > 0 else 0
-            
-            setattr(test, f'variant_{variant_lower}_replies', new_replies)
-            setattr(test, f'variant_{variant_lower}_positive_replies', new_positive)
-            setattr(test, f'variant_{variant_lower}_avg_sentiment', new_avg_sentiment)
-            setattr(test, f'variant_{variant_lower}_reply_rate', new_reply_rate)
-            
-            print(f"💬 Recorded reply for Variant {variant}: {new_reply_rate:.1f}% reply rate")
-            
-            self._check_and_declare_winner(test)
-            
-            return True
-
-    def _check_and_declare_winner(self, test):
-        """Internal method to check if test has enough data to declare winner"""
-        import statistics
-        
-        if test.status == 'completed':
-            return None
-        
-        if (test.variant_a_sent < test.min_sends_required or 
-            test.variant_b_sent < test.min_sends_required or 
-            test.variant_c_sent < test.min_sends_required):
-            return None
-        
-        rates = {
-            'A': test.variant_a_reply_rate,
-            'B': test.variant_b_reply_rate,
-            'C': test.variant_c_reply_rate
-        }
-        
-        winner = max(rates, key=rates.get)
-        winner_rate = rates[winner]
-        
-        other_rates = [r for v, r in rates.items() if v != winner]
-        avg_other_rate = statistics.mean(other_rates) if other_rates else 0
-        
-        if winner_rate >= avg_other_rate + (test.confidence_threshold * 100):
-            test.winning_variant = winner
-            test.status = 'completed'
-            test.completed_at = datetime.utcnow()
-            
-            print(f"🏆 WINNER DECLARED: Variant {winner} ({winner_rate:.1f}% reply rate)")
-            print(f"   Test '{test.test_name}' completed!")
-            
-            return winner
-        
-        return None
-
-    def update_ab_test_status(self, test_id, status):
-        """Update AB test status"""
-        with self.session_scope() as session:
-            from backend.database.models import ABTest
-            
-            test = session.query(ABTest).filter(ABTest.id == test_id).first()
-            
-            if test:
-                test.status = status
-                if status == 'completed' and not test.completed_at:
-                    test.completed_at = datetime.utcnow()
-                return True
-            
-            return False
-
-    def get_ab_test_leaderboard(self):
-        """Get performance leaderboard of all completed tests"""
-        with self.session_scope() as session:
-            from backend.database.models import ABTest
-            
-            tests = session.query(ABTest).filter(
-                ABTest.status == 'completed'
-            ).order_by(desc(ABTest.completed_at)).all()
-            
-            leaderboard = []
-            for test in tests:
-                winner_stats = test.get_variant_stats(test.winning_variant) if test.winning_variant else None
-                
-                leaderboard.append({
-                    'test_name': test.test_name,
-                    'winning_variant': test.winning_variant,
-                    'winner_reply_rate': winner_stats['reply_rate'] if winner_stats else 0,
-                    'total_sent': (test.variant_a_sent + test.variant_b_sent + test.variant_c_sent),
-                    'completed_at': test.completed_at.isoformat() if test.completed_at else None
-                })
-            
-            return leaderboard
-
-    def create_message_with_ab_test(self, lead_id, test_id, message_type, content, 
-                                    campaign_id=None, prompt_used=None, status='draft'):
-        """Create a message and automatically assign variant from AB test"""
-        variant = self.get_next_variant_for_test(test_id)
-        
-        message_id = self.create_message(
-            lead_id=lead_id,
-            message_type=message_type,
-            content=content,
-            campaign_id=campaign_id,
-            variant=variant,
-            prompt_used=prompt_used,
-            status=status
-        )
-        
-        with self.session_scope() as session:
-            from backend.database.models import Message
-            
-            message = session.query(Message).filter(Message.id == message_id).first()
-            if message:
-                message.ab_test_id = test_id
-        
-        print(f"✅ Created message with Variant {variant} for test ID {test_id}")
-        
-        return message_id, variant
-
-    def get_ab_test_performance_comparison(self, test_id):
-        """Get detailed performance comparison for all variants"""
-        test_data = self.get_ab_test_by_id(test_id)
-        
-        if not test_data:
-            return None
-        
-        variants = ['A', 'B', 'C']
-        comparison = {
-            'test_name': test_data['test_name'],
-            'status': test_data['status'],
-            'winning_variant': test_data['winning_variant'],
-            'variants': []
-        }
-        
-        for variant in variants:
-            stats = test_data[f'variant_{variant.lower()}']
-            comparison['variants'].append({
-                'variant': variant,
-                'sent': stats['sent'],
-                'replies': stats['replies'],
-                'reply_rate': stats['reply_rate'],
-                'avg_sentiment': stats['avg_sentiment'],
-                'is_winner': variant == test_data['winning_variant']
-            })
-        
-        return comparison
-    
-    def get_message_by_id(self, message_id: int):
-        """Get a single message by ID with lead information"""
-        with self.session_scope() as session:
-            message = session.query(Message).filter(Message.id == message_id).first()
-            
-            if not message:
-                return None
-            
-            return {
-                'id': message.id,
-                'lead_id': message.lead_id,
-                'lead_name': message.lead.name if message.lead else None,
-                'message_type': message.message_type,
-                'content': message.content,
-                'variant': message.variant,
-                'status': message.status,
-                'sent_at': message.sent_at.isoformat() if message.sent_at else None,
-                'created_at': message.created_at.isoformat() if message.created_at else None
-            }
-    
-    def delete_lead(self, lead_id):
-        """Delete a lead from database"""
         try:
-            with self.session_scope() as session:
-                lead = session.query(Lead).filter_by(id=lead_id).first()
-                if lead:
-                    session.delete(lead)
-                    return True
-                return False
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                update_data = {
+                    'status': new_status,
+                    'updated_at': datetime.now().isoformat()
+                }
+                
+                if new_status == 'sent':
+                    update_data['sent_at'] = datetime.now().isoformat()
+                
+                fields = ', '.join([f"{key} = ?" for key in update_data.keys()])
+                values = list(update_data.values()) + [message_id]
+                
+                cursor.execute(f"UPDATE messages SET {fields} WHERE id = ?", values)
+                
+                return cursor.rowcount > 0
         except Exception as e:
-            print(f"Error deleting lead: {e}")
+            print(f"❌ Error updating message status: {str(e)}")
             return False
     
-    # MESSAGE TEMPLATE OPERATIONS
-    
-    def save_message_template(self, template_text):
-        """Save a message template"""
+    def get_pending_messages(self, limit: int = 10) -> List[Dict]:
+        """Get approved messages ready to send"""
         try:
-            with self.session_scope() as session:
-                from backend.database.models import MessageTemplate
-                
-                template = MessageTemplate(
-                    template=template_text,
-                    created_at=datetime.utcnow()
-                )
-                session.add(template)
-                session.flush()
-                
-                print(f"✅ Template saved (ID: {template.id})")
-                return template.id
-                
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT m.*, l.name as lead_name, l.profile_url
+                    FROM messages m
+                    LEFT JOIN leads l ON m.lead_id = l.id
+                    WHERE m.status = 'approved'
+                    ORDER BY m.created_at
+                    LIMIT ?
+                """, (limit,))
+                return [dict(row) for row in cursor.fetchall()]
         except Exception as e:
-            print(f"❌ Error saving template: {str(e)}")
-            return None
-
-    def get_all_message_templates(self):
-        """Get all message templates"""
-        try:
-            with self.session_scope() as session:
-                from backend.database.models import MessageTemplate
-                
-                templates = session.query(MessageTemplate).order_by(
-                    desc(MessageTemplate.created_at)
-                ).all()
-                
-                templates_data = []
-                for t in templates:
-                    templates_data.append({
-                        'id': t.id,
-                        'template': t.template,
-                        'created_at': t.created_at.isoformat() if t.created_at else None
-                    })
-                
-                return templates_data
-                
-        except Exception as e:
-            print(f"❌ Error getting templates: {str(e)}")
+            print(f"❌ Error getting pending messages: {str(e)}")
             return []
-
-    def get_message_template(self, template_id):
-        """Get a single message template"""
+    
+    def delete_message(self, message_id: int) -> bool:
+        """Delete message"""
         try:
-            with self.session_scope() as session:
-                from backend.database.models import MessageTemplate
-                
-                template = session.query(MessageTemplate).filter(
-                    MessageTemplate.id == template_id
-                ).first()
-                
-                if template:
-                    return {
-                        'id': template.id,
-                        'template': template.template,
-                        'created_at': template.created_at.isoformat() if template.created_at else None
-                    }
-                
-                return None
-                
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM messages WHERE id = ?", (message_id,))
+                return cursor.rowcount > 0
         except Exception as e:
-            print(f"❌ Error getting template: {str(e)}")
-            return None
-
-    def delete_message_template(self, template_id):
-        """Delete a message template"""
-        try:
-            with self.session_scope() as session:
-                from backend.database.models import MessageTemplate
-                
-                template = session.query(MessageTemplate).filter(
-                    MessageTemplate.id == template_id
-                ).first()
-                
-                if template:
-                    session.delete(template)
-                    return True
-                
-                return False
-                
-        except Exception as e:
-            print(f"❌ Error deleting template: {str(e)}")
+            print(f"❌ Error deleting message: {str(e)}")
             return False
-
-    def update_message_content(self, message_id, new_content):
-        """Update a message's content"""
+    
+    # ========================================================================
+    # ACTIVITY LOG METHODS
+    # ========================================================================
+    
+    def log_activity(self, activity_type: str, description: str, status: str = 'success',
+                    lead_id: int = None, campaign_id: int = None, error_message: str = None):
+        """Log an activity"""
         try:
-            with self.session_scope() as session:
-                message = session.query(Message).filter(
-                    Message.id == message_id
-                ).first()
-                
-                if message:
-                    message.content = new_content
-                    message.updated_at = datetime.utcnow()
-                    print(f"✅ Message {message_id} content updated")
-                    return True
-                else:
-                    print(f"❌ Message {message_id} not found")
-                    return False
-                
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO activity_logs (
+                        activity_type, description, status, lead_id,
+                        campaign_id, error_message, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    activity_type,
+                    description,
+                    status,
+                    lead_id,
+                    campaign_id,
+                    error_message,
+                    datetime.now().isoformat()
+                ))
         except Exception as e:
-            print(f"❌ Error updating message content: {str(e)}")
-            return False
-# ADD THIS METHOD TO backend/backend/database/db_manager.py in the DatabaseManager class
+            print(f"❌ Error logging activity: {str(e)}")
+    
+    def get_recent_activities(self, limit: int = 50) -> List[Dict]:
+        """Get recent activities"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT * FROM activity_logs
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                """, (limit,))
+                return [dict(row) for row in cursor.fetchall()]
+        except Exception as e:
+            print(f"❌ Error getting activities: {str(e)}")
+            return []
+    
+    # ========================================================================
+    # STATISTICS METHODS
+    # ========================================================================
+    
+    def get_dashboard_stats(self) -> Dict:
+        """Get statistics for dashboard"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Total leads
+                cursor.execute("SELECT COUNT(*) FROM leads")
+                total_leads = cursor.fetchone()[0]
+                
+                # Qualified leads (score >= 70)
+                cursor.execute("SELECT COUNT(*) FROM leads WHERE ai_score >= 70")
+                qualified_leads = cursor.fetchone()[0]
+                
+                # Contacted leads
+                cursor.execute("SELECT COUNT(*) FROM leads WHERE status = 'contacted'")
+                contacted_leads = cursor.fetchone()[0]
+                
+                # Messages stats
+                cursor.execute("SELECT COUNT(*), status FROM messages GROUP BY status")
+                message_stats = {row[1]: row[0] for row in cursor.fetchall()}
+                
+                # Personas count
+                cursor.execute("SELECT COUNT(*) FROM personas")
+                personas_count = cursor.fetchone()[0]
+                
+                return {
+                    'total_leads': total_leads,
+                    'qualified_leads': qualified_leads,
+                    'contacted_leads': contacted_leads,
+                    'personas_count': personas_count,
+                    'messages_draft': message_stats.get('draft', 0),
+                    'messages_approved': message_stats.get('approved', 0),
+                    'messages_sent': message_stats.get('sent', 0),
+                    'timestamp': datetime.now().isoformat()
+                }
+        except Exception as e:
+            print(f"❌ Error getting dashboard stats: {str(e)}")
+            return {}
 
-    def update_persona(self, persona_id: int, updates: dict) -> bool:
-        """app
-        Update persona fields
-        
-        Args:
-            persona_id: ID of persona to update
-            updates: Dictionary of field names and new values
-            
-        Returns:
-            True if successful, False if persona not found
-        """
-        with self.session_scope() as session:
-            from backend.database.models import Persona
-            
-            persona = session.query(Persona).filter(Persona.id == persona_id).first()
-            
-            if not persona:
-                return False
-            
-            # Update fields
-            for field, value in updates.items():
-                if hasattr(persona, field):
-                    setattr(persona, field, value)
-            
-            persona.updated_at = datetime.utcnow()
-            
-            return True
-    """
-    Add this method to db_manager.py after line 1063 (before the singleton instance)
-    """
 
-    def delete_persona(self, persona_id: int) -> bool:
-        """
-        Delete a persona and all associated leads
-        
-        Args:
-            persona_id: ID of persona to delete
-            
-        Returns:
-            True if successful, False if persona not found
-        """
-        with self.session_scope() as session:
-            from backend.database.models import Persona
-            
-            persona = session.query(Persona).filter(Persona.id == persona_id).first()
-            
-            if not persona:
-                return False
-            
-            # SQLAlchemy will handle cascade delete for leads if configured
-            session.delete(persona)
-            
-            return True
 # Singleton instance
-db_manager = DatabaseManager()
+_db_manager_instance = None
+
+def get_db_manager(db_path: str = None) -> DatabaseManager:
+    """Get singleton database manager instance"""
+    global _db_manager_instance
+    if _db_manager_instance is None:
+        _db_manager_instance = DatabaseManager(db_path)
+    return _db_manager_instance
+
+
+# For backward compatibility
+db_manager = get_db_manager()
+
+
+if __name__ == '__main__':
+    """Test database manager"""
+    print("\n" + "="*70)
+    print("🧪 TESTING DATABASE MANAGER")
+    print("="*70)
+    
+    # Test connection
+    print("\n1️⃣ Testing connection...")
+    manager = DatabaseManager()
+    if manager.test_connection():
+        print("   ✅ Connection successful")
+    else:
+        print("   ❌ Connection failed")
+    
+    # Test stats
+    print("\n2️⃣ Getting dashboard stats...")
+    stats = manager.get_dashboard_stats()
+    print(f"   Total leads: {stats.get('total_leads', 0)}")
+    print(f"   Qualified leads: {stats.get('qualified_leads', 0)}")
+    print(f"   Personas: {stats.get('personas_count', 0)}")
+    
+    print("\n" + "="*70)
+    print("✅ Database manager test complete!")
+    print("="*70)

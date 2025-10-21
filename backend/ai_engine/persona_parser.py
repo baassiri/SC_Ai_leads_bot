@@ -370,7 +370,18 @@ class PersonaParser:
             print(f"   Tone: {persona.get('message_tone', 'N/A')}")
         
         print("\n" + "="*60)
+    # For lead_routes.py - ADD THIS TO THE END:
+    def register_lead_routes(app, db_manager):
+        """Register lead routes blueprint"""
+        app.register_blueprint(lead_routes)
+        print("✅ Lead routes registered")
 
+
+    # For message_routes.py - ADD THIS TO THE END:
+    def register_message_routes(app, db_manager):
+        """Register message routes blueprint"""
+        app.register_blueprint(message_routes)
+        print("✅ Message routes registered")
 
 # CLI for testing
 if __name__ == '__main__':

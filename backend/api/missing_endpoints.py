@@ -1,359 +1,382 @@
 """
-SC AI Lead Generation System - Missing API Endpoints
-Add these endpoints to fix frontend-backend integration
-
-USAGE:
-------
-1. Import this module in backend/app.py:
-   from backend.api.missing_endpoints import register_missing_endpoints
-
-2. Call after creating Flask app:
-   register_missing_endpoints(app, db_manager, credentials_manager)
-
-3. Restart Flask server
+Missing API Endpoints - Placeholder implementations
+These are the endpoints referenced in app.py that don't have their own route files yet
 """
 
 from flask import jsonify, request
+from datetime import datetime
 
 
 def register_missing_endpoints(app, db_manager, credentials_manager):
-    """
-    Register all missing API endpoints
+    """Register all missing API endpoints as placeholders"""
     
-    Args:
-        app: Flask application instance
-        db_manager: Database manager instance
-        credentials_manager: Credentials manager instance
-    """
+    # ====================================================================
+    # LEAD ROUTES
+    # ====================================================================
     
-    print("✅ Missing endpoints registered successfully!")
-    print("   - GET  /api/settings")
-    print("   - POST /api/settings/save")
-    print("   - POST /api/settings/test")
-    print("   - GET  /api/auth/check-credentials")
-    print("   - GET  /api/leads/stats")
-    print("   - DELETE /api/leads/<id>")
-    print("   - POST /api/leads/<id>/archive")
-    print("   - POST /api/leads/bulk-delete")
-    print("   - POST /api/leads/bulk-archive")
-    
-    # ============================================================================
-    # SETTINGS ENDPOINTS
-    # ============================================================================
-    
-    @app.route('/api/settings', methods=['GET'])
-    def get_settings():
-        """Get current system settings"""
+    @app.route('/api/leads', methods=['GET'])
+    def get_leads():
+        """Get all leads"""
         try:
-            # FIXED: Use get_all_credentials() instead of get_credentials()
-            creds = credentials_manager.get_all_credentials()
-            
+            leads = db_manager.get_all_leads()
             return jsonify({
                 'success': True,
-                'linkedin_email': creds.get('linkedin_email', ''),
-                'max_leads': 100,
-                'scrape_delay': 3.0,
-                'sales_nav_enabled': creds.get('sales_nav_enabled', False),
-                'headless_mode': False,
-                'messages_per_hour': 15,
-                'connection_limit': 50
+                'leads': leads,
+                'total': len(leads)
             })
         except Exception as e:
-            print(f"Error getting settings: {e}")
             return jsonify({
                 'success': False,
-                'message': f'Error: {str(e)}'
+                'error': str(e)
             }), 500
     
-    
-    @app.route('/api/settings/save', methods=['POST'])
-    def save_settings():
-        """Save system settings (alias for /api/auth/save-credentials)"""
+    @app.route('/api/leads/<int:lead_id>', methods=['GET'])
+    def get_lead(lead_id):
+        """Get single lead"""
         try:
-            data = request.json
-            
-            # Extract credentials
-            linkedin_email = data.get('linkedin_email', '').strip()
-            linkedin_password = data.get('linkedin_password', '').strip()
-            openai_api_key = data.get('openai_api_key', '').strip()
-            sales_nav_enabled = data.get('sales_nav_enabled', False)
-            
-            if not all([linkedin_email, linkedin_password, openai_api_key]):
-                return jsonify({
-                    'success': False,
-                    'message': 'All credentials are required'
-                }), 400
-            
-            # Save credentials
-            success = credentials_manager.save_all_credentials(
-                linkedin_email=linkedin_email,
-                linkedin_password=linkedin_password,
-                openai_api_key=openai_api_key,
-                sales_nav_enabled=sales_nav_enabled
-            )
-            
-            if success:
-                # Log activity
-                db_manager.log_activity(
-                    activity_type='settings_saved',
-                    description='System settings updated',
-                    status='success'
-                )
-                
+            lead = db_manager.get_lead_by_id(lead_id)
+            if lead:
                 return jsonify({
                     'success': True,
-                    'message': 'Settings saved successfully!'
+                    'lead': lead
                 })
             else:
                 return jsonify({
                     'success': False,
-                    'message': 'Failed to save settings'
-                }), 500
-            
-        except Exception as e:
-            print(f"Error saving settings: {e}")
-            return jsonify({
-                'success': False,
-                'message': f'Error: {str(e)}'
-            }), 500
-    
-    
-    @app.route('/api/settings/test', methods=['POST'])
-    def test_settings():
-        """Test LinkedIn and OpenAI credentials"""
-        try:
-            # FIXED: Use get_all_credentials()
-            creds = credentials_manager.get_all_credentials()
-            
-            results = {
-                'linkedin': False,
-                'openai': False,
-                'messages': []
-            }
-            
-            # Check LinkedIn
-            if creds.get('linkedin_email') and creds.get('linkedin_password'):
-                results['linkedin'] = True
-                results['messages'].append('LinkedIn credentials found')
-            else:
-                results['messages'].append('LinkedIn credentials missing')
-            
-            # Check OpenAI
-            if creds.get('openai_api_key'):
-                results['openai'] = True
-                results['messages'].append('OpenAI API key found')
-            else:
-                results['messages'].append('OpenAI API key missing')
-            
-            all_valid = results['linkedin'] and results['openai']
-            
-            return jsonify({
-                'success': all_valid,
-                'message': ' | '.join(results['messages']),
-                'details': results
-            })
-            
+                    'error': 'Lead not found'
+                }), 404
         except Exception as e:
             return jsonify({
                 'success': False,
-                'message': f'Error: {str(e)}'
+                'error': str(e)
             }), 500
-    
-    
-    # ============================================================================
-    # AUTH ENDPOINTS
-    # ============================================================================
-    
-    @app.route('/api/auth/check-credentials', methods=['GET'])
-    def check_credentials():
-        """Check if credentials are configured"""
-        try:
-            # FIXED: Use the correct method names
-            linkedin_creds = credentials_manager.get_linkedin_credentials()
-            openai_key = credentials_manager.get_openai_key()
-            
-            configured = bool(linkedin_creds and openai_key)
-            
-            return jsonify({
-                'success': True,
-                'configured': configured,
-                'linkedin': bool(linkedin_creds),
-                'openai': bool(openai_key)
-            })
-            
-        except Exception as e:
-            print(f"Error checking credentials: {str(e)}")
-            return jsonify({
-                'success': False,
-                'configured': False,
-                'linkedin': False,
-                'openai': False,
-                'message': f'Error: {str(e)}'
-            }), 500
-    
-    
-    # ============================================================================
-    # LEADS ENDPOINTS
-    # ============================================================================
-    
-    @app.route('/api/leads/stats', methods=['GET'])
-    def get_lead_stats():
-        """Get lead statistics"""
-        try:
-            # Get counts from database
-            all_leads = db_manager.get_all_leads(limit=1000)
-            
-            total = len(all_leads)
-            qualified = len([l for l in all_leads if l.get('score', 0) >= 70])
-            contacted = len([l for l in all_leads if l.get('status') == 'contacted'])
-            replied = len([l for l in all_leads if l.get('status') == 'replied'])
-            
-            return jsonify({
-                'success': True,
-                'stats': {
-                    'total': total,
-                    'qualified': qualified,
-                    'contacted': contacted,
-                    'replied': replied
-                }
-            })
-        except Exception as e:
-            print(f"Error getting lead stats: {e}")
-            return jsonify({
-                'success': False,
-                'message': f'Error: {str(e)}'
-            }), 500
-    
     
     @app.route('/api/leads/<int:lead_id>', methods=['DELETE'])
     def delete_lead(lead_id):
-        """Delete a lead"""
+        """Delete lead"""
         try:
             success = db_manager.delete_lead(lead_id)
-            
             if success:
-                db_manager.log_activity(
-                    activity_type='lead_deleted',
-                    description=f'Lead {lead_id} deleted',
-                    status='success'
-                )
-                
                 return jsonify({
                     'success': True,
-                    'message': 'Lead deleted successfully'
+                    'message': 'Lead deleted'
                 })
             else:
                 return jsonify({
                     'success': False,
-                    'message': 'Lead not found'
+                    'error': 'Lead not found'
                 }), 404
-                
         except Exception as e:
             return jsonify({
                 'success': False,
-                'message': f'Error: {str(e)}'
+                'error': str(e)
             }), 500
     
-    
-    @app.route('/api/leads/<int:lead_id>/archive', methods=['POST'])
-    def archive_lead(lead_id):
-        """Archive a lead"""
+    @app.route('/api/leads/bulk-update', methods=['POST'])
+    def bulk_update_leads():
+        """Bulk update leads"""
         try:
-            success = db_manager.update_lead_status(lead_id, 'archived')
+            data = request.json
+            lead_ids = data.get('lead_ids', [])
+            updates = data.get('updates', {})
+            
+            updated = 0
+            for lead_id in lead_ids:
+                if db_manager.update_lead(lead_id, updates):
+                    updated += 1
+            
+            return jsonify({
+                'success': True,
+                'updated': updated,
+                'message': f'Updated {updated} leads'
+            })
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+    
+    @app.route('/api/leads/export', methods=['GET'])
+    def export_leads():
+        """Export leads to CSV"""
+        # TODO: Implement CSV export
+        return jsonify({
+            'success': False,
+            'message': 'CSV export not yet implemented'
+        }), 501
+    
+    # ====================================================================
+    # MESSAGE ROUTES
+    # ====================================================================
+    
+    @app.route('/api/messages', methods=['GET'])
+    def get_messages():
+        """Get all messages"""
+        try:
+            status = request.args.get('status')
+            messages = db_manager.get_all_messages(status=status)
+            
+            # Group messages by lead
+            grouped = {}
+            for msg in messages:
+                lead_id = msg['lead_id']
+                if lead_id not in grouped:
+                    grouped[lead_id] = {
+                        'lead_id': lead_id,
+                        'lead_name': msg.get('lead_name'),
+                        'title': msg.get('title'),
+                        'company': msg.get('company'),
+                        'messages': []
+                    }
+                grouped[lead_id]['messages'].append(msg)
+            
+            return jsonify({
+                'success': True,
+                'messages': list(grouped.values()),
+                'total': len(messages)
+            })
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+    
+    @app.route('/api/messages/<int:message_id>', methods=['PUT'])
+    def update_message(message_id):
+        """Update message"""
+        try:
+            data = request.json
+            new_status = data.get('status')
+            
+            if new_status:
+                success = db_manager.update_message_status(message_id, new_status)
+            else:
+                success = False
             
             if success:
-                db_manager.log_activity(
-                    activity_type='lead_archived',
-                    description=f'Lead {lead_id} archived',
-                    status='success'
-                )
-                
                 return jsonify({
                     'success': True,
-                    'message': 'Lead archived successfully'
+                    'message': 'Message updated'
                 })
             else:
                 return jsonify({
                     'success': False,
-                    'message': 'Lead not found'
+                    'error': 'Update failed'
+                }), 400
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+    
+    @app.route('/api/messages/<int:message_id>', methods=['DELETE'])
+    def delete_message(message_id):
+        """Delete message"""
+        try:
+            success = db_manager.delete_message(message_id)
+            if success:
+                return jsonify({
+                    'success': True,
+                    'message': 'Message deleted'
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': 'Message not found'
                 }), 404
-                
         except Exception as e:
             return jsonify({
                 'success': False,
-                'message': f'Error: {str(e)}'
+                'error': str(e)
             }), 500
     
+    @app.route('/api/messages/generate', methods=['POST'])
+    def generate_messages():
+        """Generate messages for selected leads"""
+        # TODO: Implement AI message generation
+        return jsonify({
+            'success': False,
+            'message': 'Message generation not yet implemented. Upload to /api/messages/generate-bulk instead.'
+        }), 501
     
-    @app.route('/api/leads/bulk-delete', methods=['POST'])
-    def bulk_delete_leads():
-        """Delete multiple leads"""
+    # ====================================================================
+    # PERSONA ROUTES
+    # ====================================================================
+    
+    @app.route('/api/personas', methods=['GET'])
+    def get_personas():
+        """Get all personas"""
         try:
-            data = request.json
-            lead_ids = data.get('lead_ids', [])
-            
-            if not lead_ids:
-                return jsonify({
-                    'success': False,
-                    'message': 'No lead IDs provided'
-                }), 400
-            
-            deleted_count = 0
-            for lead_id in lead_ids:
-                if db_manager.delete_lead(lead_id):
-                    deleted_count += 1
-            
-            db_manager.log_activity(
-                activity_type='bulk_delete',
-                description=f'{deleted_count} leads deleted',
-                status='success'
-            )
-            
+            personas = db_manager.get_all_personas()
             return jsonify({
                 'success': True,
-                'message': f'{deleted_count} leads deleted',
-                'deleted_count': deleted_count
+                'personas': personas,
+                'total': len(personas)
             })
-            
         except Exception as e:
             return jsonify({
                 'success': False,
-                'message': f'Error: {str(e)}'
+                'error': str(e)
             }), 500
     
-    
-    @app.route('/api/leads/bulk-archive', methods=['POST'])
-    def bulk_archive_leads():
-        """Archive multiple leads"""
+    @app.route('/api/personas/<int:persona_id>', methods=['GET'])
+    def get_persona(persona_id):
+        """Get single persona"""
         try:
-            data = request.json
-            lead_ids = data.get('lead_ids', [])
-            
-            if not lead_ids:
+            persona = db_manager.get_persona_by_id(persona_id)
+            if persona:
+                return jsonify({
+                    'success': True,
+                    'persona': persona
+                })
+            else:
                 return jsonify({
                     'success': False,
-                    'message': 'No lead IDs provided'
-                }), 400
-            
-            archived_count = 0
-            for lead_id in lead_ids:
-                if db_manager.update_lead_status(lead_id, 'archived'):
-                    archived_count += 1
-            
-            db_manager.log_activity(
-                activity_type='bulk_archive',
-                description=f'{archived_count} leads archived',
-                status='success'
-            )
-            
-            return jsonify({
-                'success': True,
-                'message': f'{archived_count} leads archived',
-                'archived_count': archived_count
-            })
-            
+                    'error': 'Persona not found'
+                }), 404
         except Exception as e:
             return jsonify({
                 'success': False,
-                'message': f'Error: {str(e)}'
+                'error': str(e)
             }), 500
+    
+    # ====================================================================
+    # DASHBOARD/STATS ROUTES
+    # ====================================================================
+    
+    @app.route('/api/dashboard/stats', methods=['GET'])
+    def get_dashboard_stats():
+        """Get dashboard statistics"""
+        try:
+            stats = db_manager.get_dashboard_stats()
+            return jsonify({
+                'success': True,
+                'stats': stats
+            })
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+    
+    @app.route('/api/activity/recent', methods=['GET'])
+    def get_recent_activity():
+        """Get recent activity logs"""
+        try:
+            limit = int(request.args.get('limit', 50))
+            activities = db_manager.get_recent_activities(limit=limit)
+            return jsonify({
+                'success': True,
+                'activities': activities,
+                'total': len(activities)
+            })
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+    
+    # ====================================================================
+    # PLACEHOLDER ROUTES (Not Yet Implemented)
+    # ====================================================================
+    
+    @app.route('/api/schedule/batch', methods=['POST'])
+    def schedule_batch():
+        """Schedule batch messages"""
+        return jsonify({
+            'success': False,
+            'message': 'Batch scheduling not yet implemented'
+        }), 501
+    
+    @app.route('/api/analytics/dashboard', methods=['GET'])
+    def analytics_dashboard():
+        """Analytics dashboard data"""
+        return jsonify({
+            'success': False,
+            'message': 'Analytics not yet implemented'
+        }), 501
+    
+    @app.route('/api/sales-nav/config', methods=['GET', 'POST'])
+    def sales_nav_config():
+        """Sales Navigator configuration"""
+        return jsonify({
+            'success': False,
+            'message': 'Sales Navigator not yet implemented'
+        }), 501
+    
+    @app.route('/api/leads/<int:lead_id>/timeline', methods=['GET'])
+    def lead_timeline(lead_id):
+        """Get lead timeline"""
+        return jsonify({
+            'success': False,
+            'message': 'Timeline not yet implemented'
+        }), 501
+    
+    @app.route('/api/leads/<int:lead_id>/timeline/summary', methods=['GET'])
+    def timeline_summary(lead_id):
+        """Get timeline summary"""
+        return jsonify({
+            'success': True,
+            'summary': {
+                'total_events': 0,
+                'messages_generated': 0,
+                'messages_sent': 0,
+                'replies_received': 0
+            }
+        })
+    
+    @app.route('/api/ab-tests/auto-analyze', methods=['POST'])
+    def auto_analyze_tests():
+        """Auto-analyze A/B tests"""
+        return jsonify({
+            'success': False,
+            'message': 'A/B testing not yet implemented'
+        }), 501
+    
+    @app.route('/api/ab-tests/winners', methods=['GET'])
+    def get_ab_winners():
+        """Get A/B test winners"""
+        return jsonify({
+            'success': True,
+            'winners': []
+        })
+    
+    @app.route('/api/ab-tests/best-practices', methods=['GET'])
+    def get_best_practices():
+        """Get best practices from tests"""
+        return jsonify({
+            'success': True,
+            'best_practices': []
+        })
+    
+    print("✅ Missing endpoints registered as placeholders")
+
+
+# Dummy registration functions for routes that don't exist yet
+def register_lead_routes(app, db_manager):
+    """Placeholder - routes registered in register_missing_endpoints"""
+    pass
+
+def register_message_routes(app, db_manager):
+    """Placeholder - routes registered in register_missing_endpoints"""
+    pass
+
+def register_persona_routes(app, db_manager):
+    """Placeholder - routes registered in register_missing_endpoints"""
+    pass
+
+def register_template_routes(app, db_manager):
+    """Placeholder - routes registered in register_missing_endpoints"""
+    pass
+
+def register_timeline_routes(app, db_manager):
+    """Placeholder - routes registered in register_missing_endpoints"""
+    pass
+
+def register_scheduling_routes(app, db_manager):
+    """Placeholder - routes registered in register_missing_endpoints"""
+    pass
+
+def register_analytics_routes(app, db_manager):
+    """Placeholder - routes registered in register_missing_endpoints"""
+    pass

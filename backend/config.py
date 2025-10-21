@@ -1,194 +1,212 @@
 """
-SC AI Lead Generation System - Configuration
-Handles environment variables and application settings
+Configuration Module for SC AI Lead Generation System
+Handles all application settings and environment variables
 """
 
 import os
-from dotenv import load_dotenv
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Load environment variables from .env file
-basedir = Path(__file__).parent.parent
-load_dotenv(basedir / '.env')
+load_dotenv()
 
 
 class Config:
-    """Base configuration class"""
+    """Application configuration"""
     
-    # ===========================
-    # Application Settings
-    # ===========================
+    # ========================================================================
+    # PATHS
+    # ========================================================================
+    
+    # Base directories
+    BASE_DIR = Path(__file__).parent.parent
+    DATA_DIR = BASE_DIR / 'data'
+    UPLOAD_DIR = DATA_DIR / 'uploads'
+    EXPORT_DIR = DATA_DIR / 'exports'
+    LOG_DIR = BASE_DIR / 'logs'
+    
+    # Database
+    DATABASE_PATH = DATA_DIR / 'database.db'
+    
+    # ========================================================================
+    # FLASK SETTINGS
+    # ========================================================================
+    
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
     DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
-    FLASK_APP = os.getenv('FLASK_APP', 'backend/app.py')
     FLASK_ENV = os.getenv('FLASK_ENV', 'development')
     
-    # ===========================
-    # Database Configuration
-    # ===========================
-    DATABASE_URL = os.getenv('DATABASE_URL', f'sqlite:///{basedir}/data/database.db')
-    SQLALCHEMY_DATABASE_URI = DATABASE_URL
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SQLALCHEMY_ECHO = DEBUG  # Log SQL queries in debug mode
+    # ========================================================================
+    # CORS SETTINGS
+    # ========================================================================
     
-    # ===========================
-    # OpenAI Configuration
-    # ===========================
+    CORS_ORIGINS = [
+        'http://localhost:5000',
+        'http://127.0.0.1:5000',
+        'http://localhost:3000',  # React dev server if used
+    ]
+    
+    # ========================================================================
+    # API KEYS
+    # ========================================================================
+    
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
     OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-4-turbo-preview')
     OPENAI_MAX_TOKENS = int(os.getenv('OPENAI_MAX_TOKENS', '2000'))
     OPENAI_TEMPERATURE = float(os.getenv('OPENAI_TEMPERATURE', '0.7'))
     
-    # ===========================
-    # LinkedIn Configuration
-    # ===========================
+    # ========================================================================
+    # LINKEDIN SETTINGS
+    # ========================================================================
+    
     LINKEDIN_EMAIL = os.getenv('LINKEDIN_EMAIL', '')
     LINKEDIN_PASSWORD = os.getenv('LINKEDIN_PASSWORD', '')
-    SALES_NAVIGATOR_ENABLED = os.getenv('SALES_NAVIGATOR_ENABLED', 'True').lower() == 'true'
+    SALES_NAVIGATOR_ENABLED = os.getenv('SALES_NAVIGATOR_ENABLED', 'False').lower() == 'true'
     
-    # Scraping settings
+    # Scraping limits
     SCRAPE_DELAY_MIN = int(os.getenv('SCRAPE_DELAY_MIN', '2'))
     SCRAPE_DELAY_MAX = int(os.getenv('SCRAPE_DELAY_MAX', '5'))
     MAX_LEADS_PER_SESSION = int(os.getenv('MAX_LEADS_PER_SESSION', '100'))
     
-    # ===========================
-    # HubSpot Configuration
-    # ===========================
-    HUBSPOT_API_KEY = os.getenv('HUBSPOT_API_KEY', '')
-    HUBSPOT_ENABLED = os.getenv('HUBSPOT_ENABLED', 'False').lower() == 'true'
+    # ========================================================================
+    # AUTOMATION SETTINGS
+    # ========================================================================
     
-    # ===========================
-    # Automation Settings
-    # ===========================
+    # Message sending rate limits
     MESSAGES_PER_HOUR = int(os.getenv('MESSAGES_PER_HOUR', '15'))
+    MESSAGES_PER_DAY = int(os.getenv('MESSAGES_PER_DAY', '50'))
     CONNECTION_REQUEST_LIMIT = int(os.getenv('CONNECTION_REQUEST_LIMIT', '10'))
+    
+    # Follow-up settings
     FOLLOW_UP_DELAY_DAYS = int(os.getenv('FOLLOW_UP_DELAY_DAYS', '3'))
     MAX_FOLLOW_UPS = int(os.getenv('MAX_FOLLOW_UPS', '2'))
     
-    # ===========================
-    # Redis & Celery (for background tasks)
-    # ===========================
+    # ========================================================================
+    # HUBSPOT INTEGRATION (Optional)
+    # ========================================================================
+    
+    HUBSPOT_API_KEY = os.getenv('HUBSPOT_API_KEY', '')
+    HUBSPOT_ENABLED = os.getenv('HUBSPOT_ENABLED', 'False').lower() == 'true'
+    
+    # ========================================================================
+    # REDIS/CELERY (Optional - for background tasks)
+    # ========================================================================
+    
     REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
-    CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', REDIS_URL)
-    CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', REDIS_URL)
+    CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+    CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
     
-    # ===========================
-    # File Paths
-    # ===========================
-    BASE_DIR = basedir
-    DATA_DIR = basedir / 'data'
-    UPLOAD_DIR = DATA_DIR / 'uploads'
-    EXPORT_DIR = DATA_DIR / 'exports'
-    PERSONA_DIR = DATA_DIR / 'personas'
-    LOG_DIR = basedir / 'logs'
+    # ========================================================================
+    # LOGGING
+    # ========================================================================
     
-    # Create directories if they don't exist
-    for directory in [DATA_DIR, UPLOAD_DIR, EXPORT_DIR, PERSONA_DIR, LOG_DIR]:
-        directory.mkdir(parents=True, exist_ok=True)
-    
-    # ===========================
-    # Logging Configuration
-    # ===========================
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
     LOG_FILE = LOG_DIR / 'app.log'
     
-    # ===========================
-    # Security
-    # ===========================
+    # ========================================================================
+    # SECURITY
+    # ========================================================================
+    
     ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
-    CORS_ORIGINS = os.getenv('CORS_ORIGINS', 'http://localhost:5000,http://127.0.0.1:5000').split(',')
     
-    # ===========================
-    # Target Personas
-    # ===========================
-    PERSONAS = [
-        'Plastic Surgeon',
-        'Dermatologist',
-        'Med Spa Owner',
-        'Day Spa',
-        'Wellness Center',
-        'Aesthetic Clinic'
-    ]
+    # ========================================================================
+    # FILE UPLOAD
+    # ========================================================================
     
-    # ===========================
-    # Lead Scoring Weights
-    # ===========================
-    SCORING_WEIGHTS = {
-        'title_match': 0.35,      # 35% weight for job title relevance
-        'company_size': 0.25,     # 25% weight for company size
-        'geography': 0.20,        # 20% weight for location match
-        'profile_quality': 0.20   # 20% weight for profile completeness
-    }
+    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max upload
+    ALLOWED_EXTENSIONS = {'docx', 'doc', 'txt', 'pdf', 'csv'}
     
-    # ===========================
-    # Message Templates
-    # ===========================
-    MESSAGE_TYPES = [
-        'connection_request',
-        'follow_up_1',
-        'follow_up_2'
-    ]
+    # ========================================================================
+    # HELPER METHODS
+    # ========================================================================
     
     @staticmethod
-    def validate():
-        """Validate critical configuration"""
-        errors = []
+    def get_database_path() -> Path:
+        """Get database path"""
+        return Config.DATABASE_PATH
+    
+    @staticmethod
+    def ensure_directories():
+        """Ensure all required directories exist"""
+        directories = [
+            Config.DATA_DIR,
+            Config.UPLOAD_DIR,
+            Config.EXPORT_DIR,
+            Config.LOG_DIR
+        ]
+        
+        for directory in directories:
+            directory.mkdir(parents=True, exist_ok=True)
+    
+    @staticmethod
+    def validate_config() -> dict:
+        """Validate configuration and return status"""
+        status = {
+            'valid': True,
+            'errors': [],
+            'warnings': []
+        }
+        
+        # Check required settings
+        if not Config.SECRET_KEY or Config.SECRET_KEY == 'dev-secret-key-change-in-production':
+            status['warnings'].append('SECRET_KEY is using default value - change in production')
         
         if not Config.OPENAI_API_KEY:
-            errors.append("OPENAI_API_KEY is not set")
+            status['errors'].append('OPENAI_API_KEY is not set')
+            status['valid'] = False
         
         if not Config.LINKEDIN_EMAIL or not Config.LINKEDIN_PASSWORD:
-            errors.append("LinkedIn credentials not set")
+            status['warnings'].append('LinkedIn credentials are not configured')
         
-        if errors:
-            raise ValueError(f"Configuration errors:\n" + "\n".join(f"- {e}" for e in errors))
+        # Check directories
+        try:
+            Config.ensure_directories()
+        except Exception as e:
+            status['errors'].append(f'Could not create directories: {str(e)}')
+            status['valid'] = False
+        
+        return status
     
     @staticmethod
-    def get_project_root():
-        """Get project root directory"""
-        return Config.BASE_DIR
+    def print_config():
+        """Print current configuration (for debugging)"""
+        print("\n" + "="*70)
+        print("⚙️  CONFIGURATION")
+        print("="*70)
+        print(f"Environment: {Config.FLASK_ENV}")
+        print(f"Debug: {Config.DEBUG}")
+        print(f"Database: {Config.DATABASE_PATH}")
+        print(f"OpenAI Key: {'Set' if Config.OPENAI_API_KEY else 'Not set'}")
+        print(f"LinkedIn Email: {Config.LINKEDIN_EMAIL or 'Not set'}")
+        print(f"Sales Navigator: {Config.SALES_NAVIGATOR_ENABLED}")
+        print(f"Messages/Hour: {Config.MESSAGES_PER_HOUR}")
+        print("="*70 + "\n")
+
+
+# Initialize directories on import
+Config.ensure_directories()
+
+
+if __name__ == '__main__':
+    """Test configuration"""
+    print("Testing Configuration...")
     
-    @staticmethod
-    def get_database_path():
-        """Get database file path"""
-        if Config.DATABASE_URL.startswith('sqlite:///'):
-            return Config.DATABASE_URL.replace('sqlite:///', '')
-        return None
-
-
-class DevelopmentConfig(Config):
-    """Development-specific configuration"""
-    DEBUG = True
-    TESTING = False
-
-
-class ProductionConfig(Config):
-    """Production-specific configuration"""
-    DEBUG = False
-    TESTING = False
+    Config.print_config()
     
-    # Use default SQLite if DATABASE_URL not set
-    DATABASE_URL = os.getenv('DATABASE_URL', f'sqlite:///{Config.BASE_DIR}/data/database.db')
-    SQLALCHEMY_DATABASE_URI = DATABASE_URL
-
-
-class TestingConfig(Config):
-    """Testing-specific configuration"""
-    TESTING = True
-    DEBUG = True
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'  # Use in-memory database for tests
-
-
-# Configuration dictionary
-config = {
-    'development': DevelopmentConfig,
-    'production': ProductionConfig,
-    'testing': TestingConfig,
-    'default': DevelopmentConfig
-}
-
-
-def get_config():
-    """Get current configuration based on FLASK_ENV"""
-    env = os.getenv('FLASK_ENV', 'development')
-    return config.get(env, config['default'])
+    status = Config.validate_config()
+    
+    print("\n📋 Validation Results:")
+    print(f"Valid: {status['valid']}")
+    
+    if status['errors']:
+        print("\n❌ Errors:")
+        for error in status['errors']:
+            print(f"  - {error}")
+    
+    if status['warnings']:
+        print("\n⚠️  Warnings:")
+        for warning in status['warnings']:
+            print(f"  - {warning}")
+    
+    if status['valid'] and not status['warnings']:
+        print("\n✅ Configuration is valid!")
