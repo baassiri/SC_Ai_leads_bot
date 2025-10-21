@@ -1,677 +1,160 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 
 {% block title %}Settings - SC AI{% endblock %}
 {% block page_title %}Settings{% endblock %}
 
-{% block extra_styles %}
-<style>
-/* Beautiful modern styling matching your theme */
-.settings-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 20px;
-}
-
-.card {
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
-  margin-bottom: 24px;
-  overflow: hidden;
-}
-
-.card-head {
-  display: flex;
-  align-items: center;
-  padding: 20px 24px;
-  border-bottom: 1px solid #f1f5f9;
-}
-
-.card-head .icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 16px;
-  flex-shrink: 0;
-}
-
-.card-head .icon svg {
-  width: 20px;
-  height: 20px;
-  stroke: white;
-  fill: none;
-}
-
-.card-title strong {
-  display: block;
-  font-size: 16px;
-  font-weight: 600;
-  color: #1e293b;
-  margin-bottom: 4px;
-}
-
-.card-title span {
-  display: block;
-  font-size: 13px;
-  color: #64748b;
-}
-
-.field {
-  padding: 20px 24px;
-  border-bottom: 1px solid #f1f5f9;
-}
-
-.field:last-child {
-  border-bottom: none;
-}
-
-.field label {
-  display: block;
-  font-weight: 500;
-  font-size: 14px;
-  color: #334155;
-  margin-bottom: 8px;
-}
-
-.field input[type="email"],
-.field input[type="password"],
-.field input[type="text"],
-.field input[type="number"] {
-  width: 100%;
-  padding: 10px 14px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 14px;
-  transition: all 0.2s;
-  background: #ffffff;
-}
-
-.field input:focus {
-  outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-.field input.small {
-  width: 150px;
-}
-
-.field .hint {
-  font-size: 12px;
-  color: #64748b;
-  margin-top: 6px;
-}
-
-.field .hint a {
-  color: #667eea;
-  text-decoration: none;
-}
-
-.field .hint a:hover {
-  text-decoration: underline;
-}
-
-.input-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.input-row input {
-  flex: 1;
-}
-
-.btn-ghost {
-  background: transparent;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  padding: 10px 14px;
-  font-size: 13px;
-  color: #64748b;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: all 0.2s;
-  white-space: nowrap;
-}
-
-.btn-ghost:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-}
-
-.btn-ghost svg {
-  width: 16px;
-  height: 16px;
-}
-
-.checkbox-row {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.checkbox {
-  display: flex;
-  align-items: center;
-  font-size: 14px;
-  color: #334155;
-  cursor: pointer;
-}
-
-.checkbox input {
-  margin-right: 8px;
-  cursor: pointer;
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-}
-
-.btn {
-  padding: 12px 24px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border: none;
-}
-
-.btn svg {
-  width: 16px;
-  height: 16px;
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-}
-
-.btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-}
-
-.btn-secondary {
-  background: #f8fafc;
-  color: #475569;
-  border: 1px solid #e2e8f0;
-}
-
-.btn-secondary:hover {
-  background: #f1f5f9;
-}
-
-.btn-outline {
-  background: transparent;
-  color: #475569;
-  border: 1px solid #e2e8f0;
-}
-
-.btn-outline:hover {
-  background: #f8fafc;
-}
-
-.alert {
-  padding: 16px 20px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  display: none;
-  align-items: center;
-  gap: 12px;
-}
-
-.alert.show {
-  display: flex;
-}
-
-.alert-success {
-  background: #ecfdf5;
-  color: #059669;
-  border: 1px solid #a7f3d0;
-}
-
-.alert-error {
-  background: #fef2f2;
-  color: #dc2626;
-  border: 1px solid #fecaca;
-}
-
-.alert-info {
-  background: #eff6ff;
-  color: #2563eb;
-  border: 1px solid #bfdbfe;
-}
-
-.actions-card {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 24px;
-  align-items: center;
-}
-
-.help-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 24px;
-  border-radius: 12px;
-  margin-bottom: 24px;
-}
-
-.help-card strong {
-  font-size: 16px;
-  display: block;
-  margin-bottom: 12px;
-}
-
-.help-card ul {
-  font-size: 14px;
-  line-height: 1.8;
-  list-style: none;
-  padding: 0;
-  opacity: 0.95;
-}
-
-.help-card li {
-  margin-bottom: 8px;
-}
-
-@media (max-width: 768px) {
-  .form-row {
-    grid-template-columns: 1fr;
-  }
-  
-  .actions-card {
-    flex-direction: column;
-  }
-  
-  .field input.small {
-    width: 100%;
-  }
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-</style>
-{% endblock %}
-
 {% block content %}
-<div class="settings-container">
-  <!-- Status Message -->
-  <div id="statusMessage" class="alert"></div>
-
-  <!-- LinkedIn Credentials -->
-  <section class="card">
-    <div class="card-head">
-      <div class="icon">
-        <svg viewBox="0 0 24 24" fill="none">
-          <path d="M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-2-2 2 2 0 00-2 2v7h-4v-7a6 6 0 016-6zM2 9h4v12H2z" stroke="white" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-          <circle cx="4" cy="4" r="2" stroke="white" stroke-width="1.4"/>
-        </svg>
-      </div>
-      <div class="card-title">
-        <strong>LinkedIn Credentials</strong>
-        <span>Required for scraping leads and sending connection requests</span>
-      </div>
-    </div>
-
-    <form id="linkedin-form" autocomplete="off">
-      <div class="field">
-        <label for="li-email">LinkedIn Email</label>
-        <input type="email" id="li-email" name="li_email" placeholder="you@company.com" />
-        <div class="hint">Use the email associated with your LinkedIn account</div>
-      </div>
-
-      <div class="field">
-        <label for="li-password">LinkedIn Password</label>
-        <div class="input-row">
-          <input type="password" id="li-password" name="li_password" placeholder="••••••••••" />
-          <button class="btn-ghost" type="button" onclick="togglePassword('li-password')">
-            <svg viewBox="0 0 24 24" fill="none">
-              <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" stroke="currentColor" stroke-width="1.4"/>
-              <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.4"/>
-            </svg>
-            Show
-          </button>
+<div class="max-w-4xl mx-auto">
+    <!-- LinkedIn Credentials Section -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 class="text-xl font-bold mb-4">LinkedIn Credentials</h2>
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium mb-2">Email</label>
+                <input type="email" id="li-email" class="w-full px-3 py-2 border rounded" placeholder="your@email.com">
+            </div>
+            <div>
+                <label class="block text-sm font-medium mb-2">Password</label>
+                <input type="password" id="li-password" class="w-full px-3 py-2 border rounded" placeholder="••••••••">
+            </div>
         </div>
-        <div class="hint">Your password is stored securely and encrypted</div>
-      </div>
-    </form>
-  </section>
-
-  <!-- OpenAI API Key -->
-  <section class="card">
-    <div class="card-head">
-      <div class="icon">
-        <svg viewBox="0 0 24 24" fill="none">
-          <circle cx="12" cy="12" r="3" stroke="white" stroke-width="1.4"/>
-          <path d="M12 1v6m0 6v6M23 12h-6m-6 0H5" stroke="white" stroke-width="1.4" stroke-linecap="round"/>
-        </svg>
-      </div>
-      <div class="card-title">
-        <strong>OpenAI API Key</strong>
-        <span>Used for AI-powered message generation & personalization</span>
-      </div>
     </div>
-
-    <form id="openai-form">
-      <div class="field">
-        <label for="openai-key">API Key</label>
-        <input type="password" id="openai-key" name="openai_key" placeholder="sk-proj-..." />
-        <div class="hint">
-          Get your API key from 
-          <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Platform</a>
-        </div>
-      </div>
-    </form>
-  </section>
-
-  <!-- Scraping Settings -->
-  <section class="card">
-    <div class="card-head">
-      <div class="icon">
-        <svg viewBox="0 0 24 24" fill="none">
-          <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" stroke="white" stroke-width="1.4"/>
-          <path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12" stroke="white" stroke-width="1.4"/>
-        </svg>
-      </div>
-      <div class="card-title">
-        <strong>Scraping Settings</strong>
-        <span>Control scraping limits and behavior</span>
-      </div>
+    
+    <!-- OpenAI API Key Section -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 class="text-xl font-bold mb-4">OpenAI API Key</h2>
+        <input type="password" id="openai-key" class="w-full px-3 py-2 border rounded" placeholder="sk-...">
+        <p class="text-sm text-gray-500 mt-2">Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" class="text-blue-500 hover:underline">OpenAI Platform</a></p>
     </div>
-
-    <form id="scrape-form">
-      <div class="field">
-        <div class="form-row">
-          <div>
-            <label for="max-leads">Max Leads Per Session</label>
-            <input type="number" id="max-leads" name="max_leads" min="10" max="500" value="100" class="small" />
-            <div class="hint">Maximum leads to scrape in one session</div>
-          </div>
-          <div>
-            <label for="delay">Delay Between Requests (sec)</label>
-            <input type="number" id="delay" name="delay_sec" min="1" max="10" value="3" step="0.5" class="small" />
-            <div class="hint">Higher delays reduce detection risk</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="field">
-        <label>Options</label>
-        <div class="checkbox-row">
-          <label class="checkbox">
-            <input type="checkbox" id="sales-nav-enabled" name="sales_nav" checked />
-            <span>Prefer Sales Navigator (if available)</span>
-          </label>
-          <label class="checkbox">
-            <input type="checkbox" id="headless-mode" name="headless" />
-            <span>Run in Headless Mode (invisible browser)</span>
-          </label>
-          <label class="checkbox">
-            <input type="checkbox" name="skip-duplicates" checked />
-            <span>Skip duplicate profiles automatically</span>
-          </label>
-        </div>
-      </div>
-    </form>
-  </section>
-
-  <!-- Messaging Settings -->
-  <section class="card">
-    <div class="card-head">
-      <div class="icon">
-        <svg viewBox="0 0 24 24" fill="none">
-          <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="white" stroke-width="1.4"/>
-        </svg>
-      </div>
-      <div class="card-title">
-        <strong>Messaging Settings</strong>
-        <span>Rate limits and connection settings</span>
-      </div>
+    
+    <!-- Action Buttons -->
+    <div class="flex gap-4">
+        <button onclick="saveSettings()" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded transition">
+            Save Settings
+        </button>
+        <button onclick="testConnection()" class="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded transition">
+            Test Connection
+        </button>
     </div>
-
-    <form id="msg-form">
-      <div class="field">
-        <div class="form-row">
-          <div>
-            <label for="messages-hour">Messages Per Hour</label>
-            <input type="number" id="messages-hour" name="messages_hour" min="1" max="20" value="10" class="small" />
-            <div class="hint">LinkedIn recommends max 10-15/hour</div>
-          </div>
-          <div>
-            <label for="connection-limit">Daily Connection Limit</label>
-            <input type="number" id="connection-limit" name="connection_limit" min="5" max="50" value="10" class="small" />
-            <div class="hint">Max connection requests per day</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="field">
-        <label>Advanced</label>
-        <div class="checkbox-row">
-          <label class="checkbox">
-            <input type="checkbox" name="personalize" checked />
-            <span>Personalize messages with AI (GPT-4)</span>
-          </label>
-          <label class="checkbox">
-            <input type="checkbox" name="follow-up" checked />
-            <span>Enable automated follow-ups</span>
-          </label>
-        </div>
-      </div>
-    </form>
-  </section>
-
-  <!-- Action Buttons -->
-  <section class="card">
-    <div class="card-head">
-      <div class="icon">
-        <svg viewBox="0 0 24 24" fill="none">
-          <path d="M9 11l3 3L22 4" stroke="white" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke="white" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </div>
-      <div class="card-title">
-        <strong>Actions</strong>
-        <span>Test your connection and save settings</span>
-      </div>
-    </div>
-
-    <div class="actions-card">
-      <button class="btn btn-secondary" id="test-connection" onclick="testConnection(event)">
-        <svg viewBox="0 0 24 24" fill="none">
-          <path d="M22 11.08V12a10 10 0 11-5.93-9.14" stroke="currentColor" stroke-width="1.4"/>
-          <path d="M22 4L12 14.01l-3-3" stroke="currentColor" stroke-width="1.4"/>
-        </svg>
-        Test Connection
-      </button>
-
-      <button class="btn btn-primary" id="save-settings" onclick="saveSettings(event)">
-        <svg viewBox="0 0 24 24" fill="none">
-          <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" stroke="white" stroke-width="1.4"/>
-          <path d="M17 21v-8H7v8M7 3v5h8" stroke="white" stroke-width="1.4"/>
-        </svg>
-        Save Settings
-      </button>
-
-      <button class="btn btn-outline" onclick="resetDefaults()">
-        <svg viewBox="0 0 24 24" fill="none">
-          <path d="M3 12a9 9 0 019-9 9.75 9.75 0 016.74 2.74L21 8" stroke="currentColor" stroke-width="1.4"/>
-          <path d="M21 3v5h-5" stroke="currentColor" stroke-width="1.4"/>
-        </svg>
-        Reset
-      </button>
-    </div>
-  </section>
-
-  <!-- Help Card -->
-  <div class="help-card">
-    <strong>💡 Quick Tips</strong>
-    <ul>
-      <li>✓ Use a dedicated LinkedIn account for scraping if possible</li>
-      <li>✓ Start with low message limits and increase gradually</li>
-      <li>✓ Test your credentials before starting bulk operations</li>
-      <li>✓ Keep your OpenAI API key secure and never share it</li>
-    </ul>
-  </div>
+    
+    <!-- Message Area -->
+    <div id="message" class="mt-4"></div>
 </div>
 {% endblock %}
 
-{% block extra_js %}
+{% block extra_scripts %}
 <script>
-// Load settings on page load
-document.addEventListener('DOMContentLoaded', () => {
-    loadSettings();
-    if (typeof feather !== 'undefined') {
-        feather.replace();
-    }
-});
+console.log("Settings script loading...");
 
-async function loadSettings() {
-    try {
-        const response = await fetch('/api/settings');
-        if (response.ok) {
-            const data = await response.json();
-            if (data.linkedin_email) document.getElementById('li-email').value = data.linkedin_email;
-            if (data.max_leads) document.getElementById('max-leads').value = data.max_leads;
-            if (data.scrape_delay) document.getElementById('delay').value = data.scrape_delay;
-            if (data.sales_nav_enabled !== undefined) document.getElementById('sales-nav-enabled').checked = data.sales_nav_enabled;
-            if (data.headless_mode !== undefined) document.getElementById('headless-mode').checked = data.headless_mode;
-            if (data.messages_per_hour) document.getElementById('messages-hour').value = data.messages_per_hour;
-            if (data.connection_limit) document.getElementById('connection-limit').value = data.connection_limit;
-        }
-    } catch (error) {
-        console.error('Error loading settings:', error);
-    }
-}
-
-async function saveSettings(event) {
-    event.preventDefault();
+/**
+ * Save settings to server
+ */
+async function saveSettings() {
+    console.log("💾 Saving settings...");
     
-    const settings = {
-        linkedin_email: document.getElementById('li-email').value.trim(),
-        linkedin_password: document.getElementById('li-password').value.trim(),
-        openai_api_key: document.getElementById('openai-key').value.trim(),
-        max_leads: parseInt(document.getElementById('max-leads').value),
-        scrape_delay: parseFloat(document.getElementById('delay').value),
-        sales_nav_enabled: document.getElementById('sales-nav-enabled').checked,
-        headless_mode: document.getElementById('headless-mode').checked,
-        messages_per_hour: parseInt(document.getElementById('messages-hour').value),
-        connection_limit: parseInt(document.getElementById('connection-limit').value)
-    };
+    const email = document.getElementById('li-email').value.trim();
+    const password = document.getElementById('li-password').value.trim();
+    const apiKey = document.getElementById('openai-key').value.trim();
     
-    if (!settings.linkedin_email) {
-        showMessage('LinkedIn email is required', 'error');
+    // Validate inputs
+    if (!email || !password) {
+        showMessage('❌ LinkedIn email and password are required', 'error');
         return;
     }
     
-    const saveBtn = document.getElementById('save-settings');
-    const originalHTML = saveBtn.innerHTML;
-    saveBtn.innerHTML = '<svg style="width:16px;height:16px;animation:spin 1s linear infinite;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="white" stroke-width="3" fill="none" stroke-dasharray="60" stroke-dashoffset="15"/></svg> Saving...';
-    saveBtn.disabled = true;
+    if (!apiKey) {
+        showMessage('❌ OpenAI API key is required', 'error');
+        return;
+    }
+    
+    const settings = {
+        linkedin_email: email,
+        linkedin_password: password,
+        openai_api_key: apiKey
+    };
     
     try {
-        const response = await fetch('/api/settings/save', {
+        showMessage('⏳ Saving settings...', 'info');
+        
+        const response = await fetch('/api/auth/save-credentials', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(settings)
         });
         
         const result = await response.json();
-        saveBtn.innerHTML = originalHTML;
-        saveBtn.disabled = false;
         
         if (result.success) {
-            showMessage('✓ Settings saved successfully!', 'success');
-            setTimeout(loadSettings, 1000);
+            showMessage('✅ ' + (result.message || 'Settings saved successfully!'), 'success');
         } else {
-            showMessage('✗ ' + (result.message || 'Error saving settings'), 'error');
+            showMessage('❌ ' + (result.message || 'Error saving settings'), 'error');
         }
     } catch (error) {
-        saveBtn.innerHTML = originalHTML;
-        saveBtn.disabled = false;
-        showMessage('✗ Error saving settings', 'error');
+        console.error('Error saving settings:', error);
+        showMessage('❌ Error: ' + error.message, 'error');
     }
 }
 
-async function testConnection(event) {
-    event.preventDefault();
-    
-    const testBtn = document.getElementById('test-connection');
-    const originalHTML = testBtn.innerHTML;
-    testBtn.innerHTML = '<svg style="width:16px;height:16px;animation:spin 1s linear infinite;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="60" stroke-dashoffset="15"/></svg> Testing...';
-    testBtn.disabled = true;
+/**
+ * Test connection to all services
+ */
+async function testConnection() {
+    console.log("🧪 Testing connection...");
     
     try {
-        const response = await fetch('/api/settings/test', { method: 'POST' });
+        showMessage('⏳ Testing connections...', 'info');
+        
+        const response = await fetch('/api/auth/test-connection', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ service: 'all' })
+        });
+        
         const result = await response.json();
         
-        testBtn.innerHTML = originalHTML;
-        testBtn.disabled = false;
-        
         if (result.success) {
-            showMessage('✓ All credentials are valid!', 'success');
+            // Format the multi-line message
+            const formattedMessage = result.message.replace(/\n/g, '<br>');
+            showMessage(formattedMessage, 'success', true);
         } else {
-            showMessage('✗ ' + (result.message || 'Connection test failed'), 'error');
+            const formattedMessage = result.message.replace(/\n/g, '<br>');
+            showMessage(formattedMessage, 'error', true);
         }
     } catch (error) {
-        testBtn.innerHTML = originalHTML;
-        testBtn.disabled = false;
-        showMessage('✗ Error testing connection', 'error');
+        console.error('Error testing connection:', error);
+        showMessage('❌ Error: ' + error.message, 'error');
     }
 }
 
-function togglePassword(fieldId) {
-    const field = document.getElementById(fieldId);
-    const button = event.target.closest('button');
+/**
+ * Show message to user
+ */
+function showMessage(text, type = 'info', isHTML = false) {
+    const messageDiv = document.getElementById('message');
     
-    if (field.type === 'password') {
-        field.type = 'text';
-        button.innerHTML = button.innerHTML.replace('Show', 'Hide');
+    const colors = {
+        success: 'bg-green-100 text-green-800 border-green-300',
+        error: 'bg-red-100 text-red-800 border-red-300',
+        info: 'bg-blue-100 text-blue-800 border-blue-300'
+    };
+    
+    messageDiv.className = 'p-4 rounded border-2 ' + (colors[type] || colors.info);
+    
+    if (isHTML) {
+        messageDiv.innerHTML = text;
     } else {
-        field.type = 'password';
-        button.innerHTML = button.innerHTML.replace('Hide', 'Show');
+        messageDiv.textContent = text;
     }
-}
-
-function resetDefaults() {
-    if (confirm('Reset all settings to default values?')) {
-        document.getElementById('max-leads').value = 100;
-        document.getElementById('delay').value = 3;
-        document.getElementById('sales-nav-enabled').checked = true;
-        document.getElementById('headless-mode').checked = false;
-        document.getElementById('messages-hour').value = 10;
-        document.getElementById('connection-limit').value = 10;
-        showMessage('Settings reset to defaults', 'info');
-    }
-}
-
-function showMessage(message, type = 'info') {
-    const messageDiv = document.getElementById('statusMessage');
-    messageDiv.textContent = message;
-    messageDiv.className = `alert alert-${type} show`;
-    window.scrollTo({ top: 0, behavior: 'smooth' });
     
-    if (type === 'success' || type === 'info') {
+    // Auto-hide after 10 seconds for success messages
+    if (type === 'success') {
         setTimeout(() => {
-            messageDiv.classList.remove('show');
-        }, 5000);
+            messageDiv.textContent = '';
+            messageDiv.className = '';
+        }, 10000);
     }
 }
+
+console.log("✅ Settings script loaded!");
 </script>
 {% endblock %}

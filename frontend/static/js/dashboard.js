@@ -9,10 +9,12 @@ document.addEventListener('DOMContentLoaded', function() {
     loadActivityLogs();
     loadRecentLeads();
     loadDetectedPersonas();
+    checkBotStatus();  // ✅ ADDED: Check LinkedIn login status on load
     
     updateInterval = setInterval(function() {
         loadDashboardStats();
         loadRecentLeads();
+        checkBotStatus();  // ✅ ADDED: Check status every 10 seconds
     }, 10000);
     
     activityInterval = setInterval(loadActivityLogs, 5000);
@@ -25,7 +27,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     console.log('Dashboard initialized successfully');
 });
-
 function setupEventListeners() {
     const startBtn = document.getElementById('start-bot');
     if (startBtn) {
@@ -112,8 +113,63 @@ async function loadDashboardStats() {
     } catch (error) {
         console.error('Error loading dashboard stats:', error);
     }
+/**
+ * Check bot status including LinkedIn connection
+ */
+async function checkBotStatus() {
+    try {
+        const response = await fetch('/api/bot/status');
+        const data = await response.json();
+        
+        if (data.success) {
+            // Update LinkedIn status in UI
+            if (typeof updateLinkedInStatus === 'function') {
+                updateLinkedInStatus(data.linkedin_logged_in);
+            }
+            
+            // Update bot status if needed
+            if (data.status && data.status.running) {
+                // Bot is running
+                const startBtn = document.getElementById('start-bot');
+                const stopBtn = document.getElementById('stop-bot');
+                if (startBtn) startBtn.disabled = true;
+                if (stopBtn) stopBtn.disabled = false;
+            } else {
+                // Bot is stopped
+                const startBtn = document.getElementById('start-bot');
+                const stopBtn = document.getElementById('stop-bot');
+                if (startBtn) startBtn.disabled = false;
+                if (stopBtn) stopBtn.disabled = true;
+            }
+        }
+    } catch (error) {
+        console.error('Error checking bot status:', error);
+    }
 }
-
+/**
+ * Update LinkedIn connection status in UI
+ */
+function updateLinkedInStatus(isLoggedIn) {
+    const btn = document.getElementById('linkedin-login-btn');
+    if (!btn) return;
+    
+    if (isLoggedIn) {
+        // Show as logged in
+        btn.innerHTML = '<svg class="h-4 w-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Logged In';
+        btn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+        btn.classList.add('bg-green-600');
+        btn.disabled = false;
+    } else {
+        // Show as not logged in
+        btn.innerHTML = '<i data-feather="linkedin" class="h-4 w-4 mr-2"></i> Login to LinkedIn';
+        btn.classList.remove('bg-green-600');
+        btn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+        btn.disabled = false;
+        if (typeof feather !== 'undefined') {
+            feather.replace();
+        }
+    }
+}
 function updateStatCard(elementId, value) {
     const element = document.getElementById(elementId);
     if (element) {
@@ -291,148 +347,206 @@ function getTimeAgo(timestamp) {
     return days + (days === 1 ? ' day ago' : ' days ago');
 }
 
+// ============================================================================
+// ENHANCED PERSONA CARDS - Add to dashboard.js
+// Replace the loadDetectedPersonas() function with this enhanced version
+// ============================================================================
+
 async function loadDetectedPersonas() {
     try {
         const response = await fetch('/api/personas');
         const data = await response.json();
-        
+
         const container = document.getElementById('personas-container');
         const loading = document.getElementById('personas-loading');
         const empty = document.getElementById('personas-empty');
-        
-        if (loading) loading.style.display = 'none';
-        
+        const list = document.getElementById('personas-list');
+
+        // Hide loading
+        loading.classList.add('hidden');
+
         if (!data.success || !data.personas || data.personas.length === 0) {
-            if (empty) empty.classList.remove('hidden');
+            empty.classList.remove('hidden');
+            list.classList.add('hidden');
             return;
         }
-        
-        if (empty) empty.classList.add('hidden');
-        
+
+        // Show personas list
+        empty.classList.add('hidden');
+        list.classList.remove('hidden');
+
+        // Generate enhanced persona cards HTML
         const personasHTML = data.personas.map(persona => `
-            <div class="bg-white rounded-lg border-2 border-purple-200 p-5 hover:shadow-lg transition-shadow">
-                <div class="flex items-start justify-between mb-3">
-                    <div class="flex-1">
-                        <h4 class="text-lg font-bold text-gray-800 mb-1">${escapeHtml(persona.name)}</h4>
-                        <p class="text-sm text-gray-600">${escapeHtml(persona.description || 'No description')}</p>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="px-3 py-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded-full">
+            <div class="persona-card bg-white rounded-lg border-2 border-gray-200 overflow-hidden hover:border-purple-400 transition-all">
+                <!-- Header -->
+                <div class="bg-gradient-to-r from-purple-500 to-pink-500 p-4">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <h4 class="text-xl font-bold text-white mb-1">${escapeHtml(persona.name)}</h4>
+                            <p class="text-sm text-purple-100">${escapeHtml(persona.description || 'No description')}</p>
+                        </div>
+                        <span class="bg-white bg-opacity-20 text-white text-xs px-2 py-1 rounded-full">
                             ID: ${persona.id}
                         </span>
-                        <button onclick="openEditModal(${persona.id})" class="px-3 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 text-xs font-semibold rounded-full flex items-center gap-1 transition-colors">
-                            <i data-feather="edit-3" class="w-3 h-3"></i>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div class="flex gap-2 mt-3">
+                        <button onclick="viewPersonaDetails(${persona.id})" 
+                                class="flex-1 px-3 py-2 bg-white text-purple-600 text-sm font-semibold rounded-md hover:bg-purple-50 transition-colors flex items-center justify-center gap-1">
+                            <i data-feather="eye" class="w-4 h-4"></i>
+                            View
+                        </button>
+                        <button onclick="openEditModal(${persona.id})" 
+                                class="flex-1 px-3 py-2 bg-purple-600 text-white text-sm font-semibold rounded-md hover:bg-purple-700 transition-colors flex items-center justify-center gap-1">
+                            <i data-feather="edit-2" class="w-4 h-4"></i>
                             Edit
+                        </button>
+                        <button onclick="deletePersona(${persona.id}, '${escapeHtml(persona.name).replace(/'/g, "\\'")}
+
+')" 
+                                class="px-3 py-2 bg-red-500 text-white text-sm font-semibold rounded-md hover:bg-red-600 transition-colors flex items-center justify-center">
+                            <i data-feather="trash-2" class="w-4 h-4"></i>
                         </button>
                     </div>
                 </div>
                 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                    <div class="bg-blue-50 rounded-md p-3">
-                        <div class="flex items-center gap-2 mb-2">
-                            <i data-feather="briefcase" class="w-4 h-4 text-blue-600"></i>
-                            <span class="text-sm font-semibold text-gray-700">Target Job Titles</span>
-                        </div>
-                        <div class="text-xs text-gray-600 space-y-1">
-                            ${formatList(persona.job_titles, 5)}
+                <!-- Body -->
+                <div class="p-4 space-y-3">
+                    <!-- Demographics Section -->
+                    ${(persona.age_range || persona.gender_distribution) ? `
+                    <div class="bg-blue-50 rounded-lg p-3">
+                        <h5 class="text-xs font-bold text-blue-800 mb-2 flex items-center gap-1">
+                            <i data-feather="user" class="w-3 h-3"></i>
+                            DEMOGRAPHICS
+                        </h5>
+                        <div class="grid grid-cols-2 gap-2 text-xs">
+                            ${persona.age_range ? `
+                                <div>
+                                    <span class="text-gray-600">Age:</span>
+                                    <span class="font-semibold text-gray-800">${escapeHtml(persona.age_range)}</span>
+                                </div>
+                            ` : ''}
+                            ${persona.gender_distribution ? `
+                                <div>
+                                    <span class="text-gray-600">Gender:</span>
+                                    <span class="font-semibold text-gray-800">${escapeHtml(persona.gender_distribution)}</span>
+                                </div>
+                            ` : ''}
                         </div>
                     </div>
+                    ` : ''}
                     
-                    <div class="bg-green-50 rounded-md p-3">
-                        <div class="flex items-center gap-2 mb-2">
-                            <i data-feather="user-check" class="w-4 h-4 text-green-600"></i>
-                            <span class="text-sm font-semibold text-gray-700">Decision Makers</span>
-                        </div>
-                        <div class="text-xs text-gray-600 space-y-1">
-                            ${formatList(persona.decision_maker_roles, 5)}
+                    <!-- Job Titles -->
+                    ${persona.job_titles ? `
+                    <div>
+                        <h5 class="text-xs font-bold text-gray-600 mb-1 flex items-center gap-1">
+                            <i data-feather="briefcase" class="w-3 h-3"></i>
+                            JOB TITLES
+                        </h5>
+                        <div class="text-sm text-gray-700 space-y-1">
+                            ${formatList(persona.job_titles, 3)}
                         </div>
                     </div>
+                    ` : ''}
                     
-                    <div class="bg-yellow-50 rounded-md p-3">
-                        <div class="flex items-center gap-2 mb-2">
-                            <i data-feather="building" class="w-4 h-4 text-yellow-600"></i>
-                            <span class="text-sm font-semibold text-gray-700">Company Types</span>
+                    <!-- Company Info -->
+                    <div class="grid grid-cols-2 gap-2">
+                        ${persona.company_size ? `
+                        <div class="bg-gray-50 rounded p-2">
+                            <div class="text-xs text-gray-500 mb-1">Company Size</div>
+                            <div class="text-sm font-semibold text-gray-800">${escapeHtml(persona.company_size)}</div>
                         </div>
-                        <div class="text-xs text-gray-600 space-y-1">
-                            ${formatList(persona.company_types, 5)}
-                        </div>
-                    </div>
-                    
-                    <div class="bg-purple-50 rounded-md p-3">
-                        <div class="flex items-center gap-2 mb-2">
-                            <i data-feather="search" class="w-4 h-4 text-purple-600"></i>
-                            <span class="text-sm font-semibold text-gray-700">LinkedIn Search Keywords</span>
-                        </div>
-                        <div class="text-xs text-gray-600 space-y-1">
-                            ${formatList(persona.linkedin_keywords, 5)}
-                        </div>
-                    </div>
-                </div>
-                
-                ${persona.smart_search_query ? `
-                <div class="mt-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-md p-3 border border-indigo-200">
-                    <div class="flex items-center gap-2 mb-2">
-                        <i data-feather="zap" class="w-4 h-4 text-indigo-600"></i>
-                        <span class="text-sm font-semibold text-gray-700">AI-Optimized Search Query</span>
-                    </div>
-                    <p class="text-sm text-gray-700 font-mono bg-white rounded px-3 py-2 border border-indigo-100">
-                        ${escapeHtml(persona.smart_search_query)}
-                    </p>
-                </div>
-                ` : ''}
-                
-                <div class="mt-4 pt-4 border-t border-gray-200 flex items-center justify-between text-xs text-gray-500">
-                    <div class="flex items-center gap-4">
+                        ` : ''}
                         ${persona.seniority_level ? `
-                        <span class="flex items-center gap-1">
-                            <i data-feather="award" class="w-3 h-3"></i>
-                            ${escapeHtml(persona.seniority_level)}
-                        </span>
-                        ` : ''}
-                        ${persona.industry_focus ? `
-                        <span class="flex items-center gap-1">
-                            <i data-feather="trending-up" class="w-3 h-3"></i>
-                            ${escapeHtml(persona.industry_focus)}
-                        </span>
+                        <div class="bg-gray-50 rounded p-2">
+                            <div class="text-xs text-gray-500 mb-1">Seniority</div>
+                            <div class="text-sm font-semibold text-gray-800">${escapeHtml(persona.seniority_level)}</div>
+                        </div>
                         ` : ''}
                     </div>
-                    ${persona.document_source ? `
-                    <span class="flex items-center gap-1 text-purple-600">
-                        <i data-feather="file" class="w-3 h-3"></i>
-                        ${escapeHtml(persona.document_source)}
-                    </span>
+                    
+                    <!-- Industry -->
+                    ${persona.industry_focus ? `
+                    <div class="bg-green-50 rounded-lg p-2">
+                        <div class="text-xs text-green-700 font-semibold mb-1">🎯 Industry Focus</div>
+                        <div class="text-sm text-gray-700">${escapeHtml(persona.industry_focus)}</div>
+                    </div>
+                    ` : ''}
+                    
+                    <!-- Pain Points & Goals -->
+                    ${(persona.pain_points || persona.goals) ? `
+                    <div class="bg-yellow-50 rounded-lg p-3">
+                        <h5 class="text-xs font-bold text-yellow-800 mb-2 flex items-center gap-1">
+                            <i data-feather="target" class="w-3 h-3"></i>
+                            AI SCORING
+                        </h5>
+                        ${persona.pain_points ? `
+                            <div class="mb-2">
+                                <div class="text-xs text-gray-600 font-semibold">Pain Points:</div>
+                                <div class="text-xs text-gray-700">${escapeHtml(persona.pain_points).substring(0, 80)}${persona.pain_points.length > 80 ? '...' : ''}</div>
+                            </div>
+                        ` : ''}
+                        ${persona.goals ? `
+                            <div>
+                                <div class="text-xs text-gray-600 font-semibold">Goals:</div>
+                                <div class="text-xs text-gray-700">${escapeHtml(persona.goals).substring(0, 80)}${persona.goals.length > 80 ? '...' : ''}</div>
+                            </div>
+                        ` : ''}
+                    </div>
+                    ` : ''}
+                    
+                    <!-- Location -->
+                    ${persona.location_data ? `
+                    <div class="bg-indigo-50 rounded-lg p-2">
+                        <div class="text-xs text-indigo-700 font-semibold mb-1 flex items-center gap-1">
+                            <i data-feather="map-pin" class="w-3 h-3"></i>
+                            Location Targeting
+                        </div>
+                        <div class="text-xs text-gray-700">
+                            ${getLocationSummary(persona.location_data)}
+                        </div>
+                    </div>
+                    ` : ''}
+                    
+                    <!-- LinkedIn Search Query -->
+                    ${persona.smart_search_query ? `
+                    <div class="bg-gray-100 rounded-lg p-3">
+                        <h5 class="text-xs font-bold text-gray-700 mb-1 flex items-center gap-1">
+                            <i data-feather="search" class="w-3 h-3"></i>
+                            LINKEDIN SEARCH
+                        </h5>
+                        <div class="text-xs text-gray-600 font-mono bg-white rounded p-2 break-all">
+                            ${escapeHtml(persona.smart_search_query)}
+                        </div>
+                    </div>
                     ` : ''}
                 </div>
             </div>
         `).join('');
-        
-        const tempDiv = document.createElement('div');
-        tempDiv.className = 'space-y-4';
-        tempDiv.innerHTML = personasHTML;
-        
-        while (container.firstChild) {
-            container.removeChild(container.firstChild);
-        }
-        container.appendChild(tempDiv);
-        
-        if (typeof feather !== 'undefined') {
-            feather.replace();
-        }
-        
+
+        list.innerHTML = personasHTML;
+
+        // Replace feather icons
+        setTimeout(() => {
+            if (typeof feather !== 'undefined') {
+                feather.replace();
+            }
+        }, 100);
+
         console.log(`✅ Loaded ${data.personas.length} personas`);
-        
     } catch (error) {
         console.error('Error loading personas:', error);
         const empty = document.getElementById('personas-empty');
         if (empty) {
-            empty.classList.remove('hidden');
             empty.innerHTML = `
                 <div class="text-center py-8">
                     <i data-feather="alert-circle" class="w-16 h-16 mx-auto text-red-400 mb-3"></i>
                     <h4 class="text-lg font-semibold text-gray-700 mb-2">Error Loading Personas</h4>
-                    <p class="text-gray-500">${error.message}</p>
+                    <p class="text-gray-500 mb-4">Please refresh the page to try again</p>
                 </div>
             `;
+            empty.classList.remove('hidden');
             if (typeof feather !== 'undefined') {
                 feather.replace();
             }
@@ -440,6 +554,63 @@ async function loadDetectedPersonas() {
     }
 }
 
+// Helper function to parse and display location data
+function getLocationSummary(locationData) {
+    try {
+        const loc = typeof locationData === 'string' ? JSON.parse(locationData) : locationData;
+        
+        if (loc.worldwide) {
+            return '🌍 Worldwide';
+        }
+        
+        const parts = [];
+        if (loc.cities && loc.cities.length > 0) {
+            parts.push(`Cities: ${loc.cities.slice(0, 2).join(', ')}${loc.cities.length > 2 ? '...' : ''}`);
+        }
+        if (loc.countries && loc.countries.length > 0) {
+            parts.push(`Countries: ${loc.countries.slice(0, 2).join(', ')}${loc.countries.length > 2 ? '...' : ''}`);
+        }
+        if (loc.regions && loc.regions.length > 0) {
+            parts.push(`Regions: ${loc.regions.join(', ')}`);
+        }
+        
+        return parts.length > 0 ? parts.join(' • ') : 'Not specified';
+    } catch (e) {
+        return 'Not specified';
+    }
+}
+
+// DELETE PERSONA FUNCTION
+async function deletePersona(personaId, personaName) {
+    if (!confirm(`Are you sure you want to delete "${personaName}"?\n\nThis action cannot be undone.`)) {
+        return;
+    }
+    
+    try {
+        showNotification('Deleting persona...', 'info');
+        
+        const response = await fetch(`/api/personas/${personaId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('✅ Persona deleted successfully!', 'success');
+            loadDetectedPersonas(); // Reload the list
+        } else {
+            showNotification('❌ ' + (data.message || 'Failed to delete persona'), 'error');
+        }
+    } catch (error) {
+        console.error('Error deleting persona:', error);
+        showNotification('❌ Error deleting persona', 'error');
+    }
+}
+
+// VIEW PERSONA DETAILS MODAL (placeholder - we'll build this in Step 2)
 async function openEditModal(personaId) {
     try {
         const response = await fetch('/api/personas');
@@ -586,3 +757,335 @@ window.addEventListener('beforeunload', function() {
 });
 
 console.log('Dashboard module loaded successfully');
+// ============================================================================
+// PERSONA DETAILS MODAL - JavaScript Functions
+// Add these functions to dashboard.js
+// ============================================================================
+
+let currentViewingPersona = null;
+
+/**
+ * View full persona details in modal
+ */
+async function viewPersonaDetails(personaId) {
+    try {
+        // Fetch persona data
+        const response = await fetch('/api/personas');
+        const data = await response.json();
+        
+        if (data.success && data.personas) {
+            const persona = data.personas.find(p => p.id === personaId);
+            
+            if (persona) {
+                currentViewingPersona = persona;
+                populatePersonaDetailsModal(persona);
+                
+                // Fetch stats for this persona
+                loadPersonaStats(personaId);
+                
+                // Show modal
+                document.getElementById('persona-details-modal').classList.remove('hidden');
+                
+                // Replace feather icons
+                setTimeout(() => {
+                    if (typeof feather !== 'undefined') {
+                        feather.replace();
+                    }
+                }, 100);
+            }
+        }
+    } catch (error) {
+        console.error('Error viewing persona details:', error);
+        showNotification('Error loading persona details', 'error');
+    }
+}
+
+/**
+ * Populate modal with persona data
+ */
+function populatePersonaDetailsModal(persona) {
+    // Header
+    document.getElementById('detail-persona-name').textContent = persona.name || 'Unnamed Persona';
+    document.getElementById('detail-persona-description').textContent = persona.description || 'No description';
+    
+    // Demographics
+    document.getElementById('detail-age-range').textContent = persona.age_range || 'Not specified';
+    document.getElementById('detail-gender').textContent = persona.gender_distribution || 'Not specified';
+    
+    // Job & Company
+    if (persona.job_titles) {
+        const titles = persona.job_titles.split('\n').filter(t => t.trim());
+        document.getElementById('detail-job-titles').innerHTML = titles.map(t => 
+            `<div class="flex items-start gap-1">
+                <span class="text-gray-400">•</span>
+                <span>${escapeHtml(t.trim())}</span>
+            </div>`
+        ).join('');
+    } else {
+        document.getElementById('detail-job-titles').innerHTML = '<span class="text-gray-400 italic">Not specified</span>';
+    }
+    
+    document.getElementById('detail-seniority').textContent = persona.seniority_level || 'Not specified';
+    document.getElementById('detail-company-size').textContent = persona.company_size || 'Not specified';
+    
+    if (persona.company_types) {
+        const types = persona.company_types.split('\n').filter(t => t.trim());
+        document.getElementById('detail-company-types').innerHTML = types.map(t => 
+            `<div class="flex items-start gap-1">
+                <span class="text-gray-400">•</span>
+                <span>${escapeHtml(t.trim())}</span>
+            </div>`
+        ).join('');
+    } else {
+        document.getElementById('detail-company-types').innerHTML = '<span class="text-gray-400 italic">Not specified</span>';
+    }
+    
+    document.getElementById('detail-industry').textContent = persona.industry_focus || 'Not specified';
+    
+    // Location
+    const locationContent = getLocationDetails(persona.location_data);
+    document.getElementById('detail-location-content').innerHTML = locationContent;
+    
+    // AI Scoring
+    document.getElementById('detail-pain-points').textContent = persona.pain_points || 'Not specified';
+    document.getElementById('detail-goals').textContent = persona.goals || 'Not specified';
+    document.getElementById('detail-keywords').textContent = persona.linkedin_keywords || 'Not specified';
+    document.getElementById('detail-decision-makers').textContent = persona.decision_maker_roles || 'Not specified';
+    
+    // LinkedIn Search Query
+    document.getElementById('detail-search-query').textContent = persona.smart_search_query || 'Not generated';
+    
+    // Metadata
+    document.getElementById('detail-persona-id').textContent = persona.id;
+    document.getElementById('detail-created-at').textContent = formatDate(persona.created_at);
+    document.getElementById('detail-updated-at').textContent = formatDate(persona.updated_at);
+}
+
+/**
+ * Get detailed location information
+ */
+function getLocationDetails(locationData) {
+    try {
+        const loc = typeof locationData === 'string' ? JSON.parse(locationData) : locationData;
+        
+        if (loc.worldwide) {
+            return '<div class="flex items-center gap-2"><span class="text-2xl">🌍</span><span class="font-semibold">Worldwide</span></div>';
+        }
+        
+        let html = '';
+        
+        if (loc.regions && loc.regions.length > 0) {
+            html += '<div class="mb-2"><div class="text-xs text-gray-600 font-semibold mb-1">Regions:</div>';
+            html += loc.regions.map(r => `<span class="inline-block bg-indigo-100 text-indigo-800 px-2 py-1 rounded text-xs mr-1 mb-1">${escapeHtml(r)}</span>`).join('');
+            html += '</div>';
+        }
+        
+        if (loc.countries && loc.countries.length > 0) {
+            html += '<div class="mb-2"><div class="text-xs text-gray-600 font-semibold mb-1">Countries:</div>';
+            html += loc.countries.map(c => `<span class="inline-block bg-indigo-100 text-indigo-800 px-2 py-1 rounded text-xs mr-1 mb-1">${escapeHtml(c)}</span>`).join('');
+            html += '</div>';
+        }
+        
+        if (loc.cities && loc.cities.length > 0) {
+            html += '<div><div class="text-xs text-gray-600 font-semibold mb-1">Cities:</div>';
+            html += loc.cities.map(c => `<span class="inline-block bg-indigo-100 text-indigo-800 px-2 py-1 rounded text-xs mr-1 mb-1">${escapeHtml(c)}</span>`).join('');
+            html += '</div>';
+        }
+        
+        return html || '<span class="text-gray-400 italic">Not specified</span>';
+    } catch (e) {
+        return '<span class="text-gray-400 italic">Not specified</span>';
+    }
+}
+
+/**
+ * Load stats for persona (leads, messages, etc.)
+ */
+async function loadPersonaStats(personaId) {
+    try {
+        // For now, show 0 - you'll implement the actual API endpoint later
+        // This is a placeholder that you can enhance when you build the leads system
+        document.getElementById('detail-leads-count').textContent = '0';
+        document.getElementById('detail-qualified-count').textContent = '0';
+        document.getElementById('detail-messages-count').textContent = '0';
+        document.getElementById('detail-replied-count').textContent = '0';
+        
+        // TODO: Implement actual stats API
+        // const response = await fetch(`/api/personas/${personaId}/stats`);
+        // const data = await response.json();
+        // if (data.success) {
+        //     document.getElementById('detail-leads-count').textContent = data.stats.total_leads;
+        //     document.getElementById('detail-qualified-count').textContent = data.stats.qualified_leads;
+        //     document.getElementById('detail-messages-count').textContent = data.stats.messages_sent;
+        //     document.getElementById('detail-replied-count').textContent = data.stats.replies;
+        // }
+    } catch (error) {
+        console.error('Error loading persona stats:', error);
+    }
+}
+
+/**
+ * Close persona details modal
+ */
+function closePersonaDetailsModal() {
+    document.getElementById('persona-details-modal').classList.add('hidden');
+    currentViewingPersona = null;
+}
+
+/**
+ * Copy LinkedIn search query to clipboard
+ */
+function copySearchQuery() {
+    const query = document.getElementById('detail-search-query').textContent;
+    
+    if (query && query !== 'Not generated') {
+        navigator.clipboard.writeText(query).then(() => {
+            showNotification('✅ Search query copied to clipboard!', 'success');
+        }).catch(err => {
+            console.error('Error copying to clipboard:', err);
+            showNotification('❌ Failed to copy to clipboard', 'error');
+        });
+    } else {
+        showNotification('No search query to copy', 'warning');
+    }
+}
+
+/**
+ * Edit persona from details modal
+ */
+function editFromDetails() {
+    if (currentViewingPersona) {
+        closePersonaDetailsModal();
+        setTimeout(() => {
+            openEditModal(currentViewingPersona.id);
+        }, 300);
+    }
+}
+
+/**
+ * Delete persona from details modal
+ */
+function deleteFromDetails() {
+    if (currentViewingPersona) {
+        closePersonaDetailsModal();
+        setTimeout(() => {
+            deletePersona(currentViewingPersona.id, currentViewingPersona.name);
+        }, 300);
+    }
+}
+
+/**
+ * Start lead scraping with this persona
+ */
+function startScrapingWithPersona() {
+    if (currentViewingPersona) {
+        showNotification('Lead scraping feature coming soon! 🚀', 'info');
+        // TODO: Implement lead scraping
+        // This will be implemented when you build the LinkedIn scraper integration
+    }
+}
+
+/**
+ * Format date helper
+ */
+function formatDate(dateString) {
+    if (!dateString) return 'Not available';
+    
+    try {
+        const date = new Date(dateString);
+        return date.toLocaleString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    } catch (e) {
+        return 'Invalid date';
+    }
+}
+/**
+ * LinkedIn Login Function - FIXED (No Auto-Reload)
+ */
+async function loginToLinkedIn() {
+    console.log('🔐 LinkedIn login initiated...');
+    
+    const btn = document.getElementById('linkedin-login-btn');
+    if (!btn) {
+        console.error('LinkedIn login button not found');
+        return;
+    }
+    
+    const originalHTML = btn.innerHTML;
+    
+    // Show loading state
+    btn.innerHTML = '<svg class="animate-spin h-4 w-4 mr-2 inline" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Connecting...';
+    btn.disabled = true;
+    
+    try {
+        const response = await fetch('/api/linkedin/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const data = await response.json();
+        console.log('LinkedIn login response:', data);
+        
+        if (data.success) {
+            // SUCCESS!
+            console.log('✅ LinkedIn login successful!');
+            
+            // Update button to success state
+            btn.innerHTML = '<svg class="h-4 w-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Logged In';
+            btn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+            btn.classList.add('bg-green-600');
+            
+            // Show success notification
+            if (typeof showNotification === 'function') {
+                if (data.manual_login) {
+                    showNotification('🌐 LinkedIn login page opened! Please complete login in the Chrome window.', 'info');
+                } else {
+                    showNotification('✅ ' + (data.message || 'LinkedIn login successful!'), 'success');
+                }
+            }
+            
+            // ✅ DON'T RELOAD - Just update the status
+            // Instead of: setTimeout(() => location.reload(), 3000);
+            // We'll let the status polling update the UI naturally
+            
+        } else {
+            // FAILURE
+            console.error('❌ LinkedIn login failed:', data.message);
+            
+            if (typeof showNotification === 'function') {
+                showNotification('❌ ' + (data.message || 'Login failed'), 'error');
+            }
+            
+            // Restore button
+            btn.innerHTML = originalHTML;
+            btn.disabled = false;
+            if (typeof feather !== 'undefined') {
+                feather.replace();
+            }
+        }
+        
+    } catch (error) {
+        console.error('❌ LinkedIn login error:', error);
+        
+        if (typeof showNotification === 'function') {
+            showNotification('❌ Error connecting to LinkedIn: ' + error.message, 'error');
+        }
+        
+        // Restore button
+        btn.innerHTML = originalHTML;
+        btn.disabled = false;
+        if (typeof feather !== 'undefined') {
+            feather.replace();
+        }
+    }
+}
+
+// Make it globally available
+window.loginToLinkedIn = loginToLinkedIn;
+
+console.log('✅ Improved loginToLinkedIn function loaded (no auto-reload)');

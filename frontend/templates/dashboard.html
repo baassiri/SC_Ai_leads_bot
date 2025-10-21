@@ -36,14 +36,30 @@
 .modal-backdrop {
     background-color: rgba(0, 0, 0, 0.5);
 }
+.persona-card {
+    transition: all 0.2s;
+}
+.persona-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.form-section {
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+.form-section:last-child {
+    border-bottom: none;
+}
 </style>
 {% endblock %}
 
 {% block content %}
+<!-- LinkedIn/OpenAI Connection Status -->
 <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg shadow-sm border-2 border-blue-200 p-6 mb-6">
     <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
         <i data-feather="link-2" class="w-5 h-5 text-blue-600"></i>
-        🔐 System Connections
+        🔌 System Connections
     </h3>
     
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -96,31 +112,41 @@
     </div>
 </div>
 
+<!-- PERSONAS SECTION -->
 <div class="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg shadow-sm border-2 border-purple-200 p-6 mb-6">
     <div class="flex items-center justify-between mb-4">
         <h3 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
             <i data-feather="target" class="w-5 h-5 text-purple-600"></i>
-            🎯 AI-Detected Personas & Targets
+            🎯 Target Personas
         </h3>
+        <button onclick="openCreatePersonaModal()" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md font-medium flex items-center gap-2">
+            <i data-feather="plus" class="w-4 h-4"></i>
+            Create Persona
+        </button>
     </div>
     
-    <div id="personas-container" class="space-y-4">
+    <div id="personas-container" class="space-y-3">
         <div id="personas-loading" class="text-center py-8">
             <div class="animate-spin inline-block w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full"></div>
-            <p class="mt-2 text-gray-600">Loading AI-detected personas...</p>
+            <p class="mt-2 text-gray-600">Loading personas...</p>
         </div>
         
         <div id="personas-empty" class="hidden text-center py-8 bg-white rounded-lg border-2 border-dashed border-gray-300">
-            <i data-feather="file-text" class="w-16 h-16 mx-auto text-gray-400 mb-3"></i>
-            <h4 class="text-lg font-semibold text-gray-700 mb-2">No Personas Detected</h4>
-            <p class="text-gray-500 mb-4">Upload a target document to let AI analyze and detect personas</p>
-            <button onclick="window.location.href='/settings'" class="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md font-medium">
-                Upload Document
+            <i data-feather="users" class="w-16 h-16 mx-auto text-gray-400 mb-3"></i>
+            <h4 class="text-lg font-semibold text-gray-700 mb-2">No Personas Yet</h4>
+            <p class="text-gray-500 mb-4">Create your first persona to start finding targeted leads</p>
+            <button onclick="openCreatePersonaModal()" class="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md font-medium">
+                Create Your First Persona
             </button>
+        </div>
+        
+        <div id="personas-list" class="grid grid-cols-1 md:grid-cols-2 gap-4 hidden">
+            <!-- Personas will be loaded here dynamically -->
         </div>
     </div>
 </div>
 
+<!-- Stats Cards -->
 <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
     <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-blue-500">
         <div class="flex items-center justify-between">
@@ -171,6 +197,7 @@
     </div>
 </div>
 
+<!-- Top Leads & Activity Feed -->
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <div class="bg-white rounded-lg shadow-md p-6">
         <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
@@ -198,98 +225,577 @@
     </div>
 </div>
 
-<!-- EDIT PERSONA MODAL -->
-<div id="edit-persona-modal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+<!-- CREATE PERSONA MODAL - ENHANCED -->
+<div id="create-persona-modal" class="hidden fixed inset-0 z-50 overflow-y-auto">
     <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
-        <div class="modal-backdrop fixed inset-0" onclick="closeEditModal()"></div>
+        <div class="modal-backdrop fixed inset-0" onclick="closeCreatePersonaModal()"></div>
         
-        <div class="relative inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
+        <div class="relative inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-6xl sm:w-full max-h-[90vh] overflow-y-auto">
             <div class="bg-white px-6 pt-5 pb-4">
-                <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center justify-between mb-4 sticky top-0 bg-white pb-3 border-b">
                     <h3 class="text-xl font-bold text-gray-900 flex items-center gap-2">
-                        <i data-feather="edit-3" class="w-5 h-5 text-purple-600"></i>
-                        Edit Persona
+                        <i data-feather="target" class="w-5 h-5 text-purple-600"></i>
+                        Create Target Persona
                     </h3>
-                    <button onclick="closeEditModal()" class="text-gray-400 hover:text-gray-600">
+                    <button onclick="closeCreatePersonaModal()" class="text-gray-400 hover:text-gray-600">
                         <i data-feather="x" class="w-6 h-6"></i>
                     </button>
                 </div>
                 
-                <form id="edit-persona-form" class="space-y-4">
-                    <input type="hidden" id="edit-persona-id">
+                <form id="create-persona-form" class="space-y-6">
+                    <!-- SECTION 1: Basic Info -->
+                    <div class="form-section">
+                        <h4 class="text-md font-bold text-gray-800 mb-3 flex items-center gap-2">
+                            <i data-feather="info" class="w-4 h-4 text-blue-600"></i>
+                            Basic Information
+                        </h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Persona Name *</label>
+                                <input type="text" id="create-name" required class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent" placeholder="e.g., Tech Startup CEO, Plastic Surgeon">
+                            </div>
+                            
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+                                <textarea id="create-description" rows="2" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent" placeholder="Brief description of this persona"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SECTION 2: Demographics -->
+                    <div class="form-section">
+                        <h4 class="text-md font-bold text-gray-800 mb-3 flex items-center gap-2">
+                            <i data-feather="users" class="w-4 h-4 text-green-600"></i>
+                            Demographics
+                        </h4>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Age Range</label>
+                                <input type="text" id="create-age-range" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500" placeholder="e.g., 30-55">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Gender Distribution</label>
+                                <select id="create-gender" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500">
+                                    <option value="">Any</option>
+                                    <option value="Predominantly Male">Predominantly Male</option>
+                                    <option value="Predominantly Female">Predominantly Female</option>
+                                    <option value="Mixed">Mixed</option>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Typical Background</label>
+                                <input type="text" id="create-background" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500" placeholder="e.g., MBA, Technical">
+                            </div>
+                        </div>
+                    </div>
                     
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="md:col-span-2">
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">Persona Name</label>
-                            <input type="text" id="edit-name" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                    <!-- SECTION 3: Job & Company Targeting -->
+                    <div class="form-section">
+                        <h4 class="text-md font-bold text-gray-800 mb-3 flex items-center gap-2">
+                            <i data-feather="briefcase" class="w-4 h-4 text-orange-600"></i>
+                            Job & Company Targeting
+                        </h4>
+                        
+                        <div class="mb-4">
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                Job Titles * (one per line)
+                            </label>
+                            <textarea id="create-job-titles" required rows="4" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm font-mono" placeholder="CEO&#10;Chief Executive Officer&#10;Founder&#10;Co-Founder&#10;Managing Director"></textarea>
+                            <p class="text-xs text-gray-500 mt-1">💡 Add multiple variations for better search results</p>
                         </div>
                         
-                        <div class="md:col-span-2">
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">Description</label>
-                            <textarea id="edit-description" rows="2" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"></textarea>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Seniority Level</label>
+                                <select id="create-seniority" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500">
+                                    <option value="">Any Level</option>
+                                    <option value="C-Level">C-Level</option>
+                                    <option value="VP">VP</option>
+                                    <option value="Director">Director</option>
+                                    <option value="Manager">Manager</option>
+                                    <option value="Senior">Senior</option>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Industry Focus</label>
+                                <input type="text" id="create-industry" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500" placeholder="e.g., SaaS, Healthcare, Finance">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Company Size</label>
+                                <select id="create-company-size" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500">
+                                    <option value="">Any Size</option>
+                                    <option value="1-10">1-10 employees</option>
+                                    <option value="11-50">11-50 employees</option>
+                                    <option value="51-200">51-200 employees</option>
+                                    <option value="201-500">201-500 employees</option>
+                                    <option value="501-1000">501-1000 employees</option>
+                                    <option value="1001+">1001+ employees</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Company Types (one per line)</label>
+                            <textarea id="create-company-types" rows="3" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm" placeholder="B2B SaaS&#10;eCommerce&#10;Healthcare Technology"></textarea>
+                        </div>
+                    </div>
+                    
+                    <!-- SECTION 4: Location Targeting -->
+                    <div class="form-section">
+                        <h4 class="text-md font-bold text-gray-800 mb-3 flex items-center gap-2">
+                            <i data-feather="map-pin" class="w-4 h-4 text-red-600"></i>
+                            Location Targeting
+                        </h4>
+                        
+                        <div class="mb-3">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="create-worldwide" onchange="toggleLocationFields()" class="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500">
+                                <span class="text-sm font-medium text-gray-700">🌍 Worldwide (Search globally)</span>
+                            </label>
+                        </div>
+                        
+                        <div id="location-fields" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Regions (one per line)</label>
+                                <textarea id="create-regions" rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" placeholder="North America&#10;Europe&#10;Asia-Pacific"></textarea>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Countries (one per line)</label>
+                                <textarea id="create-countries" rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" placeholder="United States&#10;Canada&#10;United Kingdom"></textarea>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Cities (one per line)</label>
+                                <textarea id="create-cities" rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" placeholder="New York&#10;San Francisco&#10;London"></textarea>
+                            </div>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">💡 Fill regions for broad search, countries for moderate, cities for pinpoint targeting</p>
+                    </div>
+                    
+                    <!-- SECTION 5: AI Scoring Criteria -->
+                    <div class="form-section">
+                        <h4 class="text-md font-bold text-gray-800 mb-3 flex items-center gap-2">
+                            <i data-feather="zap" class="w-4 h-4 text-yellow-600"></i>
+                            AI Scoring Criteria (How to score leads 0-100)
+                        </h4>
+                        
+                        <div class="mb-4">
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                Pain Points (one per line)
+                            </label>
+                            <textarea id="create-pain-points" rows="5" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm" placeholder="Need more patient leads&#10;Inconsistent branding&#10;Weak SEO and digital visibility&#10;Low conversion rates&#10;Poor patient recall"></textarea>
+                            <p class="text-xs text-gray-500 mt-1">🎯 AI scores higher if profile mentions these problems</p>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                Goals (one per line)
+                            </label>
+                            <textarea id="create-goals" rows="4" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm" placeholder="Grow patient bookings&#10;Build strong reputation&#10;Increase online visibility&#10;Scale digital marketing"></textarea>
+                            <p class="text-xs text-gray-500 mt-1">🎯 AI scores higher if profile shows these objectives</p>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                Profile Keywords (comma-separated)
+                            </label>
+                            <textarea id="create-keywords" rows="3" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm" placeholder="digital marketing, patient acquisition, practice growth, SEO, lead generation, revenue optimization"></textarea>
+                            <p class="text-xs text-gray-500 mt-1">🎯 AI scores higher if these keywords appear in LinkedIn profile</p>
                         </div>
                         
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-2">
-                                <i data-feather="briefcase" class="w-4 h-4 inline"></i>
-                                Job Titles (one per line)
+                                Decision-Maker Indicators (one per line)
                             </label>
-                            <textarea id="edit-job-titles" rows="6" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm font-mono"></textarea>
+                            <textarea id="create-decision-makers" rows="4" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm" placeholder="Practice Owner&#10;Budget Authority&#10;Strategic Planning&#10;Marketing Decision Maker"></textarea>
+                            <p class="text-xs text-gray-500 mt-1">🎯 AI scores higher for people with buying authority</p>
                         </div>
-                        
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">
-                                <i data-feather="user-check" class="w-4 h-4 inline"></i>
-                                Decision Maker Roles (one per line)
-                            </label>
-                            <textarea id="edit-decision-makers" rows="6" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm font-mono"></textarea>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">
-                                <i data-feather="building" class="w-4 h-4 inline"></i>
-                                Company Types (one per line)
-                            </label>
-                            <textarea id="edit-company-types" rows="6" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm font-mono"></textarea>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">
-                                <i data-feather="search" class="w-4 h-4 inline"></i>
-                                LinkedIn Keywords (one per line)
-                            </label>
-                            <textarea id="edit-linkedin-keywords" rows="6" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm font-mono"></textarea>
-                        </div>
-                        
-                        <div class="md:col-span-2">
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">
-                                <i data-feather="zap" class="w-4 h-4 inline"></i>
-                                AI-Optimized Search Query
-                            </label>
-                            <input type="text" id="edit-search-query" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent font-mono text-sm">
-                        </div>
-                        
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">Seniority Level</label>
-                            <input type="text" id="edit-seniority" placeholder="e.g., C-Suite, Director" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent">
-                        </div>
-                        
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">Industry Focus</label>
-                            <input type="text" id="edit-industry" placeholder="e.g., Financial Services" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent">
-                        </div>
+                    </div>
+                    
+                    <!-- Submit -->
+                    <div class="flex gap-3 pt-4 sticky bottom-0 bg-white border-t pb-4">
+                        <button type="submit" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-md font-medium flex items-center justify-center gap-2">
+                            <i data-feather="check" class="w-5 h-5"></i>
+                            Create Persona
+                        </button>
+                        <button type="button" onclick="closeCreatePersonaModal()" class="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md font-medium">
+                            Cancel
+                        </button>
                     </div>
                 </form>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- EDIT PERSONA MODAL (same structure as create, just for editing) -->
+<div id="edit-persona-modal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
+        <div class="modal-backdrop fixed inset-0" onclick="closeEditPersonaModal()"></div>
+        
+        <div class="relative inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-6xl sm:w-full max-h-[90vh] overflow-y-auto">
+            <div class="bg-white px-6 pt-5 pb-4">
+                <div class="flex items-center justify-between mb-4 sticky top-0 bg-white pb-3 border-b">
+                    <h3 class="text-xl font-bold text-gray-900 flex items-center gap-2">
+                        <i data-feather="edit-3" class="w-5 h-5 text-purple-600"></i>
+                        Edit Persona
+                    </h3>
+                    <button onclick="closeEditPersonaModal()" class="text-gray-400 hover:text-gray-600">
+                        <i data-feather="x" class="w-6 h-6"></i>
+                    </button>
+                </div>
+                
+                <form id="edit-persona-form" class="space-y-6">
+                    <input type="hidden" id="edit-persona-id">
+                    
+                    <!-- Same sections as create form -->
+                    <div class="form-section">
+                        <h4 class="text-md font-bold text-gray-800 mb-3">Basic Information</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Persona Name *</label>
+                                <input type="text" id="edit-name" required class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                            </div>
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+                                <textarea id="edit-description" rows="2" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h4 class="text-md font-bold text-gray-800 mb-3">Demographics</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Age Range</label>
+                                <input type="text" id="edit-age-range" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Gender Distribution</label>
+                                <select id="edit-gender" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500">
+                                    <option value="">Any</option>
+                                    <option value="Predominantly Male">Predominantly Male</option>
+                                    <option value="Predominantly Female">Predominantly Female</option>
+                                    <option value="Mixed">Mixed</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Typical Background</label>
+                                <input type="text" id="edit-background" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-section">
+                        <h4 class="text-md font-bold text-gray-800 mb-3">Job & Company Targeting</h4>
+                        <div class="mb-4">
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Job Titles * (one per line)</label>
+                            <textarea id="edit-job-titles" required rows="4" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm font-mono"></textarea>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Seniority Level</label>
+                                <select id="edit-seniority" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500">
+                                    <option value="">Any Level</option>
+                                    <option value="C-Level">C-Level</option>
+                                    <option value="VP">VP</option>
+                                    <option value="Director">Director</option>
+                                    <option value="Manager">Manager</option>
+                                    <option value="Senior">Senior</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Industry Focus</label>
+                                <input type="text" id="edit-industry" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Company Size</label>
+                                <select id="edit-company-size" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500">
+                                    <option value="">Any Size</option>
+                                    <option value="1-10">1-10 employees</option>
+                                    <option value="11-50">11-50 employees</option>
+                                    <option value="51-200">51-200 employees</option>
+                                    <option value="201-500">201-500 employees</option>
+                                    <option value="501-1000">501-1000 employees</option>
+                                    <option value="1001+">1001+ employees</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mt-4">
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Company Types (one per line)</label>
+                            <textarea id="edit-company-types" rows="3" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm"></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="form-section">
+                        <h4 class="text-md font-bold text-gray-800 mb-3">Location Targeting</h4>
+                        <div class="mb-3">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="edit-worldwide" onchange="toggleEditLocationFields()" class="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500">
+                                <span class="text-sm font-medium text-gray-700">🌍 Worldwide</span>
+                            </label>
+                        </div>
+                        <div id="edit-location-fields" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Regions</label>
+                                <textarea id="edit-regions" rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Countries</label>
+                                <textarea id="edit-countries" rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Cities</label>
+                                <textarea id="edit-cities" rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-section">
+                        <h4 class="text-md font-bold text-gray-800 mb-3">AI Scoring Criteria</h4>
+                        <div class="mb-4">
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Pain Points (one per line)</label>
+                            <textarea id="edit-pain-points" rows="5" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm"></textarea>
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Goals (one per line)</label>
+                            <textarea id="edit-goals" rows="4" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm"></textarea>
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Profile Keywords (comma-separated)</label>
+                            <textarea id="edit-keywords" rows="3" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Decision-Maker Indicators (one per line)</label>
+                            <textarea id="edit-decision-makers" rows="4" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 text-sm"></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-3 pt-4 sticky bottom-0 bg-white border-t pb-4">
+                        <button type="submit" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-md font-medium flex items-center justify-center gap-2">
+                            <i data-feather="check" class="w-5 h-5"></i>
+                            Save Changes
+                        </button>
+                        <button type="button" onclick="closeEditPersonaModal()" class="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md font-medium">
+                            Cancel
+                        </button>
+                    </div>
+                </form>
+                <!-- ============================================================================
+     PERSONA DETAILS MODAL
+     Add this HTML to dashboard.html BEFORE the closing </body> tag
+     ============================================================================ -->
+
+<!-- Persona Details Modal -->
+<div id="persona-details-modal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
+        <!-- Backdrop -->
+        <div class="modal-backdrop fixed inset-0" onclick="closePersonaDetailsModal()"></div>
+        
+        <!-- Modal Content -->
+        <div class="relative inline-block bg-white rounded-lg shadow-xl max-w-5xl w-full mx-auto overflow-hidden transform transition-all">
+            <!-- Header -->
+            <div class="bg-gradient-to-r from-purple-500 to-pink-500 px-6 py-5">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="bg-white bg-opacity-20 rounded-full p-3">
+                            <i data-feather="user" class="w-6 h-6 text-white"></i>
+                        </div>
+                        <div class="text-left">
+                            <h2 id="detail-persona-name" class="text-2xl font-bold text-white">Persona Name</h2>
+                            <p id="detail-persona-description" class="text-sm text-purple-100">Description</p>
+                        </div>
+                    </div>
+                    <button onclick="closePersonaDetailsModal()" class="text-white hover:text-purple-100 transition-colors">
+                        <i data-feather="x" class="w-6 h-6"></i>
+                    </button>
+                </div>
+                
+                <!-- Stats Bar -->
+                <div class="grid grid-cols-4 gap-4 mt-4">
+                    <div class="bg-white bg-opacity-20 rounded-lg p-3 text-center">
+                        <div class="text-2xl font-bold text-white" id="detail-leads-count">0</div>
+                        <div class="text-xs text-purple-100">Leads</div>
+                    </div>
+                    <div class="bg-white bg-opacity-20 rounded-lg p-3 text-center">
+                        <div class="text-2xl font-bold text-white" id="detail-qualified-count">0</div>
+                        <div class="text-xs text-purple-100">Qualified</div>
+                    </div>
+                    <div class="bg-white bg-opacity-20 rounded-lg p-3 text-center">
+                        <div class="text-2xl font-bold text-white" id="detail-messages-count">0</div>
+                        <div class="text-xs text-purple-100">Messages</div>
+                    </div>
+                    <div class="bg-white bg-opacity-20 rounded-lg p-3 text-center">
+                        <div class="text-2xl font-bold text-white" id="detail-replied-count">0</div>
+                        <div class="text-xs text-purple-100">Replies</div>
+                    </div>
+                </div>
+            </div>
             
-            <div class="bg-gray-50 px-6 py-4 flex justify-end gap-3">
-                <button onclick="closeEditModal()" class="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-md font-medium">
-                    Cancel
-                </button>
-                <button onclick="savePersona()" class="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md font-medium flex items-center gap-2">
-                    <i data-feather="save" class="w-4 h-4"></i>
-                    Save Changes
-                </button>
+            <!-- Body - Scrollable Content -->
+            <div class="max-h-[60vh] overflow-y-auto p-6">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    
+                    <!-- Left Column -->
+                    <div class="space-y-4">
+                        <!-- Demographics -->
+                        <div id="detail-demographics-section" class="bg-blue-50 rounded-lg p-4">
+                            <h3 class="text-sm font-bold text-blue-800 mb-3 flex items-center gap-2">
+                                <i data-feather="users" class="w-4 h-4"></i>
+                                DEMOGRAPHICS
+                            </h3>
+                            <div class="space-y-2">
+                                <div class="flex justify-between">
+                                    <span class="text-sm text-gray-600">Age Range:</span>
+                                    <span id="detail-age-range" class="text-sm font-semibold text-gray-800">-</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-sm text-gray-600">Gender:</span>
+                                    <span id="detail-gender" class="text-sm font-semibold text-gray-800">-</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Job & Company -->
+                        <div class="bg-green-50 rounded-lg p-4">
+                            <h3 class="text-sm font-bold text-green-800 mb-3 flex items-center gap-2">
+                                <i data-feather="briefcase" class="w-4 h-4"></i>
+                                JOB & COMPANY
+                            </h3>
+                            <div class="space-y-3">
+                                <div id="detail-job-titles-section">
+                                    <div class="text-xs text-gray-600 font-semibold mb-1">Job Titles:</div>
+                                    <div id="detail-job-titles" class="text-sm text-gray-800"></div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <div class="text-xs text-gray-600">Seniority:</div>
+                                        <div id="detail-seniority" class="text-sm font-semibold text-gray-800">-</div>
+                                    </div>
+                                    <div>
+                                        <div class="text-xs text-gray-600">Company Size:</div>
+                                        <div id="detail-company-size" class="text-sm font-semibold text-gray-800">-</div>
+                                    </div>
+                                </div>
+                                <div id="detail-company-types-section">
+                                    <div class="text-xs text-gray-600 font-semibold mb-1">Company Types:</div>
+                                    <div id="detail-company-types" class="text-sm text-gray-800"></div>
+                                </div>
+                                <div id="detail-industry-section">
+                                    <div class="text-xs text-gray-600 font-semibold mb-1">Industry Focus:</div>
+                                    <div id="detail-industry" class="text-sm text-gray-800"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Location -->
+                        <div id="detail-location-section" class="bg-indigo-50 rounded-lg p-4">
+                            <h3 class="text-sm font-bold text-indigo-800 mb-3 flex items-center gap-2">
+                                <i data-feather="map-pin" class="w-4 h-4"></i>
+                                LOCATION TARGETING
+                            </h3>
+                            <div id="detail-location-content" class="text-sm text-gray-800"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Right Column -->
+                    <div class="space-y-4">
+                        <!-- AI Scoring -->
+                        <div class="bg-yellow-50 rounded-lg p-4">
+                            <h3 class="text-sm font-bold text-yellow-800 mb-3 flex items-center gap-2">
+                                <i data-feather="target" class="w-4 h-4"></i>
+                                AI SCORING CRITERIA
+                            </h3>
+                            <div class="space-y-3">
+                                <div id="detail-pain-points-section">
+                                    <div class="text-xs text-gray-600 font-semibold mb-1">Pain Points:</div>
+                                    <div id="detail-pain-points" class="text-sm text-gray-800"></div>
+                                </div>
+                                <div id="detail-goals-section">
+                                    <div class="text-xs text-gray-600 font-semibold mb-1">Goals:</div>
+                                    <div id="detail-goals" class="text-sm text-gray-800"></div>
+                                </div>
+                                <div id="detail-keywords-section">
+                                    <div class="text-xs text-gray-600 font-semibold mb-1">Keywords:</div>
+                                    <div id="detail-keywords" class="text-sm text-gray-800"></div>
+                                </div>
+                                <div id="detail-decision-makers-section">
+                                    <div class="text-xs text-gray-600 font-semibold mb-1">Decision Makers:</div>
+                                    <div id="detail-decision-makers" class="text-sm text-gray-800"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- LinkedIn Search Query -->
+                        <div id="detail-search-query-section" class="bg-purple-50 rounded-lg p-4">
+                            <h3 class="text-sm font-bold text-purple-800 mb-3 flex items-center gap-2">
+                                <i data-feather="search" class="w-4 h-4"></i>
+                                LINKEDIN SEARCH QUERY
+                            </h3>
+                            <div class="bg-white rounded p-3">
+                                <code id="detail-search-query" class="text-xs text-gray-700 break-all"></code>
+                            </div>
+                            <button onclick="copySearchQuery()" class="mt-2 w-full px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-md flex items-center justify-center gap-2 transition-colors">
+                                <i data-feather="copy" class="w-4 h-4"></i>
+                                Copy Query
+                            </button>
+                        </div>
+                        
+                        <!-- Metadata -->
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            <h3 class="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                <i data-feather="info" class="w-4 h-4"></i>
+                                METADATA
+                            </h3>
+                            <div class="space-y-2 text-xs">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Persona ID:</span>
+                                    <span id="detail-persona-id" class="font-mono text-gray-800">-</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Created:</span>
+                                    <span id="detail-created-at" class="text-gray-800">-</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Last Updated:</span>
+                                    <span id="detail-updated-at" class="text-gray-800">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Footer Actions -->
+            <div class="bg-gray-50 px-6 py-4 border-t flex items-center justify-between">
+                <div class="flex gap-2">
+                    <button onclick="closePersonaDetailsModal()" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md text-sm font-medium transition-colors">
+                        Close
+                    </button>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="startScrapingWithPersona()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium flex items-center gap-2 transition-colors">
+                        <i data-feather="search" class="w-4 h-4"></i>
+                        Find Leads
+                    </button>
+                    <button onclick="editFromDetails()" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm font-medium flex items-center gap-2 transition-colors">
+                        <i data-feather="edit-2" class="w-4 h-4"></i>
+                        Edit
+                    </button>
+                    <button onclick="deleteFromDetails()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm font-medium flex items-center gap-2 transition-colors">
+                        <i data-feather="trash-2" class="w-4 h-4"></i>
+                        Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
             </div>
         </div>
     </div>
@@ -297,120 +803,287 @@
 
 {% endblock %}
 
-{% block extra_js %}
+{% block extra_scripts %}
 <script src="/static/js/dashboard.js"></script>
 <script>
-async function checkDashboardConnections() {
-    try {
-        const liRes = await fetch('/api/linkedin/status');
-        const liData = await liRes.json();
-        
-        const liBadge = document.getElementById('linkedin-status-badge');
-        const liText = document.getElementById('linkedin-status-text');
-        const liLoginBtn = document.getElementById('linkedin-login-btn');
-        const liLogoutBtn = document.getElementById('linkedin-logout-btn');
-        const liBox = document.getElementById('linkedin-connection-status');
-        
-        if (liData.logged_in) {
-            liBadge.className = 'px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800';
-            liBadge.textContent = '✅ Connected';
-            liText.textContent = `Logged in as ${liData.user_name || 'LinkedIn User'}`;
-            liBox.classList.remove('border-gray-200');
-            liBox.classList.add('border-green-300');
-            liLoginBtn.style.display = 'none';
-            liLogoutBtn.style.display = 'flex';
-        } else {
-            liBadge.className = 'px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800';
-            liBadge.textContent = '❌ Not Connected';
-            liText.textContent = 'Click below to login to LinkedIn';
-            liBox.classList.remove('border-gray-200');
-            liBox.classList.add('border-red-300');
-            liLoginBtn.style.display = 'flex';
-            liLogoutBtn.style.display = 'none';
-        }
-    } catch (error) {
-        console.error('Error checking LinkedIn:', error);
+// Persona Management Functions
+
+function openCreatePersonaModal() {
+    document.getElementById('create-persona-modal').classList.remove('hidden');
+    document.getElementById('create-persona-form').reset();
+    feather.replace();
+}
+
+function closeCreatePersonaModal() {
+    document.getElementById('create-persona-modal').classList.add('hidden');
+}
+
+function toggleLocationFields() {
+    const worldwide = document.getElementById('create-worldwide').checked;
+    const locationFields = document.getElementById('location-fields');
+    
+    if (worldwide) {
+        locationFields.classList.add('opacity-50', 'pointer-events-none');
+    } else {
+        locationFields.classList.remove('opacity-50', 'pointer-events-none');
     }
+}
+
+function toggleEditLocationFields() {
+    const worldwide = document.getElementById('edit-worldwide').checked;
+    const locationFields = document.getElementById('edit-location-fields');
+    
+    if (worldwide) {
+        locationFields.classList.add('opacity-50', 'pointer-events-none');
+    } else {
+        locationFields.classList.remove('opacity-50', 'pointer-events-none');
+    }
+}
+
+// Create Persona Form Submit
+document.getElementById('create-persona-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const formData = {
+        name: document.getElementById('create-name').value.trim(),
+        description: document.getElementById('create-description').value.trim(),
+        
+        // Demographics
+        age_range: document.getElementById('create-age-range').value.trim(),
+        gender_distribution: document.getElementById('create-gender').value,
+        
+        // Job & Company
+        job_titles: document.getElementById('create-job-titles').value,
+        seniority_level: document.getElementById('create-seniority').value,
+        industry_focus: document.getElementById('create-industry').value.trim(),
+        company_size: document.getElementById('create-company-size').value,
+        company_types: document.getElementById('create-company-types').value,
+        
+        // Location
+        worldwide: document.getElementById('create-worldwide').checked,
+        regions: document.getElementById('create-regions').value,
+        countries: document.getElementById('create-countries').value,
+        cities: document.getElementById('create-cities').value,
+        
+        // AI Scoring
+        pain_points: document.getElementById('create-pain-points').value,
+        goals: document.getElementById('create-goals').value,
+        keywords: document.getElementById('create-keywords').value,
+        decision_makers: document.getElementById('create-decision-makers').value
+    };
     
     try {
-        const aiRes = await fetch('/api/auth/test-connection', {
+        const response = await fetch('/api/personas/create', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ service: 'openai' })
+            body: JSON.stringify(formData)
         });
-        const aiData = await aiRes.json();
         
-        const aiBadge = document.getElementById('openai-status-badge');
-        const aiText = document.getElementById('openai-status-text');
-        const aiBox = document.getElementById('openai-connection-status');
-        
-        if (aiData.success) {
-            aiBadge.className = 'px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800';
-            aiBadge.textContent = '✅ Connected';
-            aiText.textContent = 'API key configured and working';
-            aiBox.classList.remove('border-gray-200');
-            aiBox.classList.add('border-green-300');
-        } else {
-            aiBadge.className = 'px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800';
-            aiBadge.textContent = '❌ Not Configured';
-            aiText.textContent = 'Configure your OpenAI API key in Settings';
-            aiBox.classList.remove('border-gray-200');
-            aiBox.classList.add('border-red-300');
-        }
-    } catch (error) {
-        console.error('Error checking OpenAI:', error);
-    }
-    
-    if (typeof feather !== 'undefined') {
-        feather.replace();
-    }
-}
-
-async function loginToLinkedIn() {
-    const btn = document.getElementById('linkedin-login-btn');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="animate-spin">⏳</span> Logging in...';
-    
-    try {
-        const res = await fetch('/api/linkedin/login', { method: 'POST' });
-        const data = await res.json();
+        const data = await response.json();
         
         if (data.success) {
-            alert('✅ ' + data.message);
-            setTimeout(checkDashboardConnections, 1000);
+            showNotification('✅ Persona created successfully!', 'success');
+            closeCreatePersonaModal();
+            loadPersonas();
         } else {
-            alert('❌ Login failed: ' + (data.error || data.message));
+            showNotification('❌ ' + data.message, 'error');
         }
     } catch (error) {
-        alert('❌ Error: ' + error.message);
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = '<i data-feather="log-in" class="w-4 h-4"></i> Login to LinkedIn';
-        if (typeof feather !== 'undefined') feather.replace();
+        showNotification('❌ Error creating persona', 'error');
+        console.error(error);
     }
-}
-
-async function logoutFromLinkedIn() {
-    try {
-        const res = await fetch('/api/linkedin/close', { method: 'POST' });
-        const data = await res.json();
-        
-        if (data.success) {
-            alert('✅ Logged out successfully');
-            checkDashboardConnections();
-        }
-    } catch (error) {
-        alert('❌ Logout error: ' + error.message);
-    }
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    checkDashboardConnections();
-    setInterval(checkDashboardConnections, 30000);
 });
+
+// Edit Persona Form Submit
+document.getElementById('edit-persona-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const personaId = document.getElementById('edit-persona-id').value;
+    const formData = {
+        name: document.getElementById('edit-name').value.trim(),
+        description: document.getElementById('edit-description').value.trim(),
+        age_range: document.getElementById('edit-age-range').value.trim(),
+        gender_distribution: document.getElementById('edit-gender').value,
+        job_titles: document.getElementById('edit-job-titles').value,
+        seniority_level: document.getElementById('edit-seniority').value,
+        industry_focus: document.getElementById('edit-industry').value.trim(),
+        company_size: document.getElementById('edit-company-size').value,
+        company_types: document.getElementById('edit-company-types').value,
+        worldwide: document.getElementById('edit-worldwide').checked,
+        regions: document.getElementById('edit-regions').value,
+        countries: document.getElementById('edit-countries').value,
+        cities: document.getElementById('edit-cities').value,
+        pain_points: document.getElementById('edit-pain-points').value,
+        goals: document.getElementById('edit-goals').value,
+        keywords: document.getElementById('edit-keywords').value,
+        decision_makers: document.getElementById('edit-decision-makers').value
+    };
+    
+    try {
+        const response = await fetch(`/api/personas/${personaId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('✅ Persona updated successfully!', 'success');
+            closeEditPersonaModal();
+            loadPersonas();
+        } else {
+            showNotification('❌ ' + data.message, 'error');
+        }
+    } catch (error) {
+        showNotification('❌ Error updating persona', 'error');
+        console.error(error);
+    }
+});
+
+function openEditPersonaModal(persona) {
+    document.getElementById('edit-persona-modal').classList.remove('hidden');
+    document.getElementById('edit-persona-id').value = persona.id;
+    document.getElementById('edit-name').value = persona.name || '';
+    document.getElementById('edit-description').value = persona.description || '';
+    document.getElementById('edit-age-range').value = persona.age_range || '';
+    document.getElementById('edit-gender').value = persona.gender_distribution || '';
+    document.getElementById('edit-job-titles').value = persona.job_titles || '';
+    document.getElementById('edit-seniority').value = persona.seniority_level || '';
+    document.getElementById('edit-industry').value = persona.industry_focus || '';
+    document.getElementById('edit-company-size').value = persona.company_size || '';
+    document.getElementById('edit-company-types').value = persona.company_types || '';
+    document.getElementById('edit-pain-points').value = persona.pain_points || '';
+    document.getElementById('edit-goals').value = persona.goals || '';
+    document.getElementById('edit-keywords').value = persona.linkedin_keywords || '';
+    document.getElementById('edit-decision-makers').value = persona.decision_maker_roles || '';
+    
+    // Parse location targeting
+    try {
+        const locationData = persona.location_data ? JSON.parse(persona.location_data) : {};
+        document.getElementById('edit-worldwide').checked = locationData.worldwide || false;
+        document.getElementById('edit-regions').value = (locationData.regions || []).join('\n');
+        document.getElementById('edit-countries').value = (locationData.countries || []).join('\n');
+        document.getElementById('edit-cities').value = (locationData.cities || []).join('\n');
+        toggleEditLocationFields();
+    } catch (e) {
+        console.error('Error parsing location data:', e);
+    }
+    
+    feather.replace();
+}
+
+function closeEditPersonaModal() {
+    document.getElementById('edit-persona-modal').classList.add('hidden');
+}
+
+async function deletePersona(personaId, personaName) {
+    if (!confirm(`Are you sure you want to delete "${personaName}"?\n\nThis will also delete all associated leads.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/personas/${personaId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('🗑️ Persona deleted successfully', 'success');
+            loadPersonas();
+        } else {
+            showNotification('❌ ' + data.message, 'error');
+        }
+    } catch (error) {
+        showNotification('❌ Error deleting persona', 'error');
+        console.error(error);
+    }
+}
+
+// Load Personas
+async function loadPersonas() {
+    const container = document.getElementById('personas-list');
+    const loading = document.getElementById('personas-loading');
+    const empty = document.getElementById('personas-empty');
+    
+    loading.classList.remove('hidden');
+    container.classList.add('hidden');
+    empty.classList.add('hidden');
+    
+    try {
+        const response = await fetch('/api/personas');
+        const data = await response.json();
+        
+        if (data.success && data.personas && data.personas.length > 0) {
+            container.innerHTML = data.personas.map(persona => `
+                <div class="persona-card bg-white rounded-lg border-2 border-gray-200 p-4 hover:border-purple-300">
+                    <div class="flex items-start justify-between mb-3">
+                        <div class="flex-1">
+                            <h4 class="font-bold text-gray-800 text-lg">${persona.name}</h4>
+                            ${persona.description ? `<p class="text-sm text-gray-600 mt-1">${persona.description}</p>` : ''}
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick='openEditPersonaModal(${JSON.stringify(persona)})' class="p-2 text-blue-600 hover:bg-blue-50 rounded" title="Edit">
+                                <i data-feather="edit-2" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="deletePersona(${persona.id}, '${persona.name}')" class="p-2 text-red-600 hover:bg-red-50 rounded" title="Delete">
+                                <i data-feather="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-2 text-sm">
+                        ${persona.job_titles ? `
+                            <div class="flex items-start gap-2">
+                                <i data-feather="briefcase" class="w-4 h-4 text-gray-400 mt-0.5"></i>
+                                <div class="flex-1">
+                                    <span class="text-gray-600">Roles:</span>
+                                    <div class="text-gray-800 font-mono text-xs mt-1">
+                                        ${persona.job_titles.split('\n').slice(0, 2).join(', ')}
+                                        ${persona.job_titles.split('\n').length > 2 ? ` (+${persona.job_titles.split('\n').length - 2} more)` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        ` : ''}
+                        
+                        ${persona.industry_focus ? `
+                            <div class="flex items-center gap-2">
+                                <i data-feather="layers" class="w-4 h-4 text-gray-400"></i>
+                                <span class="text-gray-600">Industry:</span>
+                                <span class="text-gray-800 font-medium">${persona.industry_focus}</span>
+                            </div>
+                        ` : ''}
+                        
+                        ${persona.pain_points ? `
+                            <div class="flex items-start gap-2">
+                                <i data-feather="alert-circle" class="w-4 h-4 text-gray-400 mt-0.5"></i>
+                                <span class="text-gray-600">Pain Points: ${persona.pain_points.split('\n').length}</span>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `).join('');
+            
+            loading.classList.add('hidden');
+            container.classList.remove('hidden');
+            feather.replace();
+        } else {
+            loading.classList.add('hidden');
+            empty.classList.remove('hidden');
+            feather.replace();
+        }
+    } catch (error) {
+        console.error('Error loading personas:', error);
+        loading.classList.add('hidden');
+        empty.classList.remove('hidden');
+    }
+}
+
+// Load personas on page load
+document.addEventListener('DOMContentLoaded', () => {
+    loadPersonas();
+});
+
 </script>
 {% endblock %}
-            checkDashboardConnections();
-            setInterval(checkDashboardConnections, 30000);
-        });
-    </script>

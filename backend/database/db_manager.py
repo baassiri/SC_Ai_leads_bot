@@ -101,8 +101,9 @@ class DatabaseManager:
     def create_persona(self, name, description=None, age_range=None, gender_distribution=None,
                     goals=None, pain_points=None, key_message=None, message_tone=None,
                     job_titles=None, decision_maker_roles=None, company_types=None,
+                    company_size=None, seniority_level=None, industry_focus=None,
                     solutions=None, linkedin_keywords=None, smart_search_query=None,
-                    message_hooks=None, seniority_level=None, industry_focus=None):
+                    message_hooks=None, location_data=None, document_source=None):
         """Create a new persona with enhanced targeting data"""
         with self.session_scope() as session:
             persona = Persona(
@@ -117,12 +118,15 @@ class DatabaseManager:
                 job_titles=job_titles,
                 decision_maker_roles=decision_maker_roles,
                 company_types=company_types,
+                company_size=company_size,
+                seniority_level=seniority_level,
+                industry_focus=industry_focus,
                 solutions=solutions,
                 linkedin_keywords=linkedin_keywords,
                 smart_search_query=smart_search_query,
                 message_hooks=message_hooks,
-                seniority_level=seniority_level,
-                industry_focus=industry_focus
+                location_data=location_data,
+                document_source=document_source
             )
             session.add(persona)
             session.flush()
@@ -1061,6 +1065,31 @@ class DatabaseManager:
             persona.updated_at = datetime.utcnow()
             
             return True
+    """
+    Add this method to db_manager.py after line 1063 (before the singleton instance)
+    """
 
+    def delete_persona(self, persona_id: int) -> bool:
+        """
+        Delete a persona and all associated leads
+        
+        Args:
+            persona_id: ID of persona to delete
+            
+        Returns:
+            True if successful, False if persona not found
+        """
+        with self.session_scope() as session:
+            from backend.database.models import Persona
+            
+            persona = session.query(Persona).filter(Persona.id == persona_id).first()
+            
+            if not persona:
+                return False
+            
+            # SQLAlchemy will handle cascade delete for leads if configured
+            session.delete(persona)
+            
+            return True
 # Singleton instance
 db_manager = DatabaseManager()

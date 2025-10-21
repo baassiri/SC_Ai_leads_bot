@@ -2,7 +2,7 @@
 SC AI Lead Generation System - Database Models
 SQLAlchemy ORM models for all database tables
 UPDATED: Added ABTest model for A/B/C testing integration
-FIXED: Added enhanced persona fields for AI-powered targeting
+FIXED: Cleaned up duplicate persona fields
 """
 
 from datetime import datetime
@@ -44,34 +44,40 @@ class Persona(Base):
     __tablename__ = 'personas'
     
     id = Column(Integer, primary_key=True)
-    name = Column(String(255), nullable=False)  # e.g., "Plastic Surgeon"
-    description = Column(Text)  # e.g., "The Prestige Provider"
+    name = Column(String(255), nullable=False)
+    description = Column(Text)
     
     # Demographics
-    age_range = Column(String(50))  # e.g., "40-65"
-    gender_distribution = Column(String(100))  # e.g., "Predominantly male"
+    age_range = Column(String(50))
+    gender_distribution = Column(String(100))
     
-    # Business details
-    goals = Column(Text)  # JSON or text list of goals
-    pain_points = Column(Text)  # JSON or text list of pain points
+    # Business details & AI Scoring
+    goals = Column(Text)
+    pain_points = Column(Text)
     
     # Messaging
     key_message = Column(Text)
-    message_tone = Column(String(100))  # e.g., "Consultative", "Growth-focused"
+    message_tone = Column(String(100))
     
-    # ✅ ENHANCED TARGETING FIELDS (AI-generated)
-    job_titles = Column(Text)  # Newline-separated job titles
-    decision_maker_roles = Column(Text)  # Key decision maker roles
-    company_types = Column(Text)  # Types of companies to target
-    solutions = Column(Text)  # Solutions this persona needs
-    linkedin_keywords = Column(Text)  # Keywords for LinkedIn search
-    smart_search_query = Column(String(500))  # AI-optimized search query
-    message_hooks = Column(Text)  # Proven message hooks
-    seniority_level = Column(String(100))  # e.g., "C-Level", "Director"
-    industry_focus = Column(String(200))  # Primary industries
-    document_source = Column(String(255))  # Source document filename
+    # Enhanced targeting fields
+    job_titles = Column(Text)
+    decision_maker_roles = Column(Text)
+    company_types = Column(Text)
+    company_size = Column(String(100))
+    seniority_level = Column(String(100))
+    industry_focus = Column(String(200))
     
-    # Metadata
+    # AI-powered fields
+    solutions = Column(Text)
+    linkedin_keywords = Column(Text)
+    smart_search_query = Column(String(500))
+    message_hooks = Column(Text)
+    
+    # Location & metadata
+    location_data = Column(JSON)
+    document_source = Column(String(255))
+    
+    # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -99,16 +105,16 @@ class Lead(Base):
     profile_url = Column(String(500), unique=True)
     headline = Column(Text)
     summary = Column(Text)
-    company_size = Column(String(50))  # e.g., "11-50 employees"
+    company_size = Column(String(50))
     
     # AI Scoring
-    ai_score = Column(Float, default=0.0)  # 0-100 scale
+    ai_score = Column(Float, default=0.0)
     persona_id = Column(Integer, ForeignKey('personas.id'))
-    score_reasoning = Column(Text)  # Why this score?
+    score_reasoning = Column(Text)
     
     # Status tracking
-    status = Column(String(50), default='new')  # new, contacted, replied, archived
-    connection_status = Column(String(50), default='not_sent')  # not_sent, pending, accepted, rejected
+    status = Column(String(50), default='new')
+    connection_status = Column(String(50), default='not_sent')
     
     # Timestamps
     scraped_at = Column(DateTime, default=datetime.utcnow)
@@ -136,23 +142,23 @@ class Message(Base):
     ab_test_id = Column(Integer, ForeignKey('ab_tests.id'))
     
     # Message details
-    message_type = Column(String(50))  # connection_request, follow_up_1, follow_up_2
+    message_type = Column(String(50))
     content = Column(Text, nullable=False)
-    variant = Column(String(10))  # A, B, C (for A/B testing)
+    variant = Column(String(10))
     
     # AI generation context
-    prompt_used = Column(Text)  # Store the prompt for learning
-    generated_by = Column(String(50), default='gpt-4')  # Model used
+    prompt_used = Column(Text)
+    generated_by = Column(String(50), default='gpt-4')
     
     # Status
-    status = Column(String(50), default='draft')  # draft, approved, sent, failed
+    status = Column(String(50), default='draft')
     sent_at = Column(DateTime)
     opened_at = Column(DateTime)
     clicked_at = Column(DateTime)
     
     # Performance metrics
     was_replied = Column(Boolean, default=False)
-    reply_sentiment = Column(String(50))  # positive, neutral, negative
+    reply_sentiment = Column(String(50))
     
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -177,10 +183,10 @@ class Campaign(Base):
     # Campaign details
     name = Column(String(255), nullable=False)
     description = Column(Text)
-    status = Column(String(50), default='draft')  # draft, active, paused, completed
+    status = Column(String(50), default='draft')
     
     # Search criteria (stored as JSON)
-    search_filters = Column(JSON)  # job titles, industries, locations, etc.
+    search_filters = Column(JSON)
     
     # Metrics
     leads_scraped = Column(Integer, default=0)
@@ -237,7 +243,7 @@ class ABTest(Base):
     
     # Test Status
     winning_variant = Column(String(1))
-    status = Column(String(20), default='active')  # active, completed, paused
+    status = Column(String(20), default='active')
     min_sends_required = Column(Integer, default=20)
     confidence_threshold = Column(Float, default=0.15)
     
@@ -254,7 +260,7 @@ class ABTest(Base):
     
     def get_winner(self):
         """Get the winning variant if test is completed"""
-        if self.status == 'completed' and self.winning_variant:
+        if self.status == 'completed' and self.winning_variant: 
             return self.winning_variant
         return None
     
@@ -284,12 +290,12 @@ class Response(Base):
     
     # Response details
     response_text = Column(Text, nullable=False)
-    response_type = Column(String(50))  # connection_accept, message_reply, meeting_request
-    sentiment = Column(String(50))  # positive, neutral, negative, interested, not_interested
+    response_type = Column(String(50))
+    sentiment = Column(String(50))
     
     # AI analysis
-    intent = Column(String(100))  # What does the lead want?
-    next_action = Column(String(255))  # Suggested next step
+    intent = Column(String(100))
+    next_action = Column(String(255))
     
     # Timestamps
     received_at = Column(DateTime, default=datetime.utcnow)
@@ -309,9 +315,9 @@ class ActivityLog(Base):
     id = Column(Integer, primary_key=True)
     
     # Activity details
-    activity_type = Column(String(100))  # scrape, score, message_generate, message_send, etc.
+    activity_type = Column(String(100))
     description = Column(Text)
-    status = Column(String(50))  # success, failed, pending
+    status = Column(String(50))
     
     # Associated records
     lead_id = Column(Integer, ForeignKey('leads.id'))
@@ -324,10 +330,8 @@ class ActivityLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     def __repr__(self):
-        return f"<ActivityLog(id={self.id}, type='{self.activity_type}', status='{self.status}')>"# ============================================================================
-# ADD THIS MODEL TO backend/database/models.py
-# Add it after the other model classes (around line 200+)
-# ============================================================================
+        return f"<ActivityLog(id={self.id}, type='{self.activity_type}', status='{self.status}')>"
+
 
 class MessageTemplate(Base):
     """Message template for reusable message patterns"""

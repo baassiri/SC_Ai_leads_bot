@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Aesthetic LinkWizard Pro{% endblock %}</title>
+    <title>{% block title %}SC Lead Generation{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
     <script>
@@ -33,7 +33,7 @@
         <!-- Sidebar -->
         <div class="sidebar bg-primary text-white w-64 flex-shrink-0">
             <div class="p-4 border-b border-primary-light">
-                <h2 class="text-xl font-bold">Aesthetic LinkWizard</h2>
+                <h2 class="text-xl font-bold">SC LinkWizard</h2>
                 <p class="text-xs text-blue-100">AI-Powered Lead Generation</p>
             </div>
             
@@ -42,19 +42,11 @@
                 <div class="mb-8">
                     <h3 class="text-xs uppercase tracking-wider text-blue-200 mb-3">Campaign Controls</h3>
                     
-                    <!-- Upload Document Button -->
-                    <button id="upload-doc-btn" class="w-full flex items-center justify-between bg-secondary hover:bg-blue-500 text-white px-4 py-2 rounded-md mb-3">
-                        <span>Upload Target Document</span>
-                        <i data-feather="upload" class="w-4 h-4"></i>
-                    </button>
-                    
-                    <!-- Hidden File Input -->
-                    <input type="file" id="file-input" accept=".pdf,.doc,.docx,.txt" style="display: none;">
-                    
                     <!-- Personas Count -->
                     <div class="bg-blue-900 bg-opacity-30 p-3 rounded-md mb-3">
-                        <p class="text-sm">Personas Loaded:</p>
+                        <p class="text-sm">Target Personas:</p>
                         <p class="text-lg font-bold" id="sidebar-personas-count">0</p>
+                        <p class="text-xs text-blue-200 mt-1">Create in Dashboard</p>
                     </div>
                     
                     <!-- Bot Start/Stop Buttons -->
@@ -118,32 +110,13 @@
         </div>
     </div>
 
-    <!-- Upload Modal -->
-    <div id="upload-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-        <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 class="text-lg font-semibold mb-4">Upload Target Document</h3>
-            <div id="upload-status" class="mb-4">
-                <p class="text-sm text-gray-600">Select a PDF, Word document, or text file containing your target personas.</p>
-            </div>
-            <div id="upload-progress" class="hidden mb-4">
-                <div class="w-full bg-gray-200 rounded-full h-2">
-                    <div id="progress-bar" class="bg-blue-600 h-2 rounded-full" style="width: 0%"></div>
-                </div>
-                <p id="progress-text" class="text-sm text-gray-600 mt-2">Uploading...</p>
-            </div>
-            <div class="flex justify-end space-x-2">
-                <button id="close-upload-modal" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md">Cancel</button>
-            </div>
-        </div>
-    </div>
-
     <!-- Notification Container -->
     <div id="notification-container" class="fixed top-4 right-4 z-50"></div>
 
     <!-- Shared JavaScript -->
     <script src="/static/js/shared.js"></script>
     
-    {% block extra_js %}{% endblock %}
+    {% block extra_scripts %}{% endblock %}
     
     <script>
         // Initialize everything
@@ -155,3 +128,7 @@
             
             // Start bot status polling
             startBotStatusPolling();
+        });
+    </script>
+</body>
+</html>

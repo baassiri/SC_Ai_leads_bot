@@ -4,9 +4,6 @@ Works only with uploaded documents - no hardcoded personas
 FIXED: Clean AB test routes, no duplicates, cooldown manager integrated
 """
 
-# ============================================================================
-# IMPORTS - Core Flask
-# ============================================================================
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 from datetime import datetime
@@ -16,14 +13,8 @@ import random
 from pathlib import Path
 import sys
 
-# ============================================================================
-# IMPORTS - Fix Python Path
-# ============================================================================
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# ============================================================================
-# IMPORTS - Backend Modules
-# ============================================================================
 from backend.ai_engine.message_generator_abc import ABCMessageGenerator
 from backend.automation.scheduler import scheduler as message_scheduler
 from backend.config import Config, get_config
@@ -32,18 +23,13 @@ from backend.credentials_manager import credentials_manager
 from backend.scraping_cooldown_manager import get_cooldown_manager
 from backend.linkedin.linkedin_sender import LinkedInSender
 
-# ============================================================================
-# IMPORTS - API Routes
-# ============================================================================
 from backend.api.missing_endpoints import register_missing_endpoints
 from backend.api.schedule_routes import register_scheduling_routes
 from backend.api.timeline_routes import register_timeline_routes
 from backend.api.message_routes import register_message_routes
 from backend.api.template_routes import register_template_routes
+from backend.api.persona_routes import register_persona_routes
 
-# ============================================================================
-# FLASK APP INITIALIZATION
-# ============================================================================
 app = Flask(__name__,
            template_folder='../frontend/templates',
            static_folder='../frontend/static')
@@ -51,9 +37,6 @@ app = Flask(__name__,
 app.config.from_object(get_config())
 CORS(app, origins=Config.CORS_ORIGINS)
 
-# ============================================================================
-# GLOBAL STATE
-# ============================================================================
 bot_status = {
     'running': False,
     'current_activity': 'Stopped',
@@ -63,21 +46,17 @@ bot_status = {
 
 current_personas = []
 scraper_thread = None
+linkedin_sender = None
+bot_lock = threading.Lock()
 
-# ============================================================================
-# REGISTER ALL API ROUTES
-# ============================================================================
 register_missing_endpoints(app, db_manager, credentials_manager)
 register_scheduling_routes(app, db_manager)
 register_timeline_routes(app, db_manager)
 register_message_routes(app, db_manager)
 register_template_routes(app, db_manager)
+register_persona_routes(app, db_manager)
 
 print("✅ All routes registered successfully")
-
-# ============================================================================
-# HTML ROUTES
-# ============================================================================
 
 @app.route('/')
 def index():
@@ -101,17 +80,11 @@ def analytics_page():
 
 @app.route('/settings')
 def settings_page():
-    """Render settings page"""
     return render_template('settings.html')
 
 @app.route('/ab-analytics')
 def ab_analytics_page():
-    """Render AB test analytics page"""
     return render_template('ab_test_analytics.html')
-
-# ============================================================================
-# API ROUTES - AUTHENTICATION
-# ============================================================================
 
 @app.route('/api/auth/save-credentials', methods=['POST'])
 def save_credentials():
@@ -163,34 +136,85 @@ def save_credentials():
 
 @app.route('/api/settings/save', methods=['POST'])
 def save_settings_alias():
-    """Alias route for settings page compatibility"""
     return save_credentials()
 
 @app.route('/api/settings/test', methods=['POST'])
 def test_settings_alias():
-    """Alias for test connection"""
     return test_connection()
 
 @app.route('/api/auth/test-connection', methods=['POST'])
 def test_connection():
     try:
         data = request.json
-        service = data.get('service')
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': 'No data provided'
+            }), 400
         
-        if service == 'linkedin':
+        service = data.get('service')
+        print(f"🧪 Testing connection for service: {service}")
+        
+        if not service:
+            return jsonify({
+                'success': False,
+                'message': 'Service parameter is required (linkedin, openai, or all)'
+            }), 400
+        
+        if service == 'all':
+            results = []
+            all_success = True
+            
+            linkedin_creds = credentials_manager.get_linkedin_credentials()
+            if linkedin_creds and linkedin_creds.get('email'):
+                results.append(f"✅ LinkedIn: {linkedin_creds['email']}")
+            else:
+                results.append("❌ LinkedIn: Not configured")
+                all_success = False
+            
+            api_key = credentials_manager.get_openai_key()
+            if api_key:
+                try:
+                    import openai
+                    openai.api_key = api_key
+                    openai.models.list()
+                    results.append("✅ OpenAI: Valid API key")
+                except Exception as e:
+                    results.append(f"❌ OpenAI: Invalid ({str(e)[:50]})")
+                    all_success = False
+            else:
+                results.append("❌ OpenAI: Not configured")
+                all_success = False
+            
+            message = "\n".join(results)
+            print(message)
+            
+            return jsonify({
+                'success': all_success,
+                'message': message
+            })
+        
+        elif service == 'linkedin':
             linkedin_creds = credentials_manager.get_linkedin_credentials()
             
             if not linkedin_creds:
                 return jsonify({
                     'success': False,
-                    'message': 'No LinkedIn credentials found.'
+                    'message': 'No LinkedIn credentials found. Please save credentials first.'
                 }), 400
             
+            if not linkedin_creds.get('email') or not linkedin_creds.get('password'):
+                return jsonify({
+                    'success': False,
+                    'message': 'LinkedIn credentials incomplete.'
+                }), 400
+            
+            print(f"✅ LinkedIn credentials found for: {linkedin_creds['email']}")
             return jsonify({
                 'success': True,
-                'message': f'LinkedIn credentials configured for {linkedin_creds["email"]}'
+                'message': f'LinkedIn: {linkedin_creds["email"]}'
             })
-            
+        
         elif service == 'openai':
             api_key = credentials_manager.get_openai_key()
             
@@ -200,32 +224,42 @@ def test_connection():
                     'message': 'No OpenAI API key found.'
                 }), 400
             
+            try:
+                import openai
+                openai.api_key = api_key
+                openai.models.list()
+                
+                print(f"✅ OpenAI API key is valid!")
+                return jsonify({
+                    'success': True,
+                    'message': 'OpenAI API key is valid!'
+                })
+                
+            except Exception as api_error:
+                print(f"❌ OpenAI API key test failed: {str(api_error)}")
+                return jsonify({
+                    'success': False,
+                    'message': f'Invalid API key: {str(api_error)}'
+                }), 400
+        
+        else:
+            print(f"❌ Invalid service: {service}")
             return jsonify({
-                'success': True,
-                'message': f'OpenAI API key configured'
-            })
-            
-        return jsonify({
-            'success': False,
-            'message': 'Invalid service'
-        }), 400
+                'success': False,
+                'message': f'Invalid service: {service}'
+            }), 400
         
     except Exception as e:
+        print(f"❌ Test connection error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
 
-# NOTE: /api/auth/check-credentials is registered by register_missing_endpoints()
-# No duplicate definition needed here
-
-# ============================================================================
-# API ROUTES - FILE UPLOAD
-# ============================================================================
-
 @app.route('/api/upload-targets', methods=['POST'])
 def upload_targets():
-    """Upload and parse target document with AI"""
     global current_personas
     
     try:
@@ -259,11 +293,9 @@ def upload_targets():
         
         for persona_data in personas_from_ai:
             try:
-                # ✅ Convert lists to strings for database storage
                 goals_str = '\n'.join(persona_data.get('goals', [])) if isinstance(persona_data.get('goals'), list) else str(persona_data.get('goals', ''))
                 pain_points_str = '\n'.join(persona_data.get('pain_points', [])) if isinstance(persona_data.get('pain_points'), list) else str(persona_data.get('pain_points', ''))
                 
-                # ✅ NEW: Extract enhanced fields
                 job_titles_str = '\n'.join(persona_data.get('job_titles', [])) if isinstance(persona_data.get('job_titles'), list) else ''
                 decision_makers_str = '\n'.join(persona_data.get('decision_maker_roles', [])) if isinstance(persona_data.get('decision_maker_roles'), list) else ''
                 company_types_str = '\n'.join(persona_data.get('company_types', [])) if isinstance(persona_data.get('company_types'), list) else ''
@@ -281,7 +313,6 @@ def upload_targets():
                         pain_points=pain_points_str,
                         key_message=persona_data.get('key_message'),
                         message_tone=persona_data.get('message_tone'),
-                        # ✅ NEW: Enhanced fields
                         job_titles=job_titles_str,
                         decision_maker_roles=decision_makers_str,
                         company_types=company_types_str,
@@ -319,21 +350,19 @@ def upload_targets():
         
         return jsonify({
             'success': True,
-            'message': f'✅ AI extracted {personas_saved} personas! Ready to generate leads.',
-            'personas_count': len(personas_list),
+            'message': f'Document analyzed! Extracted {personas_saved} personas.',
             'personas': personas_list,
-            'personas_saved': personas_saved,
-            'ai_analysis': analysis
+            'total_personas': len(personas_list)
         })
         
     except Exception as e:
+        print(f"Error uploading targets: {str(e)}")
         import traceback
-        error_details = traceback.format_exc()
-        print(f"Error in upload_targets: {error_details}")
+        traceback.print_exc()
         
         db_manager.log_activity(
             activity_type='file_upload',
-            description=f'❌ Error analyzing document: {str(e)}',
+            description=f'Failed to analyze document: {str(e)}',
             status='failed',
             error_message=str(e)
         )
@@ -342,13 +371,8 @@ def upload_targets():
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
-    
-# ============================================================================
-# API ROUTES - BOT CONTROL
-# ============================================================================
 
 def generate_lead_from_persona(persona):
-    """Generate a realistic lead from a persona"""
     first_names = ['Alex', 'Jordan', 'Taylor', 'Morgan', 'Casey', 'Riley', 'Avery', 'Quinn', 'Sam', 'Drew']
     last_names = ['Chen', 'Patel', 'Kim', 'Martinez', 'Johnson', 'Williams', 'Lee', 'Garcia', 'Brown', 'Davis']
     
@@ -382,14 +406,8 @@ def generate_lead_from_persona(persona):
         'score': random.randint(70, 98)
     }
 
-# ============================================================================
-# CHANGE 2: REPLACE start_bot() WITH COOLDOWN-ENABLED VERSION
-# ============================================================================
-
-
 @app.route('/api/bot/start', methods=['POST'])
 def start_bot():
-    """Start the REAL lead scraping bot with cooldown enforcement"""
     global bot_status, scraper_thread
     
     try:
@@ -399,7 +417,6 @@ def start_bot():
                 'message': 'Bot is already running'
             }), 400
         
-        # Check scraping cooldown
         cooldown_manager = get_cooldown_manager()
         can_scrape, cooldown_message, details = cooldown_manager.check_can_scrape()
         
@@ -438,38 +455,28 @@ def start_bot():
             status='success'
         )
         
-        # GET REQUEST DATA BEFORE THREAD STARTS
         request_data = request.json or {}
         target_profile_from_ui = request_data.get('target_profile', '').strip()
         
-        
-        # Define the scraping function OUTSIDE but accessible
         def scrape_leads_background():
-            """Background thread to scrape leads - ENHANCED TO USE ALL PERSONA FIELDS"""
             
             def build_search_query_from_persona(persona):
-                """Build comprehensive LinkedIn search from ALL persona fields"""
                 
-                # Priority 1: Use smart_search_query if available (AI-optimized)
                 if persona.get('smart_search_query'):
                     query = persona['smart_search_query'].strip()
                     if query:
                         return query
                 
-                # Priority 2: Build from job_titles (your manual edits!)
                 if persona.get('job_titles'):
                     job_titles = [t.strip() for t in persona['job_titles'].split('\n') if t.strip()]
                     if job_titles:
-                        # Use first 3 job titles for search
                         return ' OR '.join(f'"{title}"' for title in job_titles[:3])
                 
-                # Priority 3: Use linkedin_keywords (your manual keywords!)
                 if persona.get('linkedin_keywords'):
                     keywords = [k.strip() for k in persona['linkedin_keywords'].split('\n') if k.strip()]
                     if keywords:
                         return ' '.join(keywords[:5])
                 
-                # Priority 4: Fallback to persona name analysis
                 persona_name = persona.get('name', '').lower()
                 if 'founder' in persona_name or 'sme' in persona_name:
                     return 'CEO founder'
@@ -504,7 +511,6 @@ def start_bot():
                     bot_status['progress'] = 30
                     time.sleep(2)
                     
-                    # Build search query from persona
                     if target_profile_from_ui:
                         search_keyword = target_profile_from_ui
                         print(f"🎯 Using target profile from UI: {target_profile_from_ui}")
@@ -658,9 +664,24 @@ def stop_bot():
 
 @app.route('/api/bot/status', methods=['GET'])
 def get_bot_status():
+    global linkedin_sender
+    
+    linkedin_logged_in = False
+    if linkedin_sender is not None:
+        try:
+            if hasattr(linkedin_sender, 'driver') and linkedin_sender.driver is not None:
+                current_url = linkedin_sender.driver.current_url
+                if 'linkedin.com' in current_url:
+                    linkedin_logged_in = True
+                    print(f"✅ LinkedIn session active: {current_url}")
+        except Exception as e:
+            print(f"❌ LinkedIn session check failed: {str(e)}")
+            linkedin_logged_in = False
+    
     return jsonify({
         'success': True,
-        'status': bot_status
+        'status': bot_status,
+        'linkedin_logged_in': linkedin_logged_in
     })
 
 @app.route('/api/leads', methods=['GET'])
@@ -690,7 +711,6 @@ def get_leads():
 
 @app.route('/api/leads/<int:lead_id>', methods=['GET'])
 def get_lead(lead_id):
-    """Get a single lead by ID"""
     try:
         lead = db_manager.get_lead_by_id(lead_id)
         
@@ -710,11 +730,9 @@ def get_lead(lead_id):
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
-# ADD THIS TO app.py AFTER THE OTHER LEAD ROUTES (around line 650-700)
 
 @app.route('/api/leads/bulk-update', methods=['POST'])
 def bulk_update_leads():
-    """Bulk update lead statuses (for approval workflow)"""
     try:
         data = request.json
         lead_ids = data.get('lead_ids', [])
@@ -753,85 +771,9 @@ def bulk_update_leads():
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
-# ============================================================================
-# API ROUTES - PERSONAS
-# ============================================================================
-
-@app.route('/api/personas', methods=['GET'])
-def get_personas():
-    try:
-        personas = db_manager.get_all_personas()
-        
-        return jsonify({
-            'success': True,
-            'personas': personas,
-            'total': len(personas)
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-
-# ADD THIS TO backend/backend/app.py after the existing @app.route('/api/personas', methods=['GET'])
-
-@app.route('/api/personas/<int:persona_id>', methods=['PUT'])
-def update_persona(persona_id):
-    """Update persona details"""
-    try:
-        data = request.json
-        
-        # Get allowed fields to update
-        allowed_fields = [
-            'name', 'description', 'job_titles', 'decision_maker_roles',
-            'company_types', 'linkedin_keywords', 'smart_search_query',
-            'seniority_level', 'industry_focus'
-        ]
-        
-        updates = {}
-        for field in allowed_fields:
-            if field in data:
-                updates[field] = data[field]
-        
-        if not updates:
-            return jsonify({
-                'success': False,
-                'message': 'No valid fields to update'
-            }), 400
-        
-        # Update in database
-        success = db_manager.update_persona(persona_id, updates)
-        
-        if success:
-            db_manager.log_activity(
-                activity_type='persona_updated',
-                description=f'Persona {persona_id} updated successfully',
-                status='success'
-            )
-            
-            return jsonify({
-                'success': True,
-                'message': 'Persona updated successfully'
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'message': 'Persona not found'
-            }), 404
-            
-    except Exception as e:
-        print(f"Error updating persona: {str(e)}")
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
-# ============================================================================
-# LEADS & SCRAPING ROUTES
-# ============================================================================
 
 @app.route('/api/leads/top', methods=['GET'])
 def get_top_leads():
-    """Get top qualified leads"""
     try:
         limit = request.args.get('limit', 20, type=int)
         min_score = request.args.get('min_score', 70, type=int)
@@ -854,16 +796,10 @@ def get_top_leads():
 
 @app.route('/api/scrape/start', methods=['POST'])
 def start_scrape():
-    """Start scraping with smart keywords"""
     return start_bot()
-
-# ============================================================================
-# MESSAGE SCHEDULER API
-# ============================================================================
 
 @app.route('/api/scheduler/status', methods=['GET'])
 def get_scheduler_status():
-    """Get scheduler status"""
     try:
         status = message_scheduler.get_status()
         return jsonify({'success': True, 'scheduler': status})
@@ -872,7 +808,6 @@ def get_scheduler_status():
 
 @app.route('/api/scheduler/start', methods=['POST'])
 def start_scheduler():
-    """Start the message scheduler"""
     try:
         message_scheduler.start()
         return jsonify({'success': True, 'message': 'Scheduler started'})
@@ -881,16 +816,11 @@ def start_scheduler():
 
 @app.route('/api/scheduler/stop', methods=['POST'])
 def stop_scheduler():
-    """Stop the message scheduler"""
     try:
         message_scheduler.stop()
         return jsonify({'success': True, 'message': 'Scheduler stopped'})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
-
-# ============================================================================
-# ANALYTICS
-# ============================================================================
 
 @app.route('/api/analytics/dashboard', methods=['GET'])
 def get_dashboard_stats():
@@ -912,8 +842,6 @@ def get_dashboard_stats():
             'message': f'Error: {str(e)}'
         }), 500
 
-
-
 @app.route('/api/activity-logs', methods=['GET'])
 def get_activity_logs():
     try:
@@ -933,13 +861,8 @@ def get_activity_logs():
             'message': f'Error: {str(e)}'
         }), 500
 
-# ============================================================================
-# API ROUTES - A/B TEST ANALYTICS
-# ============================================================================
-
 @app.route('/api/ab-tests/<int:test_id>/analyze', methods=['GET'])
 def analyze_ab_test(test_id):
-    """Analyze A/B test and detect winner"""
     try:
         from backend.ai_engine.ab_test_analyzer import ab_analyzer
         
@@ -958,7 +881,6 @@ def analyze_ab_test(test_id):
 
 @app.route('/api/ab-tests/auto-analyze', methods=['POST'])
 def auto_analyze_tests():
-    """Auto-analyze all active tests and declare winners"""
     try:
         from backend.ai_engine.ab_test_analyzer import ab_analyzer
         
@@ -986,7 +908,6 @@ def auto_analyze_tests():
 
 @app.route('/api/ab-tests/best-practices', methods=['GET'])
 def get_best_practices():
-    """Get best practices from all completed tests"""
     try:
         from backend.ai_engine.ab_test_analyzer import ab_analyzer
         
@@ -1005,7 +926,6 @@ def get_best_practices():
 
 @app.route('/api/ab-tests/winners', methods=['GET'])
 def get_all_winners():
-    """Get all tests with declared winners"""
     try:
         from backend.ai_engine.ab_test_analyzer import ab_analyzer
         
@@ -1025,7 +945,6 @@ def get_all_winners():
 
 @app.route('/api/ab-tests/<int:test_id>/comparison', methods=['GET'])
 def get_variant_comparison(test_id):
-    """Get detailed comparison of all variants"""
     try:
         from backend.ai_engine.ab_test_analyzer import ab_analyzer
         
@@ -1042,13 +961,8 @@ def get_variant_comparison(test_id):
             'message': f'Error: {str(e)}'
         }), 500
 
-# ============================================================================
-# COOLDOWN API ENDPOINTS
-# ============================================================================
-
 @app.route('/api/scraping/cooldown-status', methods=['GET'])
 def get_cooldown_status():
-    """Get current scraping cooldown status"""
     try:
         cooldown_manager = get_cooldown_manager()
         can_scrape, message, details = cooldown_manager.check_can_scrape()
@@ -1069,7 +983,6 @@ def get_cooldown_status():
 
 @app.route('/api/scraping/update-limit', methods=['POST'])
 def update_scraping_limit():
-    """Update weekly scraping limit"""
     try:
         data = request.json
         new_limit = data.get('weekly_limit', 10)
@@ -1092,41 +1005,87 @@ def update_scraping_limit():
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
-# LinkedIn Automation Routes
+
 linkedin_sender = None
 
 @app.route('/api/linkedin/login', methods=['POST'])
 def linkedin_login():
-    """Initiate LinkedIn login"""
     global linkedin_sender
+    
     try:
-        linkedin_sender = LinkedInSender()
-        linkedin_sender.init_driver()
+        print("🔄 LinkedIn login requested...")
         
-        # Try loading saved cookies first
+        if linkedin_sender is None:
+            print("📦 Creating new LinkedInSender instance...")
+            linkedin_sender = LinkedInSender()
+        
+        if not hasattr(linkedin_sender, 'driver') or linkedin_sender.driver is None:
+            print("🚗 Initializing Chrome driver...")
+            linkedin_sender.init_driver()
+            print("✅ Chrome driver initialized")
+        
+        print("🍪 Attempting to load saved session...")
         if linkedin_sender.load_cookies():
-            return jsonify({"success": True, "message": "Logged in using saved session"})
+            print("✅ Logged in using saved session")
+            
+            db_manager.log_activity(
+                activity_type='linkedin_login',
+                description='LinkedIn login successful (saved session)',
+                status='success'
+            )
+            
+            return jsonify({
+                "success": True, 
+                "message": "Logged in using saved session"
+            })
         
-        # If cookies don't work, do manual login
-        success = linkedin_sender.login_manual()
-        if success:
-            return jsonify({"success": True, "message": "Login successful"})
-        else:
-            return jsonify({"success": False, "error": "Login failed"}), 400
+        print("🌐 Opening LinkedIn login page...")
+        try:
+            linkedin_sender.driver.get('https://www.linkedin.com/login')
+            
+            import time
+            time.sleep(2)
+            
+            print("✅ LinkedIn login page opened - waiting for user to login...")
+            
+            return jsonify({
+                "success": True,
+                "message": "LinkedIn login page opened. Please complete login in the browser window.",
+                "manual_login": True
+            })
+            
+        except Exception as login_error:
+            print(f"❌ Error opening login page: {str(login_error)}")
+            return jsonify({
+                "success": False,
+                "message": f"Error opening LinkedIn login page: {str(login_error)}"
+            }), 500
             
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        print(f"❌ LinkedIn login error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        
+        db_manager.log_activity(
+            activity_type='linkedin_login',
+            description=f'LinkedIn login failed: {str(e)}',
+            status='error',
+            error_message=str(e)
+        )
+        
+        return jsonify({
+            "success": False,
+            "message": f"Login error: {str(e)}"
+        }), 500
 
 @app.route('/api/linkedin/send-messages', methods=['POST'])
 def send_linkedin_messages():
-    """Send approved messages to LinkedIn"""
     global linkedin_sender
     
     if not linkedin_sender:
         return jsonify({"success": False, "error": "Please login to LinkedIn first"}), 400
     
     try:
-        # Get approved messages that haven't been sent yet
         messages_to_send = db_manager.get_messages_to_send()
         
         if not messages_to_send:
@@ -1143,7 +1102,6 @@ def send_linkedin_messages():
             lead_name = msg['name']
             profile_url = msg['profile_url']
             
-            # Check daily limit
             if linkedin_sender.sent_today >= linkedin_sender.daily_limit:
                 results.append({
                     "lead": lead_name,
@@ -1154,28 +1112,12 @@ def send_linkedin_messages():
             
             print(f"\n📤 Sending to: {lead_name}")
             print(f"💬 Message: {content}")
-            # Skip the pre-check - let LinkedIn automation handle connection status naturally
-            # Check if already connected
-            # if linkedin_sender.check_if_connected(profile_url):
-            #     print(f"⚠️ Already connected to {lead_name}, skipping...")
-            #     results.append({
-            #         "lead": lead_name,
-            #         "status": "skipped",
-            #         "reason": "Already connected"
-            #     })
-                
-            #     # Update lead status
-            #     db_manager.update_lead_status(lead_id, 'contacted', 'connected')
-            #     continue
             
-            # Send connection request
             result = linkedin_sender.send_connection_request(profile_url, content)
             
             if result["success"]:
-                # Update message status to 'sent'
                 db_manager.update_message_status(msg_id, 'sent')
                 
-                # Update lead status to 'pending'
                 db_manager.update_lead_status(lead_id, 'contacted', 'pending')
                 
                 sent_count += 1
@@ -1187,7 +1129,6 @@ def send_linkedin_messages():
                 })
                 
             else:
-                # Mark as failed
                 db_manager.update_message_status(msg_id, 'failed')
                 failed_count += 1
                 
@@ -1197,7 +1138,6 @@ def send_linkedin_messages():
                     "error": result["error"]
                 })
             
-            # Random delay between sends (2-5 minutes)
             if sent_count < len(messages_to_send) - 1:
                 delay = random.randint(120, 300)
                 print(f"⏳ Waiting {delay//60} minutes before next message...")
@@ -1216,73 +1156,53 @@ def send_linkedin_messages():
 
 @app.route('/api/linkedin/close', methods=['POST'])
 def linkedin_close():
-    """Close LinkedIn browser"""
     global linkedin_sender
     if linkedin_sender:
         linkedin_sender.close()
         linkedin_sender = None
     return jsonify({"success": True, "message": "LinkedIn browser closed"})
-# ============================================================================
-# RUN APPLICATION
-# ============================================================================
-"""
-Additional Flask Routes for LinkedIn Integration
-Add these routes to your app.py file
-"""
-
-
-
-
-# ============================================================================
-# EDIT MESSAGE ROUTE (ADD TO APP.PY)
-# ============================================================================
-
-
-# ============================================================================
-# ADD THESE 2 ROUTES TO YOUR app.py (after the existing LinkedIn routes)
-# ============================================================================
 
 @app.route('/api/linkedin/status', methods=['GET'])
-def get_linkedin_status():
-    """Check if user is logged into LinkedIn"""
+def linkedin_status():
     global linkedin_sender
     
     try:
-        if linkedin_sender and linkedin_sender.driver:
-            try:
-                # Check if we're still on LinkedIn
-                current_url = linkedin_sender.driver.current_url
-                
-                if 'linkedin.com' in current_url:
-                    # Try to get user name
-                    try:
-                        linkedin_sender.driver.get('https://www.linkedin.com/in/me/')
-                        time.sleep(1)
-                        
-                        page_title = linkedin_sender.driver.title
-                        user_name = page_title.split('|')[0].strip() if '|' in page_title else 'LinkedIn User'
-                        
-                        return jsonify({
-                            'success': True,
-                            'logged_in': True,
-                            'user_name': user_name
-                        })
-                    except:
-                        return jsonify({
-                            'success': True,
-                            'logged_in': True,
-                            'user_name': 'LinkedIn User'
-                        })
-                else:
-                    return jsonify({'success': True, 'logged_in': False})
-            except:
-                linkedin_sender = None
-                return jsonify({'success': True, 'logged_in': False})
-        else:
-            return jsonify({'success': True, 'logged_in': False})
+        if linkedin_sender is None:
+            return jsonify({
+                'success': True,
+                'connected': False,
+                'message': 'Not logged in'
+            })
+        
+        if not hasattr(linkedin_sender, 'driver') or linkedin_sender.driver is None:
+            return jsonify({
+                'success': True,
+                'connected': False,
+                'message': 'Driver not initialized'
+            })
+        
+        try:
+            current_url = linkedin_sender.driver.current_url
+            is_linkedin = 'linkedin.com' in current_url
+            
+            return jsonify({
+                'success': True,
+                'connected': is_linkedin,
+                'message': 'Connected' if is_linkedin else 'Browser open but not on LinkedIn'
+            })
+        except:
+            return jsonify({
+                'success': True,
+                'connected': False,
+                'message': 'Browser session expired'
+            })
+            
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e), 'logged_in': False}), 500
-
+        return jsonify({
+            'success': False,
+            'connected': False,
+            'message': f'Error: {str(e)}'
+        }), 500
 
 if __name__ == '__main__':
     print("=" * 60)
